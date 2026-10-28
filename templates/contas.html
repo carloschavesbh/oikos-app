@@ -1,0 +1,852 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Finanças & Operação{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <!-- CABEÇALHO -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight">Contas & Cofrinhos</h1>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          Liquidez & Reservas
+        </span>
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">Visão consolidada das contas de movimentação e envelopes blindados de reserva.</p>
+    </div>
+
+    <!-- Ações e Resumo de Caixa Livre -->
+    <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+      <button onclick="abrirModalNovaConta()" 
+              class="touch-target px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm shadow-emerald-900/20 transition cursor-pointer">
+        <span class="text-sm">➕</span> Nova Conta
+      </button>
+
+      <!-- Resumo de Caixa Livre -->
+      <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3.5 py-2 rounded-2xl shadow-sm">
+        <span class="text-lg">💵</span>
+        <div>
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Saldo Livre Consolidado</p>
+          <p class="text-base sm:text-lg font-black text-emerald-400">{{ saldo_livre | moeda }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 1: CONTAS DE MOVIMENTAÇÃO REAL -->
+  <div>
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+      <span>🏦</span> Contas de Movimentação (Caixa Disponível)
+    </h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 w-full">
+      {% for c in contas_movimentacao %}
+      {% set conta = c %}
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm relative overflow-hidden transition hover:border-slate-300 dark:hover:border-slate-700">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2.5">
+            <!-- Círculo com Logo Oficial SVG (Estilo Organizze) -->
+            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center p-1 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/70 shrink-0 shadow-sm overflow-hidden">
+              {% if '.svg' in c.icone or '/' in c.icone %}
+              <img src="https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/{{ c.icone.split('/')[-1] }}" 
+                   onerror="this.onerror=null; this.src='/static/icons/banks/{{ c.icone.split('/')[-1] }}';" 
+                   alt="{{ c.nome }}" 
+                   class="w-full h-full object-contain rounded-full">
+              {% else %}
+              <span class="text-base sm:text-lg">{{ c.icone }}</span>
+              {% endif %}
+            </div>
+            <div>
+              <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">{{ c.nome }}</h3>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{{ c.subtitulo }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border" style="color: {{ c.cor }}; border-color: {{ c.cor }}40; background-color: {{ c.cor }}15;">
+              {{ c.tag }}
+            </span>
+            <button type="button"
+                    onclick="abrirModalEditarConta({{ conta.id }}, '{{ conta.nome }}', {{ conta.saldo }}, '{{ conta.tipo }}', '{{ conta.icone }}')" 
+                    data-id="{{ conta.id }}"
+                    data-nome="{{ conta.nome }}"
+                    data-saldo="{{ conta.saldo }}"
+                    data-tipo="{{ conta.tipo }}"
+                    data-icone="{{ conta.icone }}"
+                    data-cor="{{ conta.cor }}"
+                    title="Editar Conta" 
+                    class="btn-editar-conta p-1 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-end justify-between">
+          <div>
+            <p class="text-[10px] text-slate-500 dark:text-slate-400">Saldo Livre Disponível</p>
+            <p class="text-2xl font-black text-slate-900 dark:text-white">{{ c.saldo_atual | moeda }}</p>
+          </div>
+          <div class="text-right flex flex-col items-end">
+            {% if c.incluir_saldo_consolidado == 0 %}
+            <span class="text-[9px] font-bold text-amber-500 dark:text-amber-400">Fora do Saldo Geral</span>
+            {% endif %}
+            <span class="text-xs text-slate-400 dark:text-slate-500">ID #{{ c.id }}</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- SEÇÃO 2: COFRINHOS DE RESERVA (ENVELOPES BLINDADOS) -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+        <span>🎯</span> Cofrinhos & Reservas Planejadas
+      </h2>
+      <span class="text-xs text-slate-400">Total Reservado: <strong class="text-amber-400">{{ total_reservas | moeda }}</strong></span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 w-full">
+      {% for cof in cofrinhos %}
+      <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 shadow-sm flex flex-col justify-between transition group">
+        <div>
+          <!-- Topo do Card -->
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">
+                {% if 'ipva' in cof.nome | lower %}🚗
+                {% elif 'bv' in cof.nome | lower %}🏦
+                {% elif 'rubens' in cof.nome | lower %}👤
+                {% elif 'casa' in cof.nome | lower %}🏠
+                {% elif 'mercado' in cof.nome | lower %}🛒
+                {% else %}🛡️{% endif %}
+              </span>
+              <div>
+                <h3 class="font-bold text-white text-sm group-hover:text-amber-300 transition leading-tight">
+                  {{ cof.nome }}
+                </h3>
+                <p class="text-[10px] text-slate-400 line-clamp-1">{{ cof.objetivo or 'Reserva dedicada' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Métricas de Saldo e Meta -->
+          <div class="mt-3 space-y-2">
+            <div class="flex items-end justify-between">
+              <div>
+                <p class="text-[10px] text-slate-400">Saldo Atual</p>
+                <p class="text-lg font-black text-amber-400">{{ cof.saldo_confirmado | moeda }}</p>
+              </div>
+              {% if cof.meta_valor and cof.meta_valor > 0 %}
+              <div class="text-right">
+                <p class="text-[10px] text-slate-400">Meta</p>
+                <p class="text-xs font-bold text-slate-300">{{ cof.meta_valor | moeda }}</p>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Barra de Progresso se houver meta -->
+            {% if cof.meta_valor and cof.meta_valor > 0 %}
+            {% set pct = (cof.saldo_confirmado / cof.meta_valor * 100) if cof.meta_valor > 0 else 0 %}
+            <div>
+              <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
+                <span>Progresso</span>
+                <span class="font-bold text-amber-400">{{ "%.1f"|format(pct) }}%</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all duration-500" style="width: {{ [pct, 100]|min }}%"></div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Botões de Ação Direta -->
+        <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2.5">
+          <button onclick="abrirModalGuardar({{ cof.id }}, '{{ cof.nome }}')" 
+                  class="touch-target min-h-[44px] px-3 py-2.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow transition cursor-pointer">
+            <span>➕</span> Guardar
+          </button>
+          <button onclick="abrirModalResgatar({{ cof.id }}, '{{ cof.nome }}', {{ cof.saldo_confirmado }})" 
+                  class="touch-target min-h-[44px] px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 border border-slate-700 transition cursor-pointer">
+            <span>↩️</span> Resgatar
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL GUARDAR NO COFRINHO -->
+<div id="modal-guardar" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">💰</span>
+        <h3 class="font-bold text-white text-base">Guardar no Cofrinho</h3>
+      </div>
+      <button onclick="fecharModalGuardar()" class="text-slate-400 hover:text-white p-1">✕</button>
+    </div>
+
+    <form onsubmit="executarGuardar(event)" class="space-y-3.5">
+      <input type="hidden" id="guardar-cof-id">
+      
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cofrinho de Destino</label>
+        <input type="text" id="guardar-cof-nome" readonly 
+               class="w-full px-3 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-xs sm:text-sm text-amber-400 font-bold focus:outline-none">
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Valor a Guardar (R$)</label>
+        <input type="number" step="0.01" min="0.01" id="guardar-valor" placeholder="0,00" required 
+               class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-black focus:outline-none focus:border-emerald-500">
+        <p class="text-[10px] text-slate-500 mt-1">Sai do Mercado Pago (Saldo livre: {{ mp_saldo | moeda }})</p>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Observação (Opcional)</label>
+        <input type="text" id="guardar-obs" placeholder="Ex: Reserva semanal turno 99" 
+               class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+        <button type="button" onclick="fecharModalGuardar()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/80 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-guardar" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-lg shadow-emerald-600/20">
+          Confirmar Aporte
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL RESGATAR DO COFRINHO -->
+<div id="modal-resgatar" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">↩️</span>
+        <h3 class="font-bold text-white text-base">Resgatar do Cofrinho</h3>
+      </div>
+      <button onclick="fecharModalResgatar()" class="text-slate-400 hover:text-white p-1">✕</button>
+    </div>
+
+    <form onsubmit="executarResgatar(event)" class="space-y-3.5">
+      <input type="hidden" id="resgatar-cof-id">
+      
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cofrinho de Origem</label>
+        <input type="text" id="resgatar-cof-nome" readonly 
+               class="w-full px-3 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-xs sm:text-sm text-amber-400 font-bold focus:outline-none">
+      </div>
+
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Valor a Resgatar (R$)</label>
+          <span class="text-[10px] text-slate-400">Disponível: <strong id="resgatar-saldo-disp" class="text-amber-400">R$ 0,00</strong></span>
+        </div>
+        <input type="number" step="0.01" min="0.01" id="resgatar-valor" placeholder="0,00" required 
+               class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-black focus:outline-none focus:border-emerald-500">
+        <p class="text-[10px] text-slate-500 mt-1">Retorna para a conta Mercado Pago como saldo livre</p>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Motivo / Observação</label>
+        <input type="text" id="resgatar-obs" placeholder="Ex: Pagamento de boleto essencial" 
+               class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+        <button type="button" onclick="fecharModalResgatar()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/80 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-resgatar" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 transition shadow-lg shadow-amber-600/20">
+          Confirmar Resgate
+        </button>
+<!-- MODAL NOVA CONTA / EDITAR CONTA (ESTILO ORGANIZZE) -->
+<div id="modalEditarConta" data-alias="modal-conta" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 my-auto">
+    
+    <!-- Topo do Modal com Preview do Logo -->
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div id="modal-conta-preview-container" class="w-12 h-12 rounded-full flex items-center justify-center p-1.5 bg-white dark:bg-slate-800 border-2 shadow-sm shrink-0 overflow-hidden transition-all duration-300" style="border-color: #009ee3;">
+          <img id="modal-conta-preview-img" src="https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/mercadopago.svg" 
+               onerror="this.onerror=null; this.src='/static/icons/banks/mercadopago.svg';" 
+               alt="Banco" class="w-full h-full object-contain">
+        </div>
+        <div>
+          <h3 id="modal-conta-titulo" class="text-base sm:text-lg font-black text-slate-900 dark:text-white">Editar Conta</h3>
+          <p id="modal-conta-subtitulo" class="text-xs text-slate-500 dark:text-slate-400">Personalize dados da instituição e saldo bancário</p>
+        </div>
+      </div>
+      <button type="button" onclick="fecharModalEditarConta()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition cursor-pointer">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Formulário -->
+    <form id="form-conta" onsubmit="executarSalvarConta(event)" class="space-y-4">
+      <input type="hidden" id="conta_id" name="conta_id" value="0">
+      <input type="hidden" id="conta-form-id" name="id" value="0">
+      <input type="hidden" id="conta-form-icone" name="icone" value="mercadopago.svg">
+      <input type="hidden" id="conta-form-cor" name="cor" value="#009ee3">
+      <input type="hidden" id="conta-form-tipo" name="tipo" value="digital">
+
+      <!-- SELETOR VISUAL DE INSTITUIÇÃO (ESTILO ORGANIZZE) -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">
+            Escolher Ícone da Instituição
+          </label>
+          <span id="label-banco-selecionado" class="text-xs font-bold text-blue-600 dark:text-blue-400">
+            Mercado Pago
+          </span>
+        </div>
+
+        <!-- Grade de Ícones dos Bancos (jsDelivr CDN + Fallback Local) -->
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
+          <div id="grid-bancos" class="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
+            <!-- Gerado via JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <!-- NOME DA CONTA -->
+      <div>
+        <label for="conta-input-nome" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+          Nome da Conta
+        </label>
+        <input type="text" id="conta-input-nome" name="nome" required 
+               placeholder="Ex: Mercado Pago, Nubank, Itaú..." 
+               class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-blue-500 transition">
+      </div>
+
+      <!-- SALDO E TIPO EM 2 COLUNAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label for="conta-input-saldo" id="label-conta-saldo" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+            Saldo Atual (R$)
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+            <input type="number" step="0.01" id="conta-input-saldo" name="saldo" required 
+                   placeholder="0,00" 
+                   class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-bold focus:outline-none focus:border-blue-500 transition">
+          </div>
+        </div>
+
+        <div>
+          <label for="conta-select-tipo" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+            Tipo de Conta
+          </label>
+          <select id="conta-select-tipo" onchange="atualizarTipoConta(this.value)"
+                  class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-blue-500 transition cursor-pointer">
+            <option value="digital">Conta Digital</option>
+            <option value="corrente">Conta Corrente</option>
+            <option value="poupanca">Poupança</option>
+            <option value="dinheiro">Carteira / Espécie</option>
+            <option value="investimento">Investimentos</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- COR DA CONTA E PALETA RÁPIDA -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+          Cor de Identificação
+        </label>
+        <div class="flex items-center gap-2">
+          <input type="color" id="conta-input-cor-picker" onchange="selecionarCor(this.value)" 
+                 class="w-9 h-9 p-0.5 rounded-lg border border-slate-300 dark:border-slate-700 cursor-pointer bg-transparent">
+          <div id="paleta-cores-rapidas" class="flex items-center gap-1.5 flex-wrap">
+            <!-- Injetado via JS com cores dos bancos -->
+          </div>
+        </div>
+      </div>
+
+      <!-- CHECKBOX: NÃO SOMAR NO SALDO GERAL (ESTILO ORGANIZZE) -->
+      <div class="pt-2 border-t border-slate-200 dark:border-slate-800">
+        <label class="flex items-start gap-2.5 cursor-pointer">
+          <input type="checkbox" id="conta-check-nao-somar" name="nao_somar" 
+                 class="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 cursor-pointer">
+          <div>
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">Não somar no Saldo Geral</span>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">Ignora o saldo desta conta na soma do Caixa Consolidado da Visão Geral.</p>
+          </div>
+        </label>
+      </div>
+
+      <!-- BOTÕES DE AÇÃO -->
+      <div class="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+        <button type="button" id="btn-excluir-conta" onclick="executarRemoverConta()" 
+                class="hidden text-xs text-rose-500 hover:text-rose-600 font-bold px-2 py-1.5 rounded-lg hover:bg-rose-500/10 transition cursor-pointer">
+          🗑️ Excluir Conta
+        </button>
+        <div class="flex items-center gap-2 ml-auto">
+          <button type="button" onclick="fecharModalEditarConta()" 
+                  class="touch-target px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-bold transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" id="btn-submit-conta" 
+                  class="touch-target px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-900/30 transition cursor-pointer">
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function abrirModalGuardar(id, nome) {
+    document.getElementById('guardar-cof-id').value = id;
+    document.getElementById('guardar-cof-nome').value = nome;
+    document.getElementById('guardar-valor').value = '';
+    document.getElementById('guardar-obs').value = '';
+    document.getElementById('modal-guardar').classList.remove('hidden');
+    document.getElementById('guardar-valor').focus();
+  }
+
+  function fecharModalGuardar() {
+    document.getElementById('modal-guardar').classList.add('hidden');
+  }
+
+  async function executarGuardar(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-guardar');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    const cofrinho_id = document.getElementById('guardar-cof-id').value;
+    const valor = document.getElementById('guardar-valor').value;
+    const descricao = document.getElementById('guardar-obs').value;
+
+    const fd = new FormData();
+    fd.append('cofrinho_id', cofrinho_id);
+    fd.append('valor', valor);
+    fd.append('descricao', descricao);
+
+    try {
+      const res = await fetch('/api/cofrinhos/guardar', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Valor Guardado!', data.mensagem);
+        setTimeout(() => location.reload(), 700);
+      } else {
+        showToast('Erro ao Guardar', data.erro || 'Falha ao guardar no cofrinho', true);
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Aporte';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Confirmar Aporte';
+    }
+  }
+
+  function abrirModalResgatar(id, nome, saldo) {
+    document.getElementById('resgatar-cof-id').value = id;
+    document.getElementById('resgatar-cof-nome').value = nome;
+    document.getElementById('resgatar-saldo-disp').textContent = `R$ ${parseFloat(saldo).toFixed(2).replace('.', ',')}`;
+    document.getElementById('resgatar-valor').value = '';
+    document.getElementById('resgatar-valor').max = saldo;
+    document.getElementById('resgatar-obs').value = '';
+    document.getElementById('modal-resgatar').classList.remove('hidden');
+    document.getElementById('resgatar-valor').focus();
+  }
+
+  function fecharModalResgatar() {
+    document.getElementById('modal-resgatar').classList.add('hidden');
+  }
+
+  async function executarResgatar(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-resgatar');
+    btn.disabled = true;
+    btn.textContent = 'Resgatando...';
+
+    const cofrinho_id = document.getElementById('resgatar-cof-id').value;
+    const valor = document.getElementById('resgatar-valor').value;
+    const descricao = document.getElementById('resgatar-obs').value;
+
+    const fd = new FormData();
+    fd.append('cofrinho_id', cofrinho_id);
+    fd.append('valor', valor);
+    fd.append('descricao', descricao);
+
+    try {
+      const res = await fetch('/api/cofrinhos/resgatar', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Resgate Concluído!', data.mensagem);
+        setTimeout(() => location.reload(), 700);
+      } else {
+        showToast('Erro ao Resgatar', data.erro || 'Falha ao resgatar do cofrinho', true);
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Resgate';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Confirmar Resgate';
+    }
+  }
+
+  // =========================================================================
+  // GESTÃO DE CONTAS & SELETOR OFICIAL DE BANCOS (ESTILO ORGANIZZE)
+  // =========================================================================
+
+  const BANCOS_CATALOGO = [
+    { id: 'mercadopago', nome: 'Mercado Pago', slug: 'mercadopago.svg', cor: '#009ee3', tipo: 'digital' },
+    { id: 'nubank', nome: 'Nubank', slug: 'nubank.svg', cor: '#820ad1', tipo: 'digital' },
+    { id: 'inter', nome: 'Banco Inter', slug: 'inter.svg', cor: '#ff7a00', tipo: 'digital' },
+    { id: 'itau', nome: 'Itaú', slug: 'itau.svg', cor: '#ec7000', tipo: 'corrente' },
+    { id: 'bradesco', nome: 'Bradesco', slug: 'bradesco.svg', cor: '#cc092f', tipo: 'corrente' },
+    { id: 'bb', nome: 'Banco do Brasil', slug: 'bb.svg', cor: '#003882', tipo: 'corrente' },
+    { id: 'caixa', nome: 'Caixa Econômica', slug: 'caixa.svg', cor: '#005ca9', tipo: 'corrente' },
+    { id: 'picpay', nome: 'PicPay', slug: 'picpay.svg', cor: '#11c76f', tipo: 'digital' },
+    { id: 'c6', nome: 'C6 Bank', slug: 'c6.svg', cor: '#242424', tipo: 'digital' },
+    { id: 'sicoob', nome: 'Sicoob', slug: 'sicoob.svg', cor: '#003641', tipo: 'corrente' },
+    { id: 'bv', nome: 'Banco BV', slug: 'bv.svg', cor: '#004990', tipo: 'corrente' },
+    { id: '99pay', nome: '99Pay', slug: '99pay.svg', cor: '#fab612', tipo: 'digital' },
+    { id: 'carteira', nome: 'Dinheiro / Carteira', slug: 'carteira.svg', cor: '#10b981', tipo: 'dinheiro' }
+  ];
+
+  const CDN_BASE_URL = 'https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/';
+  const LOCAL_BASE_URL = '/static/icons/banks/';
+
+  function getBankIconUrl(slug) {
+    if (!slug) return '';
+    const clean = slug.split('/').pop();
+    return `${CDN_BASE_URL}${clean}`;
+  }
+
+  function getFallbackBankIconUrl(slug) {
+    if (!slug) return '';
+    const clean = slug.split('/').pop();
+    return `${LOCAL_BASE_URL}${clean}`;
+  }
+
+  function renderizarGridBancos(slugSelecionado = 'mercadopago.svg') {
+    const container = document.getElementById('grid-bancos');
+    if (!container) return;
+    container.innerHTML = '';
+
+    BANCOS_CATALOGO.forEach(b => {
+      const isSelected = (b.slug === slugSelecionado || b.slug === (slugSelecionado || '').split('/').pop());
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `flex flex-col items-center justify-center p-2 rounded-xl border transition-all duration-150 cursor-pointer text-center group ${
+        isSelected 
+          ? 'bg-blue-50/80 dark:bg-blue-900/30 border-blue-500 shadow-sm ring-2 ring-blue-500/50' 
+          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600'
+      }`;
+      btn.onclick = () => selecionarBanco(b, true);
+
+      btn.innerHTML = `
+        <div class="w-9 h-9 rounded-full flex items-center justify-center p-1 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-sm shrink-0 overflow-hidden">
+          <img src="${getBankIconUrl(b.slug)}" 
+               onerror="this.onerror=null; this.src='${getFallbackBankIconUrl(b.slug)}';" 
+               alt="${b.nome}" 
+               class="w-full h-full object-contain rounded-full">
+        </div>
+        <span class="text-[10px] font-bold text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white mt-1.5 line-clamp-1 leading-tight">${b.nome}</span>
+      `;
+      container.appendChild(btn);
+    });
+  }
+
+  function selecionarBanco(b, atualizarNome = true) {
+    document.getElementById('conta-form-icone').value = b.slug;
+    document.getElementById('conta-form-cor').value = b.cor;
+    document.getElementById('conta-form-tipo').value = b.tipo;
+    document.getElementById('conta-select-tipo').value = b.tipo;
+    document.getElementById('conta-input-cor-picker').value = b.cor;
+
+    const labelBanco = document.getElementById('label-banco-selecionado');
+    if (labelBanco) {
+      labelBanco.textContent = b.nome;
+      labelBanco.style.color = b.cor;
+    }
+
+    const inputNome = document.getElementById('conta-input-nome');
+    if (atualizarNome && inputNome) {
+      const nomeAtual = inputNome.value.trim();
+      const ehNomeDeOutroBanco = BANCOS_CATALOGO.some(x => x.nome.toLowerCase() === nomeAtual.toLowerCase());
+      if (!nomeAtual || ehNomeDeOutroBanco) {
+        inputNome.value = b.nome;
+      }
+    }
+
+    atualizarPreviewModal(b.slug, b.cor);
+    renderizarGridBancos(b.slug);
+  }
+
+  function atualizarPreviewModal(slug, cor) {
+    const container = document.getElementById('modal-conta-preview-container');
+    const img = document.getElementById('modal-conta-preview-img');
+    if (container && cor) {
+      container.style.borderColor = cor;
+    }
+    if (img && slug) {
+      img.src = getBankIconUrl(slug);
+      img.onerror = () => {
+        img.onerror = null;
+        img.src = getFallbackBankIconUrl(slug);
+      };
+    }
+  }
+
+  function renderizarPaletaCores() {
+    const container = document.getElementById('paleta-cores-rapidas');
+    if (!container) return;
+    const cores = ['#009ee3', '#820ad1', '#ff7a00', '#ec7000', '#cc092f', '#003882', '#005ca9', '#11c76f', '#fab612', '#10b981', '#242424'];
+    container.innerHTML = cores.map(c => `
+      <button type="button" onclick="selecionarCor('${c}')" 
+              class="w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 shadow-xs hover:scale-110 transition cursor-pointer" 
+              style="background-color: ${c};" title="${c}"></button>
+    `).join('');
+  }
+
+  function selecionarCor(cor) {
+    document.getElementById('conta-form-cor').value = cor;
+    document.getElementById('conta-input-cor-picker').value = cor;
+    const container = document.getElementById('modal-conta-preview-container');
+    if (container) container.style.borderColor = cor;
+  }
+
+  function atualizarTipoConta(tipo) {
+    document.getElementById('conta-form-tipo').value = tipo;
+  }
+
+  function abrirModalNovaConta() {
+    const inputContaId = document.getElementById('conta_id');
+    if (inputContaId) inputContaId.value = '0';
+    const inputFormId = document.getElementById('conta-form-id');
+    if (inputFormId) inputFormId.value = '0';
+
+    document.getElementById('modal-conta-titulo').textContent = 'Nova Conta Bancária';
+    document.getElementById('modal-conta-subtitulo').textContent = 'Cadastre sua conta com logo oficial e saldo inicial';
+    document.getElementById('label-conta-saldo').textContent = 'Saldo Inicial (R$)';
+    document.getElementById('conta-input-nome').value = '';
+    document.getElementById('conta-input-saldo').value = '';
+    document.getElementById('conta-check-nao-somar').checked = false;
+    document.getElementById('btn-excluir-conta').classList.add('hidden');
+    document.getElementById('btn-submit-conta').textContent = 'Salvar Conta';
+
+    renderizarGridBancos('mercadopago.svg');
+    renderizarPaletaCores();
+    selecionarBanco(BANCOS_CATALOGO[0], true);
+
+    const modal = document.getElementById('modalEditarConta') || document.getElementById('modal-conta');
+    if (modal) modal.classList.remove('hidden');
+    setTimeout(() => {
+      const el = document.getElementById('conta-input-nome');
+      if (el) el.focus();
+    }, 100);
+  }
+
+  function abrirModalEditarConta(idOrConta, nome, saldo, tipo, icone, cor, naoSomar) {
+    let id, nomeConta, saldoConta, tipoConta, iconeConta, corConta, naoSomarConta;
+
+    if (typeof idOrConta === 'object' && idOrConta !== null) {
+      id = idOrConta.id;
+      nomeConta = idOrConta.nome || '';
+      saldoConta = idOrConta.saldo !== undefined ? idOrConta.saldo : (idOrConta.saldo_atual !== undefined ? idOrConta.saldo_atual : 0);
+      tipoConta = idOrConta.tipo || 'digital';
+      iconeConta = idOrConta.icone || 'mercadopago.svg';
+      corConta = idOrConta.cor || '';
+      naoSomarConta = (idOrConta.incluir_saldo_consolidado === 0 || idOrConta.nao_somar === true);
+    } else {
+      id = idOrConta;
+      nomeConta = nome || '';
+      saldoConta = saldo !== undefined ? saldo : 0;
+      tipoConta = tipo || 'digital';
+      iconeConta = icone || 'mercadopago.svg';
+      corConta = cor || '';
+      naoSomarConta = (naoSomar === true || naoSomar === 1 || String(naoSomar) === 'true');
+    }
+
+    // Busca dados complementares no botão correspondente do DOM se necessário
+    const btnDom = document.querySelector(`.btn-editar-conta[data-id="${id}"]`);
+    if (btnDom) {
+      if (!corConta && btnDom.dataset.cor) corConta = btnDom.dataset.cor;
+      if (!iconeConta && btnDom.dataset.icone) iconeConta = btnDom.dataset.icone;
+      if (btnDom.dataset.naoSomar !== undefined) naoSomarConta = (btnDom.dataset.naoSomar === 'true');
+    }
+
+    const slugIcone = (iconeConta || '').split('/').pop() || 'mercadopago.svg';
+    const bancoEncontrado = BANCOS_CATALOGO.find(b => 
+      b.slug.toLowerCase() === slugIcone.toLowerCase() || 
+      b.nome.toLowerCase() === (nomeConta || '').toLowerCase()
+    );
+    if (!corConta) {
+      corConta = bancoEncontrado ? bancoEncontrado.cor : '#009ee3';
+    }
+
+    // Define identificadores ocultos
+    const inputContaId = document.getElementById('conta_id');
+    if (inputContaId) inputContaId.value = id;
+    const inputFormId = document.getElementById('conta-form-id');
+    if (inputFormId) inputFormId.value = id;
+
+    // Título e Textos do Modal
+    const tituloEl = document.getElementById('modal-conta-titulo');
+    if (tituloEl) tituloEl.textContent = 'Editar Conta';
+    const subtituloEl = document.getElementById('modal-conta-subtitulo');
+    if (subtituloEl) subtituloEl.textContent = `Ajuste dados e saldo de ${nomeConta}`;
+    const labelSaldo = document.getElementById('label-conta-saldo');
+    if (labelSaldo) labelSaldo.textContent = 'Saldo Atual (R$)';
+
+    // Inputs
+    const inputNome = document.getElementById('conta-input-nome');
+    if (inputNome) inputNome.value = nomeConta;
+
+    const inputSaldo = document.getElementById('conta-input-saldo');
+    if (inputSaldo) inputSaldo.value = parseFloat(saldoConta || 0).toFixed(2);
+
+    const inputCor = document.getElementById('conta-form-cor');
+    if (inputCor) inputCor.value = corConta;
+    const pickerCor = document.getElementById('conta-input-cor-picker');
+    if (pickerCor) pickerCor.value = corConta;
+
+    const inputIcone = document.getElementById('conta-form-icone');
+    if (inputIcone) inputIcone.value = slugIcone;
+
+    const inputTipo = document.getElementById('conta-form-tipo');
+    if (inputTipo) inputTipo.value = tipoConta;
+    const selectTipo = document.getElementById('conta-select-tipo');
+    if (selectTipo) selectTipo.value = tipoConta;
+
+    const checkNaoSomar = document.getElementById('conta-check-nao-somar');
+    if (checkNaoSomar) checkNaoSomar.checked = Boolean(naoSomarConta);
+
+    // Botões
+    const btnExcluir = document.getElementById('btn-excluir-conta');
+    if (btnExcluir) btnExcluir.classList.remove('hidden');
+
+    const btnSubmit = document.getElementById('btn-submit-conta');
+    if (btnSubmit) btnSubmit.textContent = 'Salvar Alterações';
+
+    renderizarGridBancos(slugIcone);
+    renderizarPaletaCores();
+    atualizarPreviewModal(slugIcone, corConta);
+
+    const labelBanco = document.getElementById('label-banco-selecionado');
+    if (labelBanco) {
+      labelBanco.textContent = bancoEncontrado ? bancoEncontrado.nome : (nomeConta || 'Personalizado');
+      labelBanco.style.color = corConta;
+    }
+
+    const modal = document.getElementById('modalEditarConta') || document.getElementById('modal-conta');
+    if (modal) modal.classList.remove('hidden');
+    setTimeout(() => {
+      if (inputNome) inputNome.focus();
+    }, 100);
+  }
+
+  function fecharModalConta() {
+    const modal = document.getElementById('modalEditarConta') || document.getElementById('modal-conta');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function fecharModalEditarConta() {
+    fecharModalConta();
+  }
+
+  async function executarSalvarConta(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-conta');
+    btn.disabled = true;
+    btn.innerHTML = 'Salvando...';
+
+    const idVal = document.getElementById('conta_id')?.value || document.getElementById('conta-form-id')?.value || '0';
+    const id = parseInt(idVal) || 0;
+    const nome = document.getElementById('conta-input-nome').value.trim();
+    const saldo = document.getElementById('conta-input-saldo').value;
+    const icone = document.getElementById('conta-form-icone').value;
+    const cor = document.getElementById('conta-form-cor').value;
+    const tipo = document.getElementById('conta-form-tipo').value;
+    const nao_somar = document.getElementById('conta-check-nao-somar').checked;
+
+    const payload = {
+      conta_id: id,
+      id: id,
+      nome: nome,
+      saldo: parseFloat(saldo) || 0.0,
+      saldo_atual: parseFloat(saldo) || 0.0,
+      saldo_inicial: parseFloat(saldo) || 0.0,
+      icone: icone,
+      cor: cor,
+      tipo: tipo,
+      nao_somar: nao_somar
+    };
+
+    const endpoint = (id > 0) ? `/api/contas/${id}/editar` : '/api/contas/salvar';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success || data.sucesso) {
+        if (typeof showToast === 'function') {
+          showToast('Conta Atualizada!', data.mensagem || 'Dados salvos com sucesso.');
+        }
+        setTimeout(() => location.reload(), 600);
+      } else {
+        alert(data.erro || 'Erro ao salvar alterações da conta.');
+        btn.disabled = false;
+        btn.textContent = (id > 0) ? 'Salvar Alterações' : 'Salvar Conta';
+      }
+    } catch (err) {
+      alert('Erro de conexão: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = (id > 0) ? 'Salvar Alterações' : 'Salvar Conta';
+    }
+  }
+
+  async function executarRemoverConta() {
+    const idVal = document.getElementById('conta_id')?.value || document.getElementById('conta-form-id')?.value || '0';
+    const id = parseInt(idVal) || 0;
+    const nome = document.getElementById('conta-input-nome').value;
+    if (!id || id <= 0) return;
+
+    if (!confirm(`Deseja realmente remover/excluir a conta "${nome}"?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/contas/${id}/excluir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, conta_id: id })
+      });
+      const data = await res.json();
+      if (data.success || data.sucesso) {
+        if (typeof showToast === 'function') {
+          showToast('Conta Atualizada', data.mensagem);
+        }
+        setTimeout(() => location.reload(), 600);
+      } else {
+        alert(data.erro || 'Erro ao remover conta.');
+      }
+    } catch (err) {
+      alert('Erro de conexão: ' + err.message);
+    }
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Finanças & Operação{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- CABEÇALHO & NAVEGAÇÃO DE MESES -->
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Extrato & Lançamentos</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gestão de transações mensais, baixas imediatas e novos registros.</p>
+      </div>
+
+      <!-- NAVEGADOR DE MESES COMPLETO -->
+      <div class="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0">
+        <!-- Botão Mês Anterior [ ‹ ] -->
+        <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}" 
+           title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
+           class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+          ‹
+        </a>
+
+        <!-- Mês/Ano Centralizado com Dropdown Rápido -->
+        <div class="relative inline-flex items-center">
+          <select onchange="window.location.href='/lancamentos?periodo='+this.value" 
+                  title="Saltar para outro mês"
+                  class="appearance-none touch-target bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
+            {% for op in opcoes_periodo %}
+            <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
+              {{ op.label }}
+            </option>
+            {% endfor %}
+          </select>
+          <span class="pointer-events-none absolute right-3 text-[10px] text-slate-500 dark:text-slate-400">▼</span>
+        </div>
+
+        <!-- Botão Próximo Mês [ › ] -->
+        <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}" 
+           title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
+           class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+          ›
+        </a>
+
+        <!-- Botão Rápido: Mês Atual (se não estiver no mês corrente) -->
+        {% if not eh_mes_atual %}
+        <a href="/lancamentos" 
+           title="Voltar ao Mês Atual"
+           class="touch-target inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
+          <span>📅</span> <span>Mês Atual</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Botão de Novo Lançamento -->
+    <button onclick="abrirModalLancamento()" class="touch-target min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/20 transition cursor-pointer self-start lg:self-auto">
+      <span class="text-base font-black">+</span> Novo Lançamento
+    </button>
+  </div>
+
+  <!-- BANNER DE CONTAS ATRASADAS DE MESES ANTERIORES (ESTILO ORGANIZZE) -->
+  {% if qtd_atrasadas > 0 %}
+  <div id="banner-atrasadas" class="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border border-amber-500/30 dark:border-amber-500/30 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
+    <div class="flex items-start sm:items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 text-xl">
+        ⚠️
+      </div>
+      <div>
+        <p class="text-xs sm:text-sm font-bold text-slate-900 dark:text-amber-200">
+          Há <span class="text-rose-600 dark:text-rose-400 font-black text-sm sm:text-base">{{ qtd_atrasadas }}</span> {% if qtd_atrasadas == 1 %}lançamento passado que ainda não foi pago{% else %}lançamentos passados que ainda não foram pagos{% endif %}
+        </p>
+        <p class="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+          Vencimento anterior a {{ mes_nome }}/{{ ano }} • Total pendente: <strong class="text-rose-600 dark:text-rose-400 font-bold">{{ total_atrasadas | moeda }}</strong>
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
+      <button onclick="verContasAtrasadas()" class="touch-target px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition cursor-pointer">
+        <span>⚡</span> Ver Atrasadas & Baixar
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- MINI CARDS RESUMO DO MÊS (MOBILE-FIRST) -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Total Receitas ({{ mes_nome }})
+      </div>
+      <div class="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate">
+        {{ total_receitas | moeda }}
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-rose-500"></span> Total Despesas ({{ mes_nome }})
+      </div>
+      <div class="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 truncate">
+        {{ total_despesas | moeda }}
+      </div>
+    </div>
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full {% if saldo_periodo >= 0 %}bg-blue-500{% else %}bg-amber-500{% endif %}"></span> Balanço do Período
+      </div>
+      <div class="text-xl sm:text-2xl font-black {% if saldo_periodo >= 0 %}text-blue-600 dark:text-blue-400{% else %}text-amber-600 dark:text-amber-400{% endif %} truncate">
+        {{ saldo_periodo | moeda }}
+      </div>
+    </div>
+  </div>
+
+  <!-- BARRA DE PESQUISA & FILTROS RÁPIDOS -->
+  <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-sm">
+    <!-- Campo de Busca Rápida -->
+    <div class="relative flex-grow">
+      <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+        🔍
+      </span>
+      <input type="text" id="filtro-busca" onkeyup="filtrarTabela()" placeholder="Buscar por descrição, categoria ou conta..." 
+             class="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+    </div>
+
+    <!-- Botões de Filtro -->
+    <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0 shrink-0">
+      <button onclick="setFiltroTipo('todos')" id="btn-filtro-todos" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+        Todos
+      </button>
+      <button onclick="setFiltroTipo('despesa')" id="btn-filtro-despesa" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
+        Despesas
+      </button>
+      <button onclick="setFiltroTipo('receita')" id="btn-filtro-receita" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
+        Receitas
+      </button>
+      <button onclick="setFiltroStatus('pendente')" id="btn-filtro-pendente" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
+        Pendentes
+      </button>
+      <button onclick="setFiltroStatus('pago')" id="btn-filtro-pago" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
+        Pagas
+      </button>
+      <button onclick="setFiltroStatus('atrasadas')" id="btn-filtro-atrasadas" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-amber-600 dark:text-amber-400 hover:text-amber-500 border border-transparent flex items-center gap-1.5">
+        <span>⚠️ Atrasadas</span>
+        {% if qtd_atrasadas > 0 %}
+        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">{{ qtd_atrasadas }}</span>
+        {% endif %}
+      </button>
+    </div>
+  </div>
+
+  <!-- TABELA / LISTA DE TRANSAÇÕES -->
+  <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse" id="tabela-transacoes">
+        <thead>
+          <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+            <th class="py-3 px-3 sm:px-4">Data</th>
+            <th class="py-3 px-3 sm:px-4">Descrição</th>
+            <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Categoria</th>
+            <th class="py-3 px-3 sm:px-4 hidden md:table-cell">Conta</th>
+            <th class="py-3 px-3 sm:px-4 text-right">Valor</th>
+            <th class="py-3 px-3 sm:px-4 text-center">Status</th>
+            <th class="py-3 px-3 sm:px-4 text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+          <!-- TRANSAÇÕES ATRASADAS DE MESES PASSADOS -->
+          {% for t in transacoes_atrasadas %}
+          <tr class="linha-transacao linha-transacao-passada bg-amber-500/5 hover:bg-amber-500/15 transition group border-l-2 border-l-rose-500" 
+              data-tipo="{{ t.tipo }}" 
+              data-pago="0" 
+              data-atrasada="1"
+              data-mes-passado="1"
+              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ t.conta | lower }}"
+              id="linha-tr-{{ t.id }}"
+              style="display: none;">
+            
+            <!-- Data -->
+            <td class="py-3 px-3 sm:px-4 whitespace-nowrap font-mono text-xs text-rose-600 dark:text-rose-400 font-bold">
+              {{ t.data_formatada }}
+              <span class="block text-[9px] font-black text-rose-500 uppercase tracking-wider">Passada</span>
+            </td>
+
+            <!-- Descrição e ícone -->
+            <td class="py-3 px-3 sm:px-4">
+              <div class="flex items-center gap-2">
+                <span class="text-base shrink-0">{{ t.categoria | icone_cat }}</span>
+                <div>
+                  <p class="font-semibold text-slate-900 dark:text-slate-200 group-hover:text-amber-500 transition leading-tight">
+                    {{ t.descricao }}
+                  </p>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
+                    {{ t.categoria }} • {{ t.conta }}
+                  </p>
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                    Mês Anterior
+                  </span>
+                </div>
+              </div>
+            </td>
+
+            <!-- Categoria (Desktop) -->
+            <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-600 dark:text-slate-300">
+              {{ t.categoria }}
+            </td>
+
+            <!-- Conta (Desktop) -->
+            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs">
+              {{ t.conta }}
+            </td>
+
+            <!-- Valor -->
+            <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
+              -{{ t.valor | moeda }}
+            </td>
+
+            <!-- Badge Status -->
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              <span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Atrasada
+              </span>
+            </td>
+
+            <!-- Ações -->
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
+                      title="Dar baixa imediata nesta conta passada" 
+                      id="btn-baixa-{{ t.id }}"
+                      class="touch-target inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+                <span>⚡</span> Baixar
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+
+          <!-- TRANSAÇÕES DO MÊS SELECIONADO -->
+          {% for t in transacoes %}
+          <tr class="linha-transacao hover:bg-slate-50 dark:hover:bg-slate-800/30 transition group" 
+              data-tipo="{{ t.tipo }}" 
+              data-pago="{{ t.pago }}" 
+              data-atrasada="{% if t.is_atrasada %}1{% else %}0{% endif %}"
+              data-mes-passado="0"
+              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ t.conta | lower }}"
+              id="linha-tr-{{ t.id }}">
+            
+            <!-- Data -->
+            <td class="py-3 px-3 sm:px-4 whitespace-nowrap font-mono text-xs {% if t.is_atrasada %}text-rose-600 dark:text-rose-400 font-bold{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+              {{ t.data_formatada }}
+              {% if t.is_atrasada %}
+              <span class="block text-[9px] font-bold text-rose-500">Vencida</span>
+              {% endif %}
+            </td>
+
+            <!-- Descrição e ícone -->
+            <td class="py-3 px-3 sm:px-4">
+              <div class="flex items-center gap-2">
+                <span class="text-base shrink-0">{{ t.categoria | icone_cat }}</span>
+                <div>
+                  <p class="font-semibold text-slate-900 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-white transition leading-tight">
+                    {{ t.descricao }}
+                  </p>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
+                    {{ t.categoria }} • {{ t.conta }}
+                  </p>
+                  {% if t.grupo_parcelamento %}
+                    {% if 'fixa' in t.grupo_parcelamento or 'recorren' in t.grupo_parcelamento %}
+                    <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                      Recorrente
+                    </span>
+                    {% else %}
+                    <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                      Parcelado ({{ t.grupo_parcelamento }})
+                    </span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+
+            <!-- Categoria (Desktop) -->
+            <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-600 dark:text-slate-300">
+              {{ t.categoria }}
+            </td>
+
+            <!-- Conta (Desktop) -->
+            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs">
+              {{ t.conta }}
+            </td>
+
+            <!-- Valor -->
+            <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap font-bold {% if t.tipo == 'receita' %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-900 dark:text-slate-200{% endif %}">
+              {% if t.tipo == 'receita' %}+{% else %}-{% endif %}{{ t.valor | moeda }}
+            </td>
+
+            <!-- Badge Status -->
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              {% if t.pago == 1 %}
+              <span class="badge-status-pago inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pago
+              </span>
+              {% elif t.is_atrasada %}
+              <span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Atrasada
+              </span>
+              {% else %}
+              <span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pendente
+              </span>
+              {% endif %}
+            </td>
+
+            <!-- Ações -->
+            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+              {% if t.tipo == 'despesa' and t.pago != 1 %}
+              <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
+                      title="Dar baixa nesta conta" 
+                      id="btn-baixa-{{ t.id }}"
+                      class="touch-target inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition active:scale-95 cursor-pointer">
+                <span>⚡</span> Baixar
+              </button>
+              {% else %}
+              <span class="text-slate-400 dark:text-slate-600 text-xs">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="msg-sem-lancamentos" class="text-center py-12 text-slate-500 text-xs {% if transacoes %}hidden{% endif %}">
+      Nenhum lançamento encontrado para os filtros selecionados.
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL NOVO LANÇAMENTO -->
+<div id="modal-lancamento" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">📝</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Novo Lançamento</h3>
+      </div>
+      <button onclick="fecharModalLancamento()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <form id="form-novo-lancamento" onsubmit="salvarLancamento(event)" class="space-y-3.5">
+      <!-- Seletor Tipo: Despesa vs Receita -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Tipo de Lançamento</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
+            <input type="radio" name="tipo" value="despesa" checked class="accent-rose-500" onchange="atualizarEstiloTipo()">
+            <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
+          </label>
+          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+            <input type="radio" name="tipo" value="receita" class="accent-emerald-500" onchange="atualizarEstiloTipo()">
+            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Data e Valor -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+          <input type="date" name="data" id="input-data" value="{{ hoje_str }}" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor" id="input-valor" placeholder="0,00" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Descrição -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Descrição</label>
+        <input type="text" name="descricao" id="input-descricao" placeholder="Ex: Mercado, Abastecimento, Farmácia..." required 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <!-- Categoria e Conta -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Categoria</label>
+          <select name="categoria" id="input-categoria" required 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Supermercado">🛒 Alimentação / Mercado</option>
+            <option value="Combustível">⛽ Combustível / Posto</option>
+            <option value="Farmácia">💊 Saúde / Farmácia</option>
+            <option value="Habitação">🏠 Moradia / Contas</option>
+            <option value="Transporte">🚗 Veículo / Manutenção</option>
+            <option value="Pessoal">👤 Pessoal / Outros</option>
+            <option value="99 Produção">🚕 Produção Motorista 99</option>
+            <option value="Salário">💼 Salário / Renda</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Bancária</label>
+          <select name="conta" id="input-conta" required 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Mercado Pago">Mercado Pago</option>
+            <option value="99Pay">99Pay</option>
+            <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
+            <option value="Mercado Pago Card">Mercado Pago Card (Crédito)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Pago / Pendente -->
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" id="input-pago" name="pago" value="1" checked class="w-4 h-4 accent-emerald-500 rounded">
+        <label for="input-pago" class="text-xs text-slate-700 dark:text-slate-300 font-semibold cursor-pointer">
+          Já está pago / recebido
+        </label>
+      </div>
+
+      <!-- Botões de Ação -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalLancamento()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-lancamento" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-lg shadow-emerald-600/20">
+          Salvar Lançamento
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let filtroTipoAtual = 'todos';
+  let filtroStatusAtual = '{{ filtro_inicial }}' || 'todos';
+
+  function setFiltroTipo(tipo) {
+    filtroTipoAtual = tipo;
+    filtroStatusAtual = 'todos';
+    atualizarBotoesFiltro();
+    filtrarTabela();
+  }
+
+  function setFiltroStatus(status) {
+    filtroStatusAtual = status;
+    filtroTipoAtual = 'todos';
+    atualizarBotoesFiltro();
+    filtrarTabela();
+  }
+
+  function verContasAtrasadas() {
+    setFiltroStatus('atrasadas');
+    const tab = document.getElementById('tabela-transacoes');
+    if (tab) {
+      tab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function atualizarBotoesFiltro() {
+    document.querySelectorAll('.btn-filtro').forEach(b => {
+      b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5 transition';
+    });
+
+    if (filtroTipoAtual === 'despesa') {
+      const b = document.getElementById('btn-filtro-despesa');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1.5 shadow-sm';
+    } else if (filtroTipoAtual === 'receita') {
+      const b = document.getElementById('btn-filtro-receita');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm';
+    } else if (filtroStatusAtual === 'pendente') {
+      const b = document.getElementById('btn-filtro-pendente');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1.5 shadow-sm';
+    } else if (filtroStatusAtual === 'pago') {
+      const b = document.getElementById('btn-filtro-pago');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm';
+    } else if (filtroStatusAtual === 'atrasadas') {
+      const b = document.getElementById('btn-filtro-atrasadas');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/25 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm flex items-center gap-1.5';
+    } else {
+      const b = document.getElementById('btn-filtro-todos');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm';
+    }
+  }
+
+  function filtrarTabela() {
+    const termo = document.getElementById('filtro-busca').value.toLowerCase().trim();
+    const linhas = document.querySelectorAll('.linha-transacao');
+    let visiveis = 0;
+
+    linhas.forEach(linha => {
+      const texto = linha.getAttribute('data-texto') || '';
+      const tipo = linha.getAttribute('data-tipo') || '';
+      const pago = linha.getAttribute('data-pago') === '1';
+      const ehAtrasada = linha.getAttribute('data-atrasada') === '1';
+      const ehMesPassado = linha.getAttribute('data-mes-passado') === '1';
+
+      let atendeBusca = termo === '' || texto.includes(termo);
+      let atendeFiltro = false;
+
+      if (filtroStatusAtual === 'atrasadas') {
+        atendeFiltro = ehAtrasada;
+      } else {
+        if (ehMesPassado) {
+          atendeFiltro = false;
+        } else {
+          let atendeTipo = (filtroTipoAtual === 'todos' || tipo === filtroTipoAtual);
+          let atendeStatus = (filtroStatusAtual === 'todos' || 
+                             (filtroStatusAtual === 'pago' && pago) || 
+                             (filtroStatusAtual === 'pendente' && !pago));
+          atendeFiltro = atendeTipo && atendeStatus;
+        }
+      }
+
+      if (atendeBusca && atendeFiltro) {
+        linha.style.display = '';
+        visiveis++;
+      } else {
+        linha.style.display = 'none';
+      }
+    });
+
+    const msgVazio = document.getElementById('msg-sem-lancamentos');
+    if (msgVazio) {
+      if (visiveis === 0) {
+        msgVazio.classList.remove('hidden');
+        if (filtroStatusAtual === 'atrasadas') {
+          msgVazio.textContent = 'Nenhuma conta atrasada encontrada.';
+        } else {
+          msgVazio.textContent = 'Nenhum lançamento encontrado para os filtros selecionados.';
+        }
+      } else {
+        msgVazio.classList.add('hidden');
+      }
+    }
+  }
+
+  // Baixa Imediata
+  async function baixarConta(id, desc) {
+    const btn = document.getElementById(`btn-baixa-${id}`);
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Processando...';
+    }
+
+    try {
+      const res = await fetch(`/api/baixa/${id}`, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.sucesso) {
+        showToast('Baixa Concluída!', data.mensagem);
+        // Atualizar linha visualmente
+        const linha = document.getElementById(`linha-tr-${id}`);
+        if (linha) {
+          linha.setAttribute('data-pago', '1');
+          linha.setAttribute('data-atrasada', '0');
+          const tdStatus = linha.querySelector('.badge-status-pendente');
+          if (tdStatus) {
+            tdStatus.outerHTML = `<span class="badge-status-pago inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pago
+            </span>`;
+          }
+          if (btn) btn.outerHTML = '<span class="text-slate-400 dark:text-slate-600 text-xs">—</span>';
+        }
+      } else {
+        showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '⚡ Baixar';
+        }
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ Baixar';
+      }
+    }
+  }
+
+  // Modais
+  function abrirModalLancamento() {
+    document.getElementById('modal-lancamento').classList.remove('hidden');
+    document.getElementById('input-descricao').focus();
+  }
+
+  function fecharModalLancamento() {
+    document.getElementById('modal-lancamento').classList.add('hidden');
+  }
+
+  function atualizarEstiloTipo() {
+    // Dinâmico caso necessário
+  }
+
+  async function salvarLancamento(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-lancamento');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const form = document.getElementById('form-novo-lancamento');
+    const formData = new FormData(form);
+
+    try {
+      const res = await fetch('/api/lancamentos', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Lançamento Registrado!', data.mensagem);
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showToast('Erro ao Salvar', data.erro || 'Falha ao salvar lançamento', true);
+        btn.disabled = false;
+        btn.textContent = 'Salvar Lançamento';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Salvar Lançamento';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('filtro') === 'atrasadas') {
+      setFiltroStatus('atrasadas');
+    } else {
+      atualizarBotoesFiltro();
+      filtrarTabela();
+    }
+  });
+</script>
+{% endblock %}

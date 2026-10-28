@@ -1,0 +1,1329 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Oikos Drive{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <!-- CABEÇALHO & BOTÕES DE AÇÃO NO TOPO -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+      <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Oikos Drive</h1>
+
+      <!-- SALDO OPERACIONAL 99PAY & BOTÃO DE TRANSFERÊNCIA -->
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs">
+          <span class="text-slate-600 dark:text-slate-300 font-semibold">Saldo 99Pay:</span>
+          <strong class="font-black text-amber-600 dark:text-amber-400">{{ saldo_99_app | moeda }}</strong>
+        </div>
+        <button type="button" onclick="abrirModalTransferir99()" 
+                title="Transferir saldo da 99Pay para o Mercado Pago"
+                class="touch-target inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30 text-xs font-bold transition active:scale-95 cursor-pointer">
+          <span>⇄</span> <span>Transferir para Mercado Pago</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- BOTÕES DE AÇÃO DO MOTORISTA -->
+    <div class="flex flex-wrap items-center gap-2">
+      <!-- 1. [ + Registrar Turno ] -->
+      <button type="button" onclick="abrirModalRegistrarTurno()" 
+              class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm shadow-md shadow-amber-500/20 transition cursor-pointer">
+        <span>🚗</span> <span>+ Registrar Turno</span>
+      </button>
+
+      <!-- 2. [ ⛽ + Abastecer ] -->
+      <button type="button" onclick="abrirModalAbastecer()" 
+              class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition cursor-pointer">
+        <span>⛽</span> <span>+ Abastecer</span>
+      </button>
+
+      <!-- 3. [ 🔧 + Manutenção ] -->
+      <button type="button" onclick="abrirModalManutencao()" 
+              class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-white font-bold text-xs sm:text-sm border border-slate-800 dark:border-slate-700 shadow-sm transition cursor-pointer">
+        <span>🔧</span> <span>+ Manutenção</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- FILTROS DE PERÍODO RÁPIDO [ Hoje | Esta Semana | Mês Atual | Todos ] -->
+  <div class="flex items-center justify-between flex-wrap gap-2.5">
+    <div class="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs">
+      <button type="button" onclick="filtrarPeriodo('hoje')" id="btn-filtro-hoje"
+              class="btn-periodo px-3 py-1.5 rounded-lg font-bold transition {% if filtro_ativo == 'hoje' %}bg-amber-500 text-slate-950 shadow-sm{% else %}text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white{% endif %}">
+        Hoje
+      </button>
+      <button type="button" onclick="filtrarPeriodo('semana')" id="btn-filtro-semana"
+              class="btn-periodo px-3 py-1.5 rounded-lg font-bold transition {% if filtro_ativo == 'semana' %}bg-amber-500 text-slate-950 shadow-sm{% else %}text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white{% endif %}">
+        Esta Semana
+      </button>
+      <button type="button" onclick="filtrarPeriodo('mes')" id="btn-filtro-mes"
+              class="btn-periodo px-3 py-1.5 rounded-lg font-bold transition {% if filtro_ativo == 'mes' %}bg-amber-500 text-slate-950 shadow-sm{% else %}text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white{% endif %}">
+        Mês Atual
+      </button>
+      <button type="button" onclick="filtrarPeriodo('todos')" id="btn-filtro-todos"
+              class="btn-periodo px-3 py-1.5 rounded-lg font-bold transition {% if filtro_ativo == 'todos' %}bg-amber-500 text-slate-950 shadow-sm{% else %}text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white{% endif %}">
+        Todos
+      </button>
+    </div>
+  </div>
+
+  <!-- BANNER MARCO OPERACIONAL 99 OFICIAL (CALIBRADO) -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-sm relative overflow-hidden">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xl font-bold shrink-0">
+          🚕
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">Produção Total Outubro (99)</h2>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+              Print Oficial 99
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Marco Operacional (até 18/10): <strong class="text-slate-800 dark:text-slate-200">{{ marco_bruto | moeda }}</strong> + Turnos da Semana: <strong class="text-emerald-600 dark:text-emerald-400">{{ semana_bruto | moeda }}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-4">
+        <div>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Faturamento Consolidado</p>
+          <p class="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400">{{ total_mes_bruto | moeda }}</p>
+        </div>
+        <div class="hidden sm:block text-right text-[11px] text-slate-500 dark:text-slate-400">
+          <p>Online: <strong class="text-slate-800 dark:text-slate-200">{{ recebido_online | moeda }}</strong></p>
+          <p>Dinheiro: <strong class="text-slate-800 dark:text-slate-200">{{ recebido_dinheiro | moeda }}</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 4 CARDS OPERACIONAIS COMPLETOS ]                                    -->
+  <!-- ===================================================================== -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full">
+
+    <!-- CARD 1: FATURAMENTO BRUTO -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center justify-between">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Faturamento Bruto
+        </span>
+        <span id="card-periodo-badge" class="text-[10px] uppercase font-bold text-slate-400">Semana</span>
+      </div>
+      <div id="card-bruto-val" class="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 truncate">
+        {{ metricas.bruto | moeda }}
+      </div>
+      <p id="card-bruto-sub" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        {{ metricas.sub_bruto }}
+      </p>
+    </div>
+
+    <!-- CARD 2: ABASTECIDO REAL CAIXA (DRIVVO) -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center justify-between">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span> Abastecido Real Caixa
+        </span>
+        <span class="text-[10px] uppercase font-bold text-rose-500">Drivvo</span>
+      </div>
+      <div id="card-abast-val" class="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 truncate">
+        {{ metricas.abastecido_real | moeda }}
+      </div>
+      <p id="card-abast-sub" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        {{ metricas.sub_abast }}
+      </p>
+    </div>
+
+    <!-- CARD 3: CONSUMO ESTIMADO DE COMBUSTÍVEL POR KM -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center justify-between">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span> Consumo Estimado / KM
+        </span>
+        <span class="text-[10px] uppercase font-bold text-amber-500">Turnos</span>
+      </div>
+      <div id="card-km-val" class="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 truncate">
+        {{ metricas.consumo_estimado_km | moeda }}/km
+      </div>
+      <p id="card-km-sub" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        {{ metricas.sub_km }}
+      </p>
+    </div>
+
+    <!-- CARD 4: FATURAMENTO LÍQUIDO -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
+      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center justify-between">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span> Faturamento Líquido
+        </span>
+        <span class="text-[10px] uppercase font-bold text-blue-500">Pós Abastecer</span>
+      </div>
+      <div id="card-liq-val" class="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 truncate">
+        {{ metricas.caixa_liquido | moeda }}
+      </div>
+      <p id="card-liq-sub" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+        {{ metricas.sub_liq }}
+      </p>
+    </div>
+
+  </div>
+
+  <!-- SEÇÃO: HISTÓRICO DE TURNOS REALIZADOS -->
+  <div class="space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+        <span>📋</span> Histórico de Turnos Operacionais
+      </h2>
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">Total: <strong class="text-slate-900 dark:text-white" id="turnos-total-badge">{{ turnos | length }}</strong> turnos</span>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse" id="tabela-turnos">
+          <thead>
+            <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              <th class="py-3 px-3 sm:px-4">Data / Status</th>
+              <th class="py-3 px-3 sm:px-4">Horas / Km</th>
+              <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Período / Horários</th>
+              <th class="py-3 px-3 sm:px-4 text-right">Bruto (R$/h)</th>
+              <th class="py-3 px-3 sm:px-4 text-right">Comb. Est.</th>
+              <th class="py-3 px-3 sm:px-4 text-right">Líquido Turno</th>
+              <th class="py-3 px-3 sm:px-4 hidden md:table-cell">Divisão</th>
+              <th class="py-3 px-3 sm:px-4 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+            {% for t in turnos %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition turno-row {% if t.status_turno == 'EM_ANDAMENTO' %}bg-amber-500/5 border-l-4 border-l-amber-500{% endif %}" data-date="{{ t.data }}">
+              <!-- Data & Status -->
+              <td class="py-3 px-3 sm:px-4 whitespace-nowrap">
+                <div class="text-slate-800 dark:text-slate-200 font-mono text-xs font-bold">
+                  {{ t.data_formatada }}
+                </div>
+                <div class="mt-0.5">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] {{ t.tag_badge }}">
+                    {{ t.tag_label }}
+                  </span>
+                </div>
+              </td>
+
+              <!-- Horas e KM -->
+              <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                <span class="font-bold text-slate-900 dark:text-white">{{ t.horas }}h</span>
+                {% if t.km > 0 %}
+                <span class="text-slate-500 dark:text-slate-400 text-xs">({{ t.km }} km)</span>
+                {% elif t.km_inicial %}
+                <span class="text-amber-500 dark:text-amber-400 font-bold text-[10px] block sm:inline">⚠️ KM pendente (Ini: {{ t.km_inicial | int }})</span>
+                {% else %}
+                <span class="text-amber-500 dark:text-amber-400 font-bold text-[10px] block sm:inline">⚠️ KM pendente</span>
+                {% endif %}
+              </td>
+
+              <!-- Período & Horários -->
+              <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-700 dark:text-slate-300 text-xs">
+                <span>{{ t.periodo or 'Turno Operacional' }}</span>
+                <span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold block">
+                  {{ t.plataforma or '99' }}
+                  {% if t.hora_inicio %}
+                  <span class="text-slate-500 font-mono font-normal">• {{ t.hora_inicio }}{% if t.hora_fim %} às {{ t.hora_fim }}{% endif %}</span>
+                  {% endif %}
+                </span>
+              </td>
+
+              <!-- Bruto e Produtividade R$/h -->
+              <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap">
+                <span class="font-bold text-emerald-600 dark:text-emerald-400">
+                  {{ t.ganho_bruto | moeda }}
+                </span>
+                {% if t.prod_hora > 0 %}
+                <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block font-mono">
+                  {{ t.prod_hora | moeda }}/h
+                </span>
+                {% elif t.status_turno == 'EM_ANDAMENTO' %}
+                <span class="text-[10px] font-bold text-blue-500 block">Rodando...</span>
+                {% else %}
+                <span class="text-[10px] text-slate-400 block">--/h</span>
+                {% endif %}
+              </td>
+
+              <!-- Combustível Estimado -->
+              <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap">
+                {% if t.km <= 0 %}
+                <span class="text-xs text-amber-500 font-medium">Pendente</span>
+                {% else %}
+                <span class="text-rose-600 dark:text-rose-400">-{{ t.combustivel | moeda }}</span>
+                {% endif %}
+              </td>
+
+              <!-- Líquido do Turno -->
+              {% set liq = t.ganho_bruto - t.combustivel %}
+              <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap font-extrabold text-blue-600 dark:text-blue-400">
+                {% if t.status_turno == 'EM_ANDAMENTO' %}
+                <span class="text-xs text-blue-500 font-bold">Em curso</span>
+                {% else %}
+                {{ liq | moeda }}
+                {% endif %}
+              </td>
+
+              <!-- Divisão Online vs Dinheiro -->
+              <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-[11px] text-slate-500 dark:text-slate-400">
+                <span>App: <strong class="text-slate-800 dark:text-slate-300">{{ t.ganho_online | moeda }}</strong></span> • 
+                <span>Din: <strong class="text-slate-800 dark:text-slate-300">{{ t.ganho_dinheiro_pix | moeda }}</strong></span>
+              </td>
+
+              <!-- Ações (Editar e Excluir) -->
+              <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+                <div class="inline-flex items-center gap-1.5 justify-center">
+                  <!-- Botão de Lápis (Editar Turno) -->
+                  <button type="button" 
+                          onclick="abrirModalEditarTurno(this)"
+                          data-id="{{ t.id }}"
+                          data-data="{{ t.data }}"
+                          data-horainicio="{{ t.hora_inicio }}"
+                          data-horafim="{{ t.hora_fim }}"
+                          data-horas="{{ t.horas }}"
+                          data-kminicial="{{ t.km_inicial if t.km_inicial is not none else '' }}"
+                          data-kmfinal="{{ t.km_final if t.km_final is not none else '' }}"
+                          data-km="{{ t.km if t.km > 0 else '' }}"
+                          data-online="{{ t.ganho_online }}"
+                          data-dinheiro="{{ t.ganho_dinheiro_pix }}"
+                          data-bruto="{{ t.ganho_bruto }}"
+                          data-combustivel="{{ t.combustivel }}"
+                          data-obs="{{ t.observacao }}"
+                          data-periodo="{{ t.periodo }}"
+                          title="Editar Turno"
+                          class="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 transition cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                    </svg>
+                  </button>
+
+                  <!-- Botão de Lixeira (Excluir) -->
+                  <button type="button" 
+                          onclick="confirmarExcluirTurno({{ t.id }}, '{{ t.data_formatada }}', {{ t.ganho_bruto }})"
+                          title="Excluir Turno"
+                          class="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 transition cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if not turnos %}
+      <div class="text-center py-10 text-slate-400 text-xs">
+        Nenhum turno recente registrado no banco.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SEÇÃO: HISTÓRICO DE ABASTECIMENTOS REAIS (DRIVVO) -->
+  <div class="space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+        <span>⛽</span> Abastecimentos Reais Caixa (Drivvo)
+      </h2>
+      <button type="button" onclick="abrirModalAbastecer()" class="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-bold">
+        + Novo Abastecimento
+      </button>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              <th class="py-3 px-3 sm:px-4">Data</th>
+              <th class="py-3 px-3 sm:px-4">Posto / Combustível</th>
+              <th class="py-3 px-3 sm:px-4">Litros</th>
+              <th class="py-3 px-3 sm:px-4">Preço / L</th>
+              <th class="py-3 px-3 sm:px-4 text-right">Valor Pago</th>
+              <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Hodômetro</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+            {% for a in abastecimentos %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+              <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-mono text-xs">
+                {{ a.data_formatada }}
+              </td>
+              <td class="py-3 px-3 sm:px-4 text-slate-900 dark:text-white font-medium">
+                <div>{{ a.posto }}</div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ a.combustivel }}</span>
+              </td>
+              <td class="py-3 px-3 sm:px-4 font-bold text-slate-800 dark:text-slate-200">
+                {{ a.litros }} L
+              </td>
+              <td class="py-3 px-3 sm:px-4 text-slate-600 dark:text-slate-400">
+                {{ a.preco_litro | moeda }}
+              </td>
+              <td class="py-3 px-3 sm:px-4 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                {{ a.valor_pago | moeda }}
+              </td>
+              <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-500 dark:text-slate-400 font-mono text-xs">
+                {% if a.hodometro > 0 %}{{ a.hodometro | int }} km{% else %}--{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not abastecimentos %}
+            <tr>
+              <td colspan="6" class="text-center py-6 text-slate-400 text-xs">
+                Nenhum abastecimento Drivvo registrado ainda.
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: REGISTRAR / EDITAR TURNO (CÁLCULOS AUTOMÁTICOS POR HORÁRIOS E KM)  -->
+<!-- ========================================================================= -->
+<div id="modal-turno" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto custom-scroll">
+    <!-- Cabeçalho do Modal -->
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🚗</span>
+        <h3 id="modal-turno-titulo" class="font-bold text-slate-900 dark:text-white text-base">Registrar Turno</h3>
+      </div>
+      <button type="button" onclick="fecharModalTurno()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <form id="form-turno" onsubmit="salvarTurno(event)" class="space-y-4">
+      <input type="hidden" name="id" id="turno-id">
+      <input type="hidden" name="horas" id="turno-horas" value="0.0">
+      <input type="hidden" name="km" id="turno-km" value="0.0">
+      <input type="hidden" name="combustivel" id="turno-combustivel" value="0.00">
+      <input type="hidden" name="periodo" id="turno-periodo" value="Manhã">
+
+      <!-- 1. DATA DO TURNO -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+          Data do Turno
+        </label>
+        <input type="date" name="data" id="turno-data" value="{{ hoje_str }}" required 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 font-medium">
+      </div>
+
+      <!-- 2. BLOCO DE HORÁRIOS & TEMPO TRABALHADO -->
+      <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>⏱️</span> Horários & Duração
+          </span>
+          <span id="turno-tempo-badge" class="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
+            Tempo: <strong id="turno-tempo-txt">--</strong>
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Hora Início <span class="text-rose-500">*</span>
+            </label>
+            <input type="time" name="hora_inicio" id="turno-hora-inicio" required onchange="recalcularHorariosTurno()" oninput="recalcularHorariosTurno()"
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Hora Fim <span class="text-rose-500">*</span>
+            </label>
+            <input type="time" name="hora_fim" id="turno-hora-fim" required onchange="recalcularHorariosTurno()" oninput="recalcularHorariosTurno()"
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. BLOCO DE QUILOMETRAGEM (HODÔMETRO) -->
+      <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🛣️</span> Hodômetro & Quilometragem
+          </span>
+          <span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-500/20">
+            KM Final Opcional
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Hodômetro Inicial (KM)
+            </label>
+            <input type="number" step="1" min="0" name="km_inicial" id="turno-km-inicial" placeholder="Ex: 187330" onkeyup="recalcularHodometroTurno()" onchange="recalcularHodometroTurno()"
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Hodômetro Final (KM)
+            </label>
+            <input type="number" step="1" min="0" name="km_final" id="turno-km-final" placeholder="Ex: 187380 (Opcional)" onkeyup="recalcularHodometroTurno()" onchange="recalcularHodometroTurno()"
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+
+        <!-- Indicador de cálculo dinâmico de KM & Combustível -->
+        <div class="pt-1 flex items-center justify-between text-xs">
+          <span id="turno-km-resumo-txt" class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Preencha Inicial e Final para calcular KM e Combustível.
+          </span>
+        </div>
+      </div>
+
+      <!-- 4. BLOCO FINANCEIRO -->
+      <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-2.5">
+        <span class="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+          <span>💰</span> Faturamento & Recebimentos
+        </span>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Ganho Online (App)
+            </label>
+            <input type="number" step="0.01" min="0.00" name="ganho_online" id="turno-online" placeholder="0,00" onkeyup="recalcularBrutoTurno()" oninput="recalcularBrutoTurno()" 
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+              Ganho Dinheiro / Pix
+            </label>
+            <input type="number" step="0.01" min="0.00" name="ganho_dinheiro_pix" id="turno-dinheiro" placeholder="0,00" onkeyup="recalcularBrutoTurno()" oninput="recalcularBrutoTurno()" 
+                   class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Faturamento Bruto (Calculado Automaticamente)
+            </label>
+            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Travado (Online + Dinheiro)</span>
+          </div>
+          <input type="number" step="0.01" min="0.00" name="ganho_bruto" id="turno-bruto" placeholder="0,00" value="0.00" readonly 
+                 class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 font-black cursor-not-allowed">
+        </div>
+      </div>
+
+      <!-- 5. OBSERVAÇÕES -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+          Observações do Turno
+        </label>
+        <input type="text" name="observacao" id="turno-obs" placeholder="Ex: Bom movimento, chuva, rota norte..." 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+      </div>
+
+      <!-- Botões de Ação -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalTurno()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-turno" class="px-4 py-2.5 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 transition shadow-md shadow-amber-500/20 flex items-center gap-1.5 cursor-pointer">
+          <span>💾</span> <span id="btn-submit-turno-texto">Salvar Turno</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 2: REGISTRAR ABASTECIMENTO REAL (DRIVVO)                            -->
+<!-- ========================================================================= -->
+<div id="modal-abastecer" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">⛽</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Registrar Abastecimento Real (Drivvo)</h3>
+      </div>
+      <button type="button" onclick="fecharModalAbastecer()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <form onsubmit="salvarAbastecimento(event)" class="space-y-3.5">
+      <!-- Data e Combustível -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+          <input type="date" name="data" id="abast-data" value="{{ hoje_str }}" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Combustível</label>
+          <select name="combustivel" id="abast-combustivel" 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Etanol" selected>Etanol</option>
+            <option value="Gasolina Comum">Gasolina Comum</option>
+            <option value="Gasolina Aditivada">Gasolina Aditivada</option>
+            <option value="GNV">GNV</option>
+            <option value="Diesel">Diesel</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Valor Total e Litros -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Pago (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor_pago" id="abast-valor-pago" placeholder="Ex: 90.48" required onkeyup="calcularPrecoLitro()"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros (L)</label>
+          <input type="number" step="0.001" min="0.1" name="litros" id="abast-litros" placeholder="Ex: 22.78" required onkeyup="calcularPrecoLitro()"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Preço por Litro Calculado e Posto -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Preço / Litro (R$)</label>
+          <input type="number" step="0.001" min="0" name="preco_litro" id="abast-preco-litro" placeholder="Auto" readonly
+                 class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-mono">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Posto / Local</label>
+          <input type="text" name="posto" id="abast-posto" value="Posto Shell" placeholder="Ex: Posto Ipiranga" required
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Conta e Hodômetro -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Utilizada</label>
+          <select name="conta" id="abast-conta" 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Dinheiro / Carteira" selected>💵 Dinheiro / Carteira</option>
+            <option value="Mercado Pago">🏦 Mercado Pago</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Hodômetro (Km)</label>
+          <input type="number" step="1" name="hodometro" id="abast-hodometro" placeholder="Ex: 187330"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Tanque cheio e Observações -->
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" name="tanque_cheio" id="abast-tanque-cheio" value="1" class="rounded text-emerald-600 focus:ring-emerald-500">
+        <label for="abast-tanque-cheio" class="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer">Tanque Cheio (Encheu até o automático)</label>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação</label>
+        <input type="text" name="observacao" id="abast-obs" placeholder="Ex: Desconto cupom app Shell Box..." 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <!-- Botões -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalAbastecer()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-abastecer" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition shadow-md shadow-emerald-600/20">
+          Registrar Abastecimento
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 3A: TRANSFERÊNCIA RÁPIDA (99PAY → MERCADO PAGO)                     -->
+<!-- ========================================================================= -->
+<div id="modal-transferir-99" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">⇄</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Transferência: 99Pay → Mercado Pago</h3>
+      </div>
+      <button type="button" onclick="fecharModalTransferir99()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <!-- Origem e Destino Pré-selecionados -->
+    <div class="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
+      <div class="border-r border-slate-200 dark:border-slate-800/80 pr-2">
+        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Conta Origem</span>
+        <div class="font-black text-amber-600 dark:text-amber-400 flex items-center gap-1.5 mt-0.5 text-sm">
+          <span>🚕</span> 99Pay
+        </div>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Saldo: <strong class="text-amber-600 dark:text-amber-400">{{ saldo_99_app | moeda }}</strong></p>
+      </div>
+      <div class="pl-1">
+        <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Conta Destino</span>
+        <div class="font-black text-sky-600 dark:text-sky-400 flex items-center gap-1.5 mt-0.5 text-sm">
+          <span>🏦</span> Mercado Pago
+        </div>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Conta Corrente Principal</p>
+      </div>
+    </div>
+
+    <form onsubmit="salvarTransferencia99(event)" class="space-y-3.5">
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor a Transferir (R$)</label>
+        <div class="relative">
+          <input type="number" step="0.01" min="0.01" name="valor" id="transf-99-valor" value="{{ saldo_99_app }}" required 
+                 class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-base text-slate-900 dark:text-white font-black focus:outline-none focus:border-amber-500">
+          <button type="button" onclick="document.getElementById('transf-99-valor').value = '{{ saldo_99_app }}'" class="absolute right-2 top-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 cursor-pointer">
+            Tudo
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Transfere o saldo da conta 99Pay para a conta do Mercado Pago.</p>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+        <input type="date" name="data" id="transf-99-data" value="{{ hoje_str }}" required 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação</label>
+        <input type="text" name="observacao" id="transf-99-obs" value="Transferência 99Pay para Mercado Pago" 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+      </div>
+
+      <!-- Botões -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalTransferir99()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-transferir-99" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 transition shadow-md shadow-amber-600/20 cursor-pointer">
+          Confirmar Transferência
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 3B: TRANSFERÊNCIA RÁPIDA (DINHEIRO FÍSICO → MERCADO PAGO)           -->
+<!-- ========================================================================= -->
+<div id="modal-transferir-mp" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">💵</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Transferência: Dinheiro Físico → Mercado Pago</h3>
+      </div>
+      <button type="button" onclick="fecharModalTransferirMP()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <!-- Saldo Disponível na Carteira Física -->
+    <div class="p-3.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 flex items-center justify-between">
+      <div>
+        <p class="text-[11px] text-sky-700 dark:text-sky-300 font-bold uppercase tracking-wider">Saldo Atual na Carteira Física</p>
+        <p class="text-2xl font-black text-sky-800 dark:text-sky-200">{{ cart_saldo | moeda }}</p>
+      </div>
+      <span class="text-2xl">💵 ➔ 🏦</span>
+    </div>
+
+    <form onsubmit="salvarTransferenciaMP(event)" class="space-y-3.5">
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor a Transferir (R$)</label>
+        <div class="relative">
+          <input type="number" step="0.01" min="0.01" name="valor" id="transf-valor" value="{{ cart_saldo }}" required 
+                 class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-base text-slate-900 dark:text-white font-black focus:outline-none focus:border-sky-500">
+          <button type="button" onclick="document.getElementById('transf-valor').value = '{{ cart_saldo }}'" class="absolute right-2 top-2 px-2 py-1 rounded-lg text-[10px] font-bold bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 cursor-pointer">
+            Tudo
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">Registra o depósito do dinheiro físico das corridas na conta bancária.</p>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+        <input type="date" name="data" id="transf-data" value="{{ hoje_str }}" required 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-sky-500">
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação</label>
+        <input type="text" name="observacao" id="transf-obs" value="Depósito de corridas em dinheiro no Mercado Pago" 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500">
+      </div>
+
+      <!-- Botões -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalTransferirMP()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-transferir" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 transition shadow-md shadow-sky-600/20 cursor-pointer">
+          Confirmar Transferência Dinheiro
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 4: REGISTRAR MANUTENÇÃO VEICULAR                                    -->
+<!-- ========================================================================= -->
+<div id="modal-manutencao" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🔧</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Registrar Manutenção do Carro</h3>
+      </div>
+      <button type="button" onclick="fecharModalManutencao()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <form onsubmit="salvarManutencao(event)" class="space-y-3.5">
+      <!-- Data e Tipo -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+          <input type="date" name="data" id="manut-data" value="{{ hoje_str }}" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo</label>
+          <select name="tipo" id="manut-tipo" 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+            <option value="Troca de Óleo" selected>Troca de Óleo & Filtros</option>
+            <option value="Pastilhas de Freio">Pastilhas de Freio</option>
+            <option value="Pneus / Alinhamento">Pneus / Alinhamento</option>
+            <option value="Revisão Preventiva">Revisão Preventiva</option>
+            <option value="Suspensão">Suspensão</option>
+            <option value="Corretiva Geral">Corretiva Geral</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Descrição -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Descrição</label>
+        <input type="text" name="descricao" id="manut-desc" placeholder="Ex: Óleo 5W30 Sintético + Filtro de Óleo" required
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+      </div>
+
+      <!-- Valor e Conta -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor" id="manut-valor" placeholder="Ex: 220.00" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-bold focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Conta de Pagamento</label>
+          <select name="conta" id="manut-conta" 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+            <option value="Mercado Pago" selected>🏦 Mercado Pago</option>
+            <option value="Dinheiro / Carteira">💵 Dinheiro / Carteira</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Km Atual e Próxima Troca -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Km Atual</label>
+          <input type="number" step="1" name="km_atual" id="manut-km-atual" placeholder="Ex: 187330"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-amber-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Próxima Troca (Km)</label>
+          <input type="number" step="1" name="proxima_troca_km" id="manut-prox-km" placeholder="Ex: 197330"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-amber-500">
+        </div>
+      </div>
+
+      <!-- Observação -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação / Oficina</label>
+        <input type="text" name="observacao" id="manut-obs" placeholder="Ex: Auto Mecânica Central, garantia de 90 dias..." 
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-amber-500">
+      </div>
+
+      <!-- Botões -->
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalManutencao()" class="px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-manutencao" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 transition">
+          Salvar Manutenção
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Dados pré-calculados dos 4 períodos passados pelo backend para recálculo instantâneo
+  const DADOS_PERIODOS = {{ periodos_json | safe }};
+
+  function formatarMoeda(val) {
+    return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function obterHoraAtual() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function detectarPeriodoAtual() {
+    const h = new Date().getHours();
+    if (h >= 5 && h < 12) return 'Manhã (06h às 12h)';
+    if (h >= 12 && h < 18) return 'Tarde (12h às 18h)';
+    return 'Noite (18h às 00h)';
+  }
+
+  function calcularDiferencaHoras(hIni, hFim) {
+    if (!hIni || !hFim) return 0.0;
+    try {
+      const [hi, mi] = hIni.split(':').map(Number);
+      const [hf, mf] = hFim.split(':').map(Number);
+      let diff = (hf * 60 + mf) - (hi * 60 + mi);
+      if (diff < 0) diff += 24 * 60; // virada de meia-noite
+      return Number((diff / 60.0).toFixed(2));
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  // --- FILTRO DE PERÍODO INSTANTÂNEO ---
+  function filtrarPeriodo(periodo) {
+    if (!DADOS_PERIODOS[periodo]) return;
+    const m = DADOS_PERIODOS[periodo];
+
+    // Atualiza os botões de filtro
+    document.querySelectorAll('.btn-periodo').forEach(btn => {
+      btn.className = 'btn-periodo px-3 py-1.5 rounded-lg font-bold transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+    });
+    const btnAtivo = document.getElementById(`btn-filtro-${periodo}`);
+    if (btnAtivo) {
+      btnAtivo.className = 'btn-periodo px-3 py-1.5 rounded-lg font-bold transition bg-amber-500 text-slate-950 shadow-sm';
+    }
+
+    // Atualiza badge de período no card 1
+    const pBadge = document.getElementById('card-periodo-badge');
+    if (pBadge) {
+      const labels = { 'hoje': 'Hoje', 'semana': 'Semana', 'mes': 'Mês Atual', 'todos': 'Histórico' };
+      pBadge.textContent = labels[periodo] || periodo;
+    }
+
+    // Atualiza os 4 Cards Operacionais instantaneamente
+    const elBruto = document.getElementById('card-bruto-val');
+    const elBrutoSub = document.getElementById('card-bruto-sub');
+    if (elBruto) elBruto.textContent = formatarMoeda(m.bruto);
+    if (elBrutoSub) elBrutoSub.textContent = m.sub_bruto;
+
+    const elAbast = document.getElementById('card-abast-val');
+    const elAbastSub = document.getElementById('card-abast-sub');
+    if (elAbast) elAbast.textContent = formatarMoeda(m.abastecido_real);
+    if (elAbastSub) elAbastSub.textContent = m.sub_abast;
+
+    const elKm = document.getElementById('card-km-val');
+    const elKmSub = document.getElementById('card-km-sub');
+    if (elKm) elKm.textContent = `${formatarMoeda(m.consumo_estimado_km)}/km`;
+    if (elKmSub) elKmSub.textContent = m.sub_km;
+
+    const elLiq = document.getElementById('card-liq-val');
+    const elLiqSub = document.getElementById('card-liq-sub');
+    if (elLiq) elLiq.textContent = formatarMoeda(m.caixa_liquido);
+    if (elLiqSub) elLiqSub.textContent = m.sub_liq;
+
+    showToast('Filtro Aplicado', `Exibindo indicadores para: ${periodo.toUpperCase()}`);
+  }
+
+  // --- MODAL ÚNICO DE TURNO OPERACIONAL COM CÁLCULOS AUTOMÁTICOS ---
+  function recalcularHorariosTurno() {
+    const hIni = document.getElementById('turno-hora-inicio').value;
+    const hFim = document.getElementById('turno-hora-fim').value;
+    const tempoTxt = document.getElementById('turno-tempo-txt');
+    const inputHoras = document.getElementById('turno-horas');
+    const inputPeriodo = document.getElementById('turno-periodo');
+
+    if (hIni) {
+      const hi = parseInt(hIni.split(':')[0], 10);
+      let per = 'Manhã';
+      if (hi >= 12 && hi < 18) per = 'Tarde';
+      else if (hi >= 18 || hi < 5) per = 'Noite';
+      if (inputPeriodo) inputPeriodo.value = per;
+    }
+
+    if (!hIni || !hFim) {
+      const currH = parseFloat(inputHoras.value) || 0;
+      tempoTxt.textContent = currH > 0 ? `${currH}h` : '--';
+      return;
+    }
+
+    try {
+      const [hi, mi] = hIni.split(':').map(Number);
+      const [hf, mf] = hFim.split(':').map(Number);
+      let diff = (hf * 60 + mf) - (hi * 60 + mi);
+      if (diff < 0) diff += 24 * 60; // virada de meia-noite
+
+      const hrs = Math.floor(diff / 60);
+      const mins = diff % 60;
+      const decHrs = Number((diff / 60.0).toFixed(2));
+
+      const txt = `${hrs}h${mins > 0 ? (mins < 10 ? '0' : '') + mins + 'min' : ''} (${decHrs}h)`;
+      tempoTxt.textContent = txt;
+      inputHoras.value = decHrs;
+    } catch (e) {
+      tempoTxt.textContent = '--';
+    }
+  }
+
+  function recalcularHodometroTurno() {
+    const kIniVal = document.getElementById('turno-km-inicial').value.trim();
+    const kFimVal = document.getElementById('turno-km-final').value.trim();
+    const resumo = document.getElementById('turno-km-resumo-txt');
+    const inputKm = document.getElementById('turno-km');
+    const inputComb = document.getElementById('turno-combustivel');
+
+    // Se Hodômetro Final estiver em branco: totalmente opcional, salva sem KM
+    if (kFimVal === '') {
+      inputKm.value = '0.0';
+      inputComb.value = '0.00';
+      if (kIniVal !== '') {
+        resumo.innerHTML = '<span class="text-amber-600 dark:text-amber-400 font-semibold">⚠️ Hodômetro Final pendente (salva com status "⚠️ Pendente KM")</span>';
+      } else {
+        resumo.textContent = 'Preencha Hodômetro Inicial e Final para calcular KM e Combustível.';
+      }
+      return;
+    }
+
+    const kIni = parseFloat(kIniVal) || 0;
+    const kFim = parseFloat(kFimVal) || 0;
+
+    if (kFim >= kIni && kIni > 0) {
+      const kmRodados = Number((kFim - kIni).toFixed(1));
+      const combEst = Number((kmRodados * 0.38).toFixed(2));
+      inputKm.value = kmRodados;
+      inputComb.value = combEst.toFixed(2);
+      resumo.innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-bold">✓ ${kmRodados} km rodados</span> • Combustível Est.: <strong class="text-rose-500 font-mono">${formatarMoeda(combEst)}</strong> (R$ 0,38/km)`;
+    } else if (kFim < kIni && kIni > 0) {
+      inputKm.value = '0.0';
+      inputComb.value = '0.00';
+      resumo.innerHTML = '<span class="text-rose-500 font-semibold">⚠️ KM Final deve ser maior ou igual ao KM Inicial!</span>';
+    } else {
+      inputKm.value = '0.0';
+      inputComb.value = '0.00';
+      resumo.textContent = 'Preencha Hodômetro Inicial e Final para calcular KM e Combustível.';
+    }
+  }
+
+  function recalcularBrutoTurno() {
+    const onl = parseFloat(document.getElementById('turno-online').value) || 0;
+    const din = parseFloat(document.getElementById('turno-dinheiro').value) || 0;
+    const brutoInput = document.getElementById('turno-bruto');
+    brutoInput.value = (onl + din).toFixed(2);
+  }
+
+  function abrirModalRegistrarTurno() {
+    document.getElementById('turno-id').value = '';
+    document.getElementById('modal-turno-titulo').textContent = 'Registrar Novo Turno';
+    document.getElementById('btn-submit-turno-texto').textContent = 'Salvar Turno';
+
+    document.getElementById('turno-data').value = '{{ hoje_str }}';
+    document.getElementById('turno-hora-inicio').value = obterHoraAtual();
+    document.getElementById('turno-hora-fim').value = '';
+    document.getElementById('turno-km-inicial').value = '';
+    document.getElementById('turno-km-final').value = '';
+    document.getElementById('turno-online').value = '';
+    document.getElementById('turno-dinheiro').value = '';
+    document.getElementById('turno-bruto').value = '0.00';
+    document.getElementById('turno-obs').value = '';
+    document.getElementById('turno-horas').value = '0.0';
+    document.getElementById('turno-km').value = '0.0';
+    document.getElementById('turno-combustivel').value = '0.00';
+
+    recalcularHorariosTurno();
+    recalcularHodometroTurno();
+    recalcularBrutoTurno();
+
+    document.getElementById('modal-turno').classList.remove('hidden');
+    document.getElementById('turno-hora-fim').focus();
+  }
+  window.abrirModalTurno = abrirModalRegistrarTurno;
+
+  function abrirModalEditarTurno(btn) {
+    const d = btn.dataset;
+    document.getElementById('turno-id').value = d.id || '';
+    document.getElementById('modal-turno-titulo').textContent = `Editar Turno #${d.id}`;
+    document.getElementById('btn-submit-turno-texto').textContent = 'Salvar Alterações';
+
+    document.getElementById('turno-data').value = d.data || '{{ hoje_str }}';
+    document.getElementById('turno-hora-inicio').value = d.horainicio || '';
+    document.getElementById('turno-hora-fim').value = d.horafim || '';
+    document.getElementById('turno-km-inicial').value = (d.kminicial && parseFloat(d.kminicial) > 0) ? d.kminicial : '';
+    document.getElementById('turno-km-final').value = (d.kmfinal && parseFloat(d.kmfinal) > 0) ? d.kmfinal : '';
+    document.getElementById('turno-online').value = (d.online !== undefined && d.online !== '' && parseFloat(d.online) > 0) ? Number(d.online).toFixed(2) : '';
+    document.getElementById('turno-dinheiro').value = (d.dinheiro !== undefined && d.dinheiro !== '' && parseFloat(d.dinheiro) > 0) ? Number(d.dinheiro).toFixed(2) : '';
+    document.getElementById('turno-obs').value = d.obs || '';
+
+    // Preserva valores anteriores nos campos ocultos
+    document.getElementById('turno-horas').value = d.horas || '0.0';
+    document.getElementById('turno-km').value = d.km || '0.0';
+    document.getElementById('turno-combustivel').value = d.combustivel || '0.00';
+    document.getElementById('turno-periodo').value = d.periodo || 'Manhã';
+
+    // Executa recálculos automáticos em tempo real
+    recalcularHorariosTurno();
+    recalcularHodometroTurno();
+    recalcularBrutoTurno();
+
+    // Se já havia KM registrado e hodômetro final em branco, informa no resumo
+    if ((!d.kmfinal || d.kmfinal === '') && d.km && parseFloat(d.km) > 0) {
+      document.getElementById('turno-km').value = d.km;
+      document.getElementById('turno-combustivel').value = d.combustivel || (parseFloat(d.km) * 0.38).toFixed(2);
+      document.getElementById('turno-km-resumo-txt').innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-bold">✓ ${d.km} km já registrados</span> • Final pendente`;
+    }
+
+    document.getElementById('modal-turno').classList.remove('hidden');
+
+    // Foca no campo mais pertinente
+    if (d.kminicial && (!d.kmfinal || d.kmfinal === '')) {
+      document.getElementById('turno-km-final').focus();
+    } else {
+      document.getElementById('turno-hora-fim').focus();
+    }
+  }
+
+  function fecharModalTurno() {
+    document.getElementById('modal-turno').classList.add('hidden');
+  }
+
+  async function salvarTurno(event) {
+    event.preventDefault();
+
+    // Garante que todos os cálculos estejam sincronizados
+    recalcularHorariosTurno();
+    recalcularHodometroTurno();
+    recalcularBrutoTurno();
+
+    const btn = document.getElementById('btn-submit-turno');
+    const btnTexto = document.getElementById('btn-submit-turno-texto');
+    btn.disabled = true;
+    btnTexto.textContent = 'Salvando...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/motorista/turnos/salvar', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Turno Salvo!', data.mensagem);
+        setTimeout(() => location.reload(), 450);
+      } else {
+        showToast('Erro ao Salvar', data.erro || 'Falha na gravação', true);
+        btn.disabled = false;
+        btnTexto.textContent = 'Salvar Turno';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btnTexto.textContent = 'Salvar Turno';
+    }
+  }
+
+  async function confirmarExcluirTurno(id, dataFmt, valor) {
+    const valFmt = Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    if (!confirm(`Confirma a exclusão do turno de ${dataFmt} (${valFmt})? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('id', id);
+
+    try {
+      const res = await fetch('/motorista/turnos/excluir', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Turno Excluído!', data.mensagem);
+        setTimeout(() => location.reload(), 450);
+      } else {
+        showToast('Erro ao Excluir', data.erro || 'Falha ao remover o turno', true);
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+    }
+  }
+
+  // --- MODAL ABASTECER (DRIVVO) ---
+  function abrirModalAbastecer() {
+    document.getElementById('modal-abastecer').classList.remove('hidden');
+    document.getElementById('abast-valor-pago').focus();
+  }
+
+  function fecharModalAbastecer() {
+    document.getElementById('modal-abastecer').classList.add('hidden');
+  }
+
+  function calcularPrecoLitro() {
+    const v = parseFloat(document.getElementById('abast-valor-pago').value) || 0;
+    const l = parseFloat(document.getElementById('abast-litros').value) || 0;
+    const p = document.getElementById('abast-preco-litro');
+    if (v > 0 && l > 0) {
+      p.value = (v / l).toFixed(3);
+    } else {
+      p.value = '';
+    }
+  }
+
+  async function salvarAbastecimento(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-abastecer');
+    btn.disabled = true;
+    btn.textContent = 'Registrando...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/motorista/abastecer', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Abastecimento Salvo!', data.mensagem);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast('Erro ao Abastecer', data.erro || 'Falha na gravação', true);
+        btn.disabled = false;
+        btn.textContent = 'Registrar Abastecimento';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Registrar Abastecimento';
+    }
+  }
+
+  // --- MODAL TRANSFERIR 99 (APP) → MP ---
+  function abrirModalTransferir99() {
+    document.getElementById('modal-transferir-99').classList.remove('hidden');
+    document.getElementById('transf-99-valor').focus();
+  }
+
+  function fecharModalTransferir99() {
+    document.getElementById('modal-transferir-99').classList.add('hidden');
+  }
+
+  async function salvarTransferencia99(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-transferir-99');
+    btn.disabled = true;
+    btn.textContent = 'Transferindo...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/motorista/transferir-99-mp', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Transferência Concluída!', data.mensagem);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast('Erro na Transferência', data.erro || 'Falha ao processar', true);
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Transferência';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Confirmar Transferência';
+    }
+  }
+
+  // --- MODAL TRANSFERIR DINHEIRO → MP ---
+  function abrirModalTransferirMP() {
+    document.getElementById('modal-transferir-mp').classList.remove('hidden');
+    document.getElementById('transf-valor').focus();
+  }
+
+  function fecharModalTransferirMP() {
+    document.getElementById('modal-transferir-mp').classList.add('hidden');
+  }
+
+  async function salvarTransferenciaMP(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-transferir');
+    btn.disabled = true;
+    btn.textContent = 'Transferindo...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/motorista/transferir-dinheiro-mp', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Transferência Concluída!', data.mensagem);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast('Erro na Transferência', data.erro || 'Falha ao processar', true);
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Transferência Dinheiro';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Confirmar Transferência Dinheiro';
+    }
+  }
+
+  // --- MODAL MANUTENÇÃO ---
+  function abrirModalManutencao() {
+    document.getElementById('modal-manutencao').classList.remove('hidden');
+    document.getElementById('manut-desc').focus();
+  }
+
+  function fecharModalManutencao() {
+    document.getElementById('modal-manutencao').classList.add('hidden');
+  }
+
+  async function salvarManutencao(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-manutencao');
+    btn.disabled = true;
+    btn.textContent = 'Gravando...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/motorista/manutencao', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Manutenção Registrada!', data.mensagem);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        showToast('Erro ao Salvar', data.erro || 'Falha na gravação', true);
+        btn.disabled = false;
+        btn.textContent = 'Salvar Manutenção';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Salvar Manutenção';
+    }
+  }
+</script>
+{% endblock %}
+

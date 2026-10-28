@@ -1,0 +1,859 @@
+"""
+====================================================================
+MÓDULO DE SERVIÇO DE SALDO (saldo_service.py)
+====================================================================
+Serviço centralizado para gestão de saldos bancários, marcos iniciais,
+ajustes de conciliação e transferências.
+
+Garantias de Arquitetura:
+- Precisão monetária usando Decimal e quantização bancária (ROUND_HALF_EVEN).
+- Persistência oficial de ajustes em centavos inteiros (INTEGER).
+- Identificação relacional estável via conta_id (contas_config.id).
+- Critério determinístico de corte por snapshot para a data do marco.
+- Isolamento contábil: ajustes não geram receitas/despesas familiares.
+- Despesas com afeta_saldo_bancario=0 (desconto em folha) não debitam contas bancárias.
+- Soft-delete para auditoria contábil transparente.
+"""
+
+from decimal import Decimal, ROUND_HALF_EVEN
+import json
+import sqlite3
+from typing import Dict, List, Optional, Any, Set
+from datetime import datetime, date
+
+CENTAVOS = Decimal("0.01")
+
+
+def to_decimal(val: Any) -> Decimal:
+    """Converte qualquer valor numérico ou string para Decimal com 2 casas decimais."""
+    if val is None or val == "":
+        return Decimal("0.00")
+    try:
+        return Decimal(str(val)).quantize(CENTAVOS, rounding=ROUND_HALF_EVEN)
+    except Exception:
+        return Decimal("0.00")
+
+
+def decimal_to_cents(d: Decimal) -> int:
+    """Converte Decimal para centavos inteiros (ex: 150.25 -> 15025)."""
+    return int((d * Decimal(100)).quantize(Decimal("1"), rounding=ROUND_HALF_EVEN))
+
+
+def cents_to_decimal(cents: int) -> Decimal:
+    """Converte centavos inteiros para Decimal com 2 casas decimais."""
+    if cents is None:
+        return Decimal("0.00")
+    return (Decimal(cents) / Decimal(100)).quantize(CENTAVOS, rounding=ROUND_HALF_EVEN)
+
+
+def migrar_esquema(conn: sqlite3.Connection) -> None:
+    """
+    Executa migrações não-destrutivas necessárias para o sistema de saldo e ajustes.
+    Não altera registros nem classificações existentes.
+    """
+    cur = conn.cursor()
+
+    # 1. Tabela de Ajustes e Marcos Iniciais
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS ajustes_saldo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conta_id INTEGER NOT NULL REFERENCES contas_config(id),
+        data DATE NOT NULL,
+        saldo_informado_centavos INTEGER NOT NULL,
+        saldo_calculado_centavos INTEGER NOT NULL,
+        diferenca_centavos INTEGER NOT NULL,
+        tipo TEXT NOT NULL DEFAULT 'ajuste', -- 'marco_inicial' ou 'ajuste'
+        transacoes_contempladas_ids TEXT DEFAULT '[]', -- JSON list com IDs contemplados na data
+        status TEXT NOT NULL DEFAULT 'ativo', -- 'ativo', 'cancelado', 'substituido'
+        motivo TEXT,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        cancelado_em TIMESTAMP,
+        motivo_cancelamento TEXT,
+        ajuste_substituto_id INTEGER REFERENCES ajustes_saldo(id)
+    );
+    """)
+
+    # 2. Adição de colunas relacionais e de controle em transacoes
+    cur.execute("PRAGMA table_info(transacoes)")
+    cols_transacoes = [col[1] for col in cur.fetchall()]
+
+    if "conta_id" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN conta_id INTEGER REFERENCES contas_config(id)")
+    
+    if "conta_destino_id" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN conta_destino_id INTEGER REFERENCES contas_config(id)")
+
+    if "afeta_saldo_bancario" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN afeta_saldo_bancario INTEGER DEFAULT 1")
+
+    if "status_pagamento" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN status_pagamento TEXT DEFAULT 'pendente'")
+
+    if "valor_financiado_renegociado" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN valor_financiado_renegociado REAL DEFAULT 0")
+
+    if "renegociacao_origem_id" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN renegociacao_origem_id INTEGER REFERENCES transacoes(id)")
+
+    # 3. Associação segura de conta_id baseada no nome textual existente
+    cur.execute("""
+    UPDATE transacoes 
+    SET conta_id = (SELECT id FROM contas_config WHERE contas_config.nome = transacoes.conta)
+    WHERE conta_id IS NULL AND conta IS NOT NULL
+    """)
+
+    # 4. Tabela Relacional de Pagamentos Efetivos de Despesas
+    cur.execute("PRAGMA table_info(pagamentos_despesas)")
+    cols_pag_raw = cur.fetchall()
+    cols_pag = [col[1] for col in cols_pag_raw]
+    
+    # Se a tabela já existia com NOT NULL em data_pagamento, migra para permitir NULL (Condição 5)
+    data_pag_notnull = any(col[1] == 'data_pagamento' and col[3] == 1 for col in cols_pag_raw)
+    if data_pag_notnull:
+        cur.execute("SELECT COUNT(*) FROM pagamentos_despesas")
+        cnt_pags = cur.fetchone()[0]
+        if cnt_pags == 0:
+            cur.execute("DROP TABLE pagamentos_despesas")
+            cols_pag = []
+        else:
+            cur.execute("""
+            CREATE TABLE pagamentos_despesas_tmp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transacao_id INTEGER NOT NULL REFERENCES transacoes(id),
+                data_pagamento DATE,
+                data_real_desconhecida INTEGER DEFAULT 0,
+                classificacao TEXT DEFAULT 'pagamento_efetivo',
+                valor_pago REAL NOT NULL,
+                valor_pago_centavos INTEGER NOT NULL,
+                conta_id INTEGER NOT NULL REFERENCES contas_config(id),
+                momento_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                afeta_saldo_bancario INTEGER DEFAULT 1,
+                considerado_no_marco INTEGER DEFAULT 0,
+                forma_pagamento TEXT DEFAULT 'Pix',
+                observacao TEXT,
+                tipo_ajuste_valor TEXT DEFAULT 'normal',
+                valor_encargos REAL DEFAULT 0,
+                valor_desconto REAL DEFAULT 0,
+                cancelado INTEGER DEFAULT 0,
+                cancelado_em TIMESTAMP,
+                motivo_cancelamento TEXT
+            )
+            """)
+            shared_cols = [c for c in cols_pag if c in [
+                "id", "transacao_id", "data_pagamento", "valor_pago", "valor_pago_centavos",
+                "conta_id", "momento_pagamento", "afeta_saldo_bancario", "considerado_no_marco",
+                "forma_pagamento", "observacao", "cancelado", "cancelado_em", "motivo_cancelamento"
+            ]]
+            shared_str = ", ".join(shared_cols)
+            cur.execute(f"INSERT INTO pagamentos_despesas_tmp ({shared_str}) SELECT {shared_str} FROM pagamentos_despesas")
+            cur.execute("DROP TABLE pagamentos_despesas")
+            cur.execute("ALTER TABLE pagamentos_despesas_tmp RENAME TO pagamentos_despesas")
+            cols_pag = shared_cols
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS pagamentos_despesas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transacao_id INTEGER NOT NULL REFERENCES transacoes(id),
+        data_pagamento DATE,
+        data_real_desconhecida INTEGER DEFAULT 0,
+        classificacao TEXT DEFAULT 'pagamento_efetivo',
+        valor_pago REAL NOT NULL,
+        valor_pago_centavos INTEGER NOT NULL,
+        conta_id INTEGER NOT NULL REFERENCES contas_config(id),
+        momento_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        afeta_saldo_bancario INTEGER DEFAULT 1,
+        considerado_no_marco INTEGER DEFAULT 0,
+        forma_pagamento TEXT DEFAULT 'Pix',
+        observacao TEXT,
+        tipo_ajuste_valor TEXT DEFAULT 'normal',
+        valor_encargos REAL DEFAULT 0,
+        valor_desconto REAL DEFAULT 0,
+        cancelado INTEGER DEFAULT 0,
+        cancelado_em TIMESTAMP,
+        motivo_cancelamento TEXT
+    );
+    """)
+
+    cur.execute("PRAGMA table_info(pagamentos_despesas)")
+    cols_pag_atual = [col[1] for col in cur.fetchall()]
+    novas_cols_pag = [
+        ("data_real_desconhecida", "INTEGER DEFAULT 0"),
+        ("classificacao", "TEXT DEFAULT 'pagamento_efetivo'"),
+        ("tipo_ajuste_valor", "TEXT DEFAULT 'normal'"),
+        ("valor_encargos", "REAL DEFAULT 0"),
+        ("valor_desconto", "REAL DEFAULT 0")
+    ]
+    for col, col_def in novas_cols_pag:
+        if col not in cols_pag_atual:
+            try:
+                cur.execute(f"ALTER TABLE pagamentos_despesas ADD COLUMN {col} {col_def}")
+            except Exception:
+                pass
+
+    conn.commit()
+
+
+def obter_contas(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
+    """Retorna todas as contas configuradas ordenadas por id."""
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, tipo, cor FROM contas_config ORDER BY id ASC")
+    rows = cur.fetchall()
+    return [{"id": r[0], "nome": r[1], "tipo": r[2], "cor": r[3]} for r in rows]
+
+
+def obter_ajuste_ativo(
+    conn: sqlite3.Connection, 
+    conta_id: int, 
+    data_limite: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Retorna o ajuste ativo mais recente para a conta (ordenado por data DESC, id DESC).
+    Se data_limite for informada, considera apenas ajustes com data <= data_limite.
+    """
+    cur = conn.cursor()
+    if data_limite:
+        cur.execute("""
+            SELECT id, conta_id, data, saldo_informado_centavos, saldo_calculado_centavos,
+                   diferenca_centavos, tipo, transacoes_contempladas_ids, motivo, criado_em
+            FROM ajustes_saldo
+            WHERE conta_id = ? AND status = 'ativo' AND data <= ?
+            ORDER BY data DESC, id DESC
+            LIMIT 1
+        """, (conta_id, data_limite))
+    else:
+        cur.execute("""
+            SELECT id, conta_id, data, saldo_informado_centavos, saldo_calculado_centavos,
+                   diferenca_centavos, tipo, transacoes_contempladas_ids, motivo, criado_em
+            FROM ajustes_saldo
+            WHERE conta_id = ? AND status = 'ativo'
+            ORDER BY data DESC, id DESC
+            LIMIT 1
+        """, (conta_id,))
+    
+    row = cur.fetchone()
+    if not row:
+        return None
+
+    contempladas = []
+    if row[7]:
+        try:
+            contempladas = json.loads(row[7])
+        except Exception:
+            contempladas = []
+
+    return {
+        "id": row[0],
+        "conta_id": row[1],
+        "data": row[2],
+        "saldo_informado": cents_to_decimal(row[3]),
+        "saldo_informado_centavos": row[3],
+        "saldo_calculado": cents_to_decimal(row[4]),
+        "diferenca": cents_to_decimal(row[5]),
+        "tipo": row[6],
+        "transacoes_contempladas_ids": set(contempladas),
+        "motivo": row[8],
+        "criado_em": row[9]
+    }
+
+
+def calcular_saldo_conta(
+    conn: sqlite3.Connection, 
+    conta_id: int, 
+    data_referencia: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Calcula o saldo real de uma conta com base no último marco/ajuste ativo e 
+    nas movimentações efetivadas posteriores.
+    
+    Regras de Negócio:
+    1. Se houver marco/ajuste ativo:
+       - Saldo inicial = saldo informado no marco.
+       - Lançamentos com data < data_marco: ignorados (já contemplados).
+       - Lançamentos com data == data_marco: considerados apenas se seu ID NÃO estiver
+         em transacoes_contempladas_ids (ou seja, se for posterior ao corte).
+       - Lançamentos com data > data_marco (e <= data_referencia): somados/subtraídos.
+    2. Se NÃO houver marco/ajuste:
+       - Saldo inicial = 0.
+       - Todas as movimentações efetivadas (<= data_referencia) são somadas/subtraídas.
+    3. Movimentações com afeta_saldo_bancario = 0 (desconto em folha) NÃO alteram o saldo.
+    4. Transferências debitam a conta de origem e creditam a conta de destino.
+    """
+    cur = conn.cursor()
+
+    # Informações da conta
+    cur.execute("SELECT id, nome, tipo, cor FROM contas_config WHERE id = ?", (conta_id,))
+    conta_row = cur.fetchone()
+    if not conta_row:
+        return {
+            "conta_id": conta_id,
+            "conta_nome": "Desconhecida",
+            "saldo_atual": Decimal("0.00"),
+            "saldo_centavos": 0,
+            "tem_marco": False,
+            "ajuste_id": None,
+            "total_receitas_posteriores": Decimal("0.00"),
+            "total_despesas_posteriores": Decimal("0.00"),
+            "total_transf_entradas": Decimal("0.00"),
+            "total_transf_saidas": Decimal("0.00")
+        }
+    
+    conta_nome = conta_row[1]
+
+    # Busca o marco/ajuste ativo mais recente
+    marco = obter_ajuste_ativo(conn, conta_id, data_limite=data_referencia)
+
+    if marco:
+        saldo_cents = marco["saldo_informado_centavos"]
+        data_corte = marco["data"]
+        contempladas_ids = marco["transacoes_contempladas_ids"]
+        tem_marco = True
+        ajuste_id = marco["id"]
+        marco_data = marco["data"]
+        marco_saldo = marco["saldo_informado"]
+    else:
+        saldo_cents = 0
+        data_corte = None
+        contempladas_ids = set()
+        tem_marco = False
+        ajuste_id = None
+        marco_data = None
+        marco_saldo = None
+
+    # Busca todas as movimentações efetivadas que envolvem esta conta como origem ou destino
+    # Respeita o campo afeta_saldo_bancario = 1 e pago = 1
+    query = """
+        SELECT id, data, valor, tipo, conta_id, conta_destino_id, afeta_saldo_bancario, conta
+        FROM transacoes
+        WHERE pago = 1 
+          AND (afeta_saldo_bancario = 1 OR afeta_saldo_bancario IS NULL)
+          AND (
+              conta_id = ? 
+              OR conta_destino_id = ?
+              OR (conta_id IS NULL AND conta = ?)
+          )
+    """
+    params = [conta_id, conta_id, conta_nome]
+
+    if data_referencia:
+        query += " AND data <= ?"
+        params.append(data_referencia)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    rec_post_cents = 0
+    desp_post_cents = 0
+    transf_in_cents = 0
+    transf_out_cents = 0
+
+    # Identifica despesas que possuem pagamentos registrados na tabela dedicada
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pagamentos_despesas'")
+    tem_tabela_pagamentos = cur.fetchone() is not None
+
+    ids_com_pagamentos = set()
+    if tem_tabela_pagamentos:
+        cur.execute("SELECT DISTINCT transacao_id FROM pagamentos_despesas WHERE cancelado = 0")
+        ids_com_pagamentos = set(row[0] for row in cur.fetchall())
+
+    for r in rows:
+        t_id, t_data, t_val, t_tipo, t_origem_id, t_dest_id, t_afeta, t_conta_str = r
+        val_cents = decimal_to_cents(to_decimal(t_val))
+
+        # Se for despesa com pagamentos registrados em pagamentos_despesas, o débito contábil
+        # virá exclusivamente dos pagamentos efetivos para evitar dupla contagem.
+        if t_tipo == "despesa" and t_id in ids_com_pagamentos:
+            continue
+
+        # Determina se a transação é posterior ao corte
+        eh_posterior = False
+        if not tem_marco:
+            eh_posterior = True
+        else:
+            if t_data > data_corte:
+                eh_posterior = True
+            elif t_data == data_corte:
+                # Na mesma data: só afeta se NÃO constar na lista de contempladas
+                if t_id not in contempladas_ids:
+                    eh_posterior = True
+            else:
+                eh_posterior = False
+
+        if not eh_posterior:
+            continue
+
+        # Aplicação das regras contábeis para transações legadas/diretas
+        eh_origem = (t_origem_id == conta_id) or (t_origem_id is None and t_conta_str == conta_nome)
+        eh_destino = (t_dest_id == conta_id)
+
+        if t_tipo == "receita" and eh_origem:
+            saldo_cents += val_cents
+            rec_post_cents += val_cents
+        elif t_tipo == "despesa" and eh_origem:
+            saldo_cents -= val_cents
+            desp_post_cents += val_cents
+        elif t_tipo == "transferencia":
+            if eh_origem:
+                saldo_cents -= val_cents
+                transf_out_cents += val_cents
+            if eh_destino:
+                saldo_cents += val_cents
+                transf_in_cents += val_cents
+
+    # Incorpora pagamentos reais de despesas da tabela dedicada pagamentos_despesas
+    if tem_tabela_pagamentos:
+        q_pag = """
+            SELECT id, transacao_id, data_pagamento, valor_pago_centavos, considerado_no_marco, afeta_saldo_bancario
+            FROM pagamentos_despesas
+            WHERE conta_id = ? 
+              AND cancelado = 0 
+              AND (afeta_saldo_bancario = 1 OR afeta_saldo_bancario IS NULL)
+        """
+        params_pag = [conta_id]
+        if data_referencia:
+            q_pag += " AND (data_pagamento IS NULL OR data_pagamento <= ?)"
+            params_pag.append(data_referencia)
+        cur.execute(q_pag, params_pag)
+        pags = cur.fetchall()
+
+        for p in pags:
+            p_id, p_t_id, p_data, p_val_cents, p_considerado, p_afeta = p
+            # Se o pagamento foi marcado como já refletido no marco inicial ou se a data real for desconhecida pré-marco, não desconta
+            if p_considerado == 1 or p_data is None:
+                continue
+
+            eh_post_pag = False
+            if not tem_marco:
+                eh_post_pag = True
+            else:
+                if p_data > data_corte:
+                    eh_post_pag = True
+                elif p_data == data_corte:
+                    # Na data do marco: se considerado_no_marco == 0, ocorreu após a conciliação
+                    eh_post_pag = True
+                else:
+                    eh_post_pag = False
+
+            if eh_post_pag:
+                saldo_cents -= p_val_cents
+                desp_post_cents += p_val_cents
+
+    return {
+        "conta_id": conta_id,
+        "conta_nome": conta_nome,
+        "saldo_atual": cents_to_decimal(saldo_cents),
+        "saldo_centavos": saldo_cents,
+        "tem_marco": tem_marco,
+        "ajuste_id": ajuste_id,
+        "marco_data": marco_data,
+        "marco_saldo": marco_saldo,
+        "total_receitas_posteriores": cents_to_decimal(rec_post_cents),
+        "total_despesas_posteriores": cents_to_decimal(desp_post_cents),
+        "total_transf_entradas": cents_to_decimal(transf_in_cents),
+        "total_transf_saidas": cents_to_decimal(transf_out_cents),
+    }
+
+
+def calcular_saldo_consolidado(
+    conn: sqlite3.Connection, 
+    data_referencia: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Calcula o saldo consolidado de todas as contas ativas em contas_config.
+    Transferências internas anulam-se no saldo total consolidado.
+    """
+    contas = obter_contas(conn)
+    total_cents = 0
+    detalhes_contas = []
+
+    for c in contas:
+        res = calcular_saldo_conta(conn, c["id"], data_referencia=data_referencia)
+        total_cents += res["saldo_centavos"]
+        detalhes_contas.append(res)
+
+    return {
+        "saldo_consolidado": cents_to_decimal(total_cents),
+        "saldo_consolidado_centavos": total_cents,
+        "contas": detalhes_contas
+    }
+
+
+def listar_transacoes_da_data(
+    conn: sqlite3.Connection, 
+    conta_id: int, 
+    data_iso: str
+) -> List[Dict[str, Any]]:
+    """
+    Retorna os lançamentos cadastrados para uma conta em uma data específica.
+    Útil para exibir no diálogo de conciliação / ajuste.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT nome FROM contas_config WHERE id = ?", (conta_id,))
+    c_row = cur.fetchone()
+    c_nome = c_row[0] if c_row else ""
+
+    cur.execute("""
+        SELECT id, descricao, valor, tipo, pago, afeta_saldo_bancario
+        FROM transacoes
+        WHERE data = ? 
+          AND pago = 1
+          AND (conta_id = ? OR (conta_id IS NULL AND conta = ?))
+        ORDER BY id ASC
+    """, (data_iso, conta_id, c_nome))
+
+    rows = cur.fetchall()
+    return [
+        {
+            "id": r[0],
+            "descricao": r[1],
+            "valor": to_decimal(r[2]),
+            "tipo": r[3],
+            "pago": r[4],
+            "afeta_saldo_bancario": r[5]
+        }
+        for r in rows
+    ]
+
+
+def registrar_ajuste(
+    conn: sqlite3.Connection,
+    conta_id: int,
+    data_ajuste: str,
+    saldo_informado: Decimal,
+    tipo: str = "ajuste",
+    motivo: str = "",
+    transacoes_contempladas_ids: Optional[List[int]] = None
+) -> int:
+    """
+    Registra um marco ou ajuste de saldo.
+    Calcula o saldo que o sistema calculava até aquele momento exato para apurar a diferença.
+    Valores são estritamente persistidos em centavos inteiros.
+    """
+    saldo_informado_dec = to_decimal(saldo_informado)
+    saldo_informado_cents = decimal_to_cents(saldo_informado_dec)
+
+    # Calcula saldo do sistema na data de referência
+    res_atual = calcular_saldo_conta(conn, conta_id, data_referencia=data_ajuste)
+    saldo_calculado_cents = res_atual["saldo_centavos"]
+    diferenca_cents = saldo_informado_cents - saldo_calculado_cents
+
+    ids_contemplados = transacoes_contempladas_ids or []
+    json_contempladas = json.dumps(ids_contemplados)
+
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO ajustes_saldo (
+            conta_id, data, saldo_informado_centavos, saldo_calculado_centavos,
+            diferenca_centavos, tipo, transacoes_contempladas_ids, status, motivo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?)
+    """, (
+        conta_id,
+        data_ajuste,
+        saldo_informado_cents,
+        saldo_calculado_cents,
+        diferenca_cents,
+        tipo,
+        json_contempladas,
+        motivo
+    ))
+
+    novo_id = cur.lastrowid
+    conn.commit()
+    return novo_id
+
+
+def cancelar_ajuste(
+    conn: sqlite3.Connection,
+    ajuste_id: int,
+    motivo_cancelamento: str = ""
+) -> bool:
+    """
+    Executa o cancelamento contábil (soft-delete) de um ajuste.
+    Preserva a trilha de auditoria sem apagar o registro físico.
+    """
+    cur = conn.cursor()
+    agora_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute("""
+        UPDATE ajustes_saldo
+        SET status = 'cancelado',
+            cancelado_em = ?,
+            motivo_cancelamento = ?
+        WHERE id = ? AND status = 'ativo'
+    """, (agora_iso, motivo_cancelamento, ajuste_id))
+
+    sucesso = cur.rowcount > 0
+    conn.commit()
+    return sucesso
+
+
+def listar_historico_ajustes(
+    conn: sqlite3.Connection,
+    conta_id: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Retorna o histórico completo de ajustes e marcos (ativos e cancelados) para auditoria.
+    """
+    cur = conn.cursor()
+    query = """
+        SELECT a.id, a.conta_id, c.nome, a.data, a.saldo_informado_centavos,
+               a.saldo_calculado_centavos, a.diferenca_centavos, a.tipo,
+               a.status, a.motivo, a.criado_em, a.cancelado_em, a.motivo_cancelamento,
+               a.transacoes_contempladas_ids
+        FROM ajustes_saldo a
+        JOIN contas_config c ON c.id = a.conta_id
+    """
+    params = []
+    if conta_id:
+        query += " WHERE a.conta_id = ?"
+        params.append(conta_id)
+
+    query += " ORDER BY a.data DESC, a.id DESC"
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    resultado = []
+    for r in rows:
+        contempladas = []
+        if r[13]:
+            try:
+                contempladas = json.loads(r[13])
+            except Exception:
+                contempladas = []
+        resultado.append({
+            "id": r[0],
+            "conta_id": r[1],
+            "conta_nome": r[2],
+            "data": r[3],
+            "saldo_informado": cents_to_decimal(r[4]),
+            "saldo_calculado": cents_to_decimal(r[5]),
+            "diferenca": cents_to_decimal(r[6]),
+            "tipo": r[7],
+            "status": r[8],
+            "motivo": r[9],
+            "criado_em": r[10],
+            "cancelado_em": r[11],
+            "motivo_cancelamento": r[12],
+            "transacoes_contempladas_ids": contempladas
+        })
+    return resultado
+
+
+# ==============================================================================
+# GESTÃO RELACIONAL E AUDITÁVEL DE PAGAMENTOS DE DESPESAS
+# ==============================================================================
+
+def registrar_pagamento(
+    conn: sqlite3.Connection,
+    transacao_id: int,
+    data_pagamento: Optional[str],
+    valor_pago: float,
+    conta_id: int,
+    afeta_saldo_bancario: int = 1,
+    considerado_no_marco: int = 0,
+    forma_pagamento: str = "Pix",
+    observacao: str = "",
+    data_real_desconhecida: int = 0,
+    classificacao: str = "pagamento_efetivo",
+    tipo_ajuste_valor: str = "normal",
+    valor_encargos: float = 0.0,
+    valor_desconto: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Registra um pagamento (integral ou parcial) para uma obrigação em transacoes.
+    Preserva a data de vencimento da obrigação original e vincula o débito bancário
+    à conta utilizada e à data efetiva do pagamento.
+    
+    Aplica validação estrita (Condição 13): impede que pagamentos ultrapassem o saldo
+    devedor restante sem que haja declaração explícita de encargos/juros ou renegociação.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT id, valor, data, descricao FROM transacoes WHERE id = ?", (transacao_id,))
+    t = cur.fetchone()
+    if not t:
+        raise ValueError(f"Obrigação #{transacao_id} não encontrada.")
+
+    val_orig = to_decimal(t[1])
+    val_pago_dec = to_decimal(valor_pago)
+    val_cents = decimal_to_cents(val_pago_dec)
+
+    # Verifica saldo devedor atual antes do novo pagamento
+    cur.execute("""
+        SELECT COALESCE(SUM(valor_pago_centavos), 0)
+        FROM pagamentos_despesas
+        WHERE transacao_id = ? AND cancelado = 0
+    """, (transacao_id,))
+    total_pago_anterior_cents = cur.fetchone()[0]
+    total_pago_anterior = cents_to_decimal(total_pago_anterior_cents)
+    saldo_devedor_atual = max(Decimal("0.00"), val_orig - total_pago_anterior)
+
+    # Condição 13: Validação de limite do saldo devedor
+    if tipo_ajuste_valor == "normal" and val_pago_dec > saldo_devedor_atual:
+        excesso = val_pago_dec - saldo_devedor_atual
+        raise ValueError(
+            f"O valor do pagamento (R$ {val_pago_dec:.2f}) excede o saldo devedor restante da obrigação (R$ {saldo_devedor_atual:.2f}) em R$ {excesso:.2f}. "
+            f"Para efetuar pagamento maior que o saldo devedor, selecione explicitamente o tipo de ajuste (ex: 'Com Juros/Multa' ou 'Renegociação/Acordo') e informe os encargos."
+        )
+
+    # 1. Insere o pagamento auditável
+    cur.execute("""
+        INSERT INTO pagamentos_despesas 
+        (transacao_id, data_pagamento, data_real_desconhecida, classificacao, valor_pago, valor_pago_centavos, conta_id, afeta_saldo_bancario, considerado_no_marco, forma_pagamento, observacao, tipo_ajuste_valor, valor_encargos, valor_desconto)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (transacao_id, data_pagamento, data_real_desconhecida, classificacao, float(val_pago_dec), val_cents, conta_id, afeta_saldo_bancario, considerado_no_marco, forma_pagamento, observacao, tipo_ajuste_valor, float(valor_encargos), float(valor_desconto)))
+    pag_id = cur.lastrowid
+
+    # 2. Recalcula o total pago e atualiza status da obrigação
+    cur.execute("""
+        SELECT COALESCE(SUM(valor_pago_centavos), 0)
+        FROM pagamentos_despesas
+        WHERE transacao_id = ? AND cancelado = 0
+    """, (transacao_id,))
+    total_pago_cents = cur.fetchone()[0]
+    total_pago = cents_to_decimal(total_pago_cents)
+    saldo_devedor = max(Decimal("0.00"), val_orig - total_pago)
+
+    if total_pago >= val_orig:
+        novo_status = "pago"
+        novo_pago = 1
+    elif total_pago > Decimal("0.00"):
+        novo_status = "parcial"
+        novo_pago = 2  # 2 indica parcialmente pago
+    else:
+        novo_status = "pendente"
+        novo_pago = 0
+
+    cur.execute("UPDATE transacoes SET pago = ?, status_pagamento = ? WHERE id = ?", (novo_pago, novo_status, transacao_id))
+    conn.commit()
+
+    return {
+        "pagamento_id": pag_id,
+        "transacao_id": transacao_id,
+        "data_pagamento": data_pagamento,
+        "valor_pago": val_pago_dec,
+        "total_pago": total_pago,
+        "saldo_devedor": saldo_devedor,
+        "status_pagamento": novo_status,
+        "pago_flag": novo_pago
+    }
+
+
+def estornar_pagamento(
+    conn: sqlite3.Connection,
+    pagamento_id: int,
+    motivo: str = "Estorno solicitado pelo usuário"
+) -> Dict[str, Any]:
+    """
+    Estorna um pagamento específico com rastreabilidade (soft-delete).
+    Recompõe o saldo bancário se foi pós-marco e atualiza o saldo devedor da obrigação.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT transacao_id, valor_pago, conta_id, data_pagamento, considerado_no_marco FROM pagamentos_despesas WHERE id = ?", (pagamento_id,))
+    p = cur.fetchone()
+    if not p:
+        raise ValueError(f"Pagamento #{pagamento_id} não encontrado.")
+
+    t_id = p[0]
+
+    # Marca como cancelado
+    cur.execute("""
+        UPDATE pagamentos_despesas
+        SET cancelado = 1, cancelado_em = CURRENT_TIMESTAMP, motivo_cancelamento = ?
+        WHERE id = ?
+    """, (motivo, pagamento_id))
+
+    # Recalcula a obrigação vinculada
+    cur.execute("SELECT valor FROM transacoes WHERE id = ?", (t_id,))
+    val_orig = to_decimal(cur.fetchone()[0])
+
+    cur.execute("""
+        SELECT COALESCE(SUM(valor_pago_centavos), 0)
+        FROM pagamentos_despesas
+        WHERE transacao_id = ? AND cancelado = 0
+    """, (t_id,))
+    total_pago_cents = cur.fetchone()[0]
+    total_pago = cents_to_decimal(total_pago_cents)
+    saldo_devedor = max(Decimal("0.00"), val_orig - total_pago)
+
+    if total_pago >= val_orig:
+        novo_status = "pago"
+        novo_pago = 1
+    elif total_pago > Decimal("0.00"):
+        novo_status = "parcial"
+        novo_pago = 2
+    else:
+        novo_status = "pendente"
+        novo_pago = 0
+
+    cur.execute("UPDATE transacoes SET pago = ?, status_pagamento = ? WHERE id = ?", (novo_pago, novo_status, t_id))
+    conn.commit()
+
+    return {
+        "transacao_id": t_id,
+        "total_pago": total_pago,
+        "saldo_devedor": saldo_devedor,
+        "status_pagamento": novo_status,
+        "pago_flag": novo_pago
+    }
+
+
+def obter_pagamentos_transacao(conn: sqlite3.Connection, transacao_id: int) -> List[Dict[str, Any]]:
+    """Retorna todos os pagamentos vinculados a uma obrigação (ativos e cancelados)."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT p.id, p.data_pagamento, p.valor_pago, p.conta_id, c.nome, p.forma_pagamento,
+               p.observacao, p.considerado_no_marco, p.cancelado, p.cancelado_em, p.motivo_cancelamento,
+               p.momento_pagamento, p.data_real_desconhecida, p.classificacao, p.tipo_ajuste_valor,
+               p.valor_encargos, p.valor_desconto
+        FROM pagamentos_despesas p
+        LEFT JOIN contas_config c ON c.id = p.conta_id
+        WHERE p.transacao_id = ?
+        ORDER BY p.data_pagamento ASC, p.id ASC
+    """, (transacao_id,))
+    rows = cur.fetchall()
+    return [{
+        "id": r[0],
+        "data_pagamento": r[1],
+        "valor_pago": to_decimal(r[2]),
+        "conta_id": r[3],
+        "conta_nome": r[4] or "Desconhecida",
+        "forma_pagamento": r[5] or "Pix",
+        "observacao": r[6] or "",
+        "considerado_no_marco": bool(r[7]),
+        "cancelado": bool(r[8]),
+        "cancelado_em": r[9],
+        "motivo_cancelamento": r[10],
+        "momento_pagamento": r[11],
+        "data_real_desconhecida": bool(r[12]),
+        "classificacao": r[13] or "pagamento_efetivo",
+        "tipo_ajuste_valor": r[14] or "normal",
+        "valor_encargos": to_decimal(r[15] or 0),
+        "valor_desconto": to_decimal(r[16] or 0)
+    } for r in rows]
+
+
+def obter_resumo_obrigacao(conn: sqlite3.Connection, transacao_id: int) -> Dict[str, Any]:
+    """Retorna resumo completo da obrigação com valor nominal, total pago, saldo devedor e lista de pagamentos."""
+    cur = conn.cursor()
+    cur.execute("SELECT id, data, descricao, valor, pago, status_pagamento, conta, conta_id FROM transacoes WHERE id = ?", (transacao_id,))
+    t = cur.fetchone()
+    if not t:
+        return {}
+    val_orig = to_decimal(t[3])
+    pags = obter_pagamentos_transacao(conn, transacao_id)
+    pags_ativos = [p for p in pags if not p["cancelado"]]
+    total_pago = sum((p["valor_pago"] for p in pags_ativos), Decimal("0.00"))
+    saldo_devedor = max(Decimal("0.00"), val_orig - total_pago)
+    return {
+        "id": t[0],
+        "data_vencimento": t[1],
+        "descricao": t[2],
+        "valor_original": val_orig,
+        "pago_flag": t[4],
+        "status_pagamento": t[5] or ("pago" if t[4] == 1 else "pendente"),
+        "conta_padrao": t[6],
+        "conta_id": t[7],
+        "total_pago": total_pago,
+        "saldo_devedor": saldo_devedor,
+        "pagamentos": pags,
+        "pagamentos_ativos": pags_ativos
+    }
+

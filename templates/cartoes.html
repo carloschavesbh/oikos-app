@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Finanças & Operação{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+  <!-- CABEÇALHO -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+          <span>💳</span> Cartões de Crédito & Faturas
+        </h1>
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          Crédito Exclusivo
+        </span>
+      </div>
+      <p class="text-xs text-slate-400 mt-0.5">Gestão das faturas dos cartões da família (compras parceladas, limites e vencimentos).</p>
+    </div>
+
+    <!-- Seletor Rápido de Cartões -->
+    <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-2xl">
+      <button onclick="selecionarCartao(1)" id="tab-card-1" 
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo.id == 1 %}bg-indigo-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
+        <span>💳</span> Mercado Pago
+      </button>
+      <button onclick="selecionarCartao(40)" id="tab-card-40" 
+              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo.id != 1 %}bg-orange-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
+        <span>🟧</span> Inter Aparecida
+      </button>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO DO CARTÃO ATIVO -->
+  {% for crd in cartoes %}
+  <div class="secao-cartao space-y-5 {% if crd.id != cartao_ativo.id %}hidden{% endif %}" id="cartao-bloco-{{ crd.id }}">
+
+    <!-- GRID CARTÃO MOCKUP + MÉTRICAS -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+      
+      <!-- CARD DIGITAL MOCKUP (Col 5) -->
+      <div class="credit-card-mockup md:col-span-5 rounded-3xl p-5 shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[220px] 
+                  {% if crd.id == 1 %}
+                    bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-950 border border-indigo-800/40
+                  {% else %}
+                    bg-gradient-to-br from-slate-900 via-orange-950/80 to-slate-950 border border-orange-800/40
+                  {% endif %}">
+        
+        <!-- Efeitos de iluminação de fundo -->
+        <div class="absolute -right-10 -top-10 w-32 h-32 {% if crd.id == 1 %}bg-indigo-500/10{% else %}bg-orange-500/10{% endif %} rounded-full blur-2xl pointer-events-none"></div>
+
+        <!-- Topo do Cartão -->
+        <div class="flex items-center justify-between relative z-10">
+          <div class="flex items-center gap-2">
+            <span class="text-base">💳</span>
+            <span class="font-extrabold text-sm text-white tracking-wide">{{ crd.nome }}</span>
+          </div>
+          <div class="px-2.5 py-0.5 rounded-md text-[10px] font-black text-white tracking-widest uppercase 
+                      {% if crd.bandeira == 'Visa' %}bg-blue-600{% else %}bg-amber-600{% endif %}">
+            {{ crd.bandeira }}
+          </div>
+        </div>
+
+        <!-- Chip & Contactless -->
+        <div class="flex items-center gap-3 my-4 relative z-10">
+          <div class="w-10 h-7 rounded-md bg-gradient-to-tr from-amber-400 to-amber-200 border border-amber-300/60 shadow-inner flex items-center justify-center">
+            <div class="w-6 h-4 border border-amber-600/30 rounded-xs"></div>
+          </div>
+          <svg class="w-5 h-5 {% if crd.id == 1 %}text-indigo-300/70{% else %}text-orange-300/70{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+
+        <!-- Número Mascarado -->
+        <div class="font-mono text-base sm:text-lg text-slate-200 tracking-[0.25em] font-semibold my-1 relative z-10">
+          •••• •••• •••• {% if crd.id == 1 %}4028{% else %}7192{% endif %}
+        </div>
+
+        <!-- Rodapé do Cartão -->
+        <div class="flex items-end justify-between pt-3 border-t {% if crd.id == 1 %}border-indigo-500/20{% else %}border-orange-500/20{% endif %} text-xs relative z-10">
+          <div>
+            <p class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Titular</p>
+            <p class="font-bold text-white tracking-wide">
+              {% if crd.id == 1 %}CARLOS HENRIQUE{% else %}APARECIDA / CARLOS{% endif %}
+            </p>
+          </div>
+          <div class="text-right">
+            <p class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Vencimento</p>
+            <p class="font-bold text-white">Dia {{ crd.dia_vencimento }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÉTRICAS DE LIMITE & FATURA (Col 7) -->
+      <div class="md:col-span-7 bg-slate-900/80 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-sm space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <span>📊</span> Resumo da Fatura & Limites
+            </h2>
+            <span class="text-xs px-2.5 py-0.5 rounded-full font-bold 
+                        {% if crd.id == 1 %}bg-indigo-500/10 text-indigo-400 border border-indigo-500/20{% else %}bg-orange-500/10 text-orange-400 border border-orange-500/20{% endif %}">
+              {% if crd.id == 1 %}Ciclo Outubro/2026{% else %}Fatura Nov/2026 (Fech: 01/11 • Venc: 07/11){% endif %}
+            </span>
+          </div>
+
+          <!-- Grid de Métricas -->
+          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">
+                {% if crd.id == 1 %}Limite Total{% else %}Fatura Fechada{% endif %}
+              </p>
+              <p class="text-sm sm:text-lg font-black text-white truncate">
+                {% if crd.id == 1 %}{{ crd.limite_total | moeda }}{% else %}R$ 1.935,12{% endif %}
+              </p>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">Total da Fatura</p>
+              <p class="text-sm sm:text-lg font-black text-rose-400 truncate">
+                {{ crd.total_fatura | moeda }}
+              </p>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">
+                {% if crd.id == 1 %}Limite Disponível{% else %}Status{% endif %}
+              </p>
+              <p class="text-sm sm:text-lg font-black {% if crd.id == 1 %}text-emerald-400{% else %}text-amber-400{% endif %} truncate">
+                {% if crd.id == 1 %}{{ crd.limite_disponivel | moeda }}{% else %}A Vencer{% endif %}
+              </p>
+            </div>
+          </div>
+
+          <!-- Barra de Progresso de Consumo / Cobertura -->
+          <div class="mt-4 pt-2">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="text-slate-400">
+                {% if crd.id == 1 %}Utilização do Limite: <strong class="text-white">{{ "%.1f"|format(crd.pct_uso) }}%</strong>
+                {% else %}Compromisso Familiar da Fatura: <strong class="text-white">100%</strong>{% endif %}
+              </span>
+              <span class="text-xs {% if crd.id == 1 %}text-emerald-400{% else %}text-orange-400{% endif %} font-bold">
+                {% if crd.id == 1 %}Operacional Ativo{% else %}Nov/2026 Confirmado{% endif %}
+              </span>
+            </div>
+            <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
+              <div class="h-full rounded-full transition-all duration-500 
+                          {% if crd.id == 1 %}bg-gradient-to-r from-emerald-500 to-teal-400
+                          {% else %}bg-gradient-to-r from-orange-500 to-amber-400{% endif %}"
+                   style="width: {% if crd.id == 1 %}{{ [crd.pct_uso, 100]|min }}%{% else %}100%{% endif %}"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rodapé explicativo -->
+        <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60 text-xs text-slate-400 flex items-center justify-between">
+          <span class="flex items-center gap-1.5">
+            <span>📅</span> Fechamento: <strong>Dia {{ crd.dia_fechamento }}</strong> • Vencimento: <strong>Dia {{ crd.dia_vencimento }}</strong>
+          </span>
+          <span class="text-[11px] {% if crd.id == 1 %}text-indigo-400{% else %}text-orange-400{% endif %} font-bold">
+            {% if crd.id == 1 %}Titular: Carlos{% else %}Titular: Aparecida{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEÇÃO: COMPRAS NO CARTÃO (ESTRITAMENTE CRÉDITO) -->
+    <div class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <span>🛒</span> Itens da Fatura (Estritamente Cartão de Crédito)
+        </h2>
+        <span class="text-xs text-slate-400 font-medium">Total: <strong class="text-white">{{ crd.compras | length }}</strong> itens</span>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                <th class="py-3 px-3 sm:px-4">Vencimento</th>
+                <th class="py-3 px-3 sm:px-4">Descrição da Compra</th>
+                <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Categoria</th>
+                <th class="py-3 px-3 sm:px-4 text-center">Parcela</th>
+                <th class="py-3 px-3 sm:px-4 text-right">Valor</th>
+                <th class="py-3 px-3 sm:px-4 text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+              {% for item in crd.compras %}
+              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-400 font-mono text-xs">
+                  {{ item.data_formatada }}
+                </td>
+                <td class="py-3 px-3 sm:px-4">
+                  <div class="flex items-center gap-2">
+                    <span class="text-base shrink-0">{{ item.categoria | icone_cat }}</span>
+                    <div>
+                      <p class="font-semibold text-slate-200">{{ item.descricao }}</p>
+                      {% if item.titular and item.titular != 'A Confirmar' %}
+                      <p class="text-[10px] text-slate-400">Titular: <strong class="text-slate-300">{{ item.titular }}</strong></p>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-300">
+                  {{ item.categoria }}
+                </td>
+                <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                    {% if item.numero_parcela and item.total_parcelas_compra %}
+                      {{ item.numero_parcela }}/{{ item.total_parcelas_compra }}
+                    {% elif item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
+                      {{ item.total_parcelas_compra }}x
+                    {% else %}
+                      À vista
+                    {% endif %}
+                  </span>
+                </td>
+                <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap font-bold text-slate-200">
+                  {{ item.valor | moeda }}
+                </td>
+                <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
+                  {% if item.pago == 1 %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Pago
+                  </span>
+                  {% else %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Na Fatura
+                  </span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if not crd.compras %}
+        <div class="text-center py-10 text-slate-500 text-xs">
+          Nenhuma despesa de cartão de crédito registrada neste ciclo.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function selecionarCartao(id) {
+    document.querySelectorAll('.secao-cartao').forEach(el => el.classList.add('hidden'));
+    const ativo = document.getElementById(`cartao-bloco-${id}`);
+    if (ativo) ativo.classList.remove('hidden');
+
+    const tab1 = document.getElementById('tab-card-1');
+    const tab40 = document.getElementById('tab-card-40');
+    if (id === 1) {
+      tab1.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-indigo-600 text-white shadow';
+      tab40.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+    } else {
+      tab1.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+      tab40.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-orange-600 text-white shadow';
+    }
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,149 @@
+[
+  {
+    "categoria": "❤️ SAÚDE",
+    "subcategorias": [
+      "🏋️ Academia / Wellhub",
+      "🏥 Plano de Saúde",
+      "💊 Medicamentos",
+      "🦷 Plano Odonto",
+      "🩹 Coparticipação",
+      "🩺 Médicos / Consultas"
+    ]
+  },
+  {
+    "categoria": "DIVIDAS",
+    "subcategorias": [
+      "🏛️Juros / Taxas de Empréstimo",
+      "🏦 Acordo BV",
+      "👨‍👩 Mãe / Rubens",
+      "👴 Pai",
+      "📋 Outras Dívidas"
+    ]
+  },
+  {
+    "categoria": "EDUCACAO",
+    "subcategorias": [
+      "🎓 Pós-Graduação Fernanda",
+      "💻 Cursos / TI",
+      "📖 Livros / Assinaturas"
+    ]
+  },
+  {
+    "categoria": "EVENTUAL",
+    "subcategorias": [
+      "🎁Presentes do Mês",
+      "🛍️ Compras Diversas"
+    ]
+  },
+  {
+    "categoria": "LAZER",
+    "subcategorias": [
+      "🍽️ Restaurante / Lanche fora",
+      "🎬 Streaming / Entretenimento",
+      "🏖️ Viagens / Passeios"
+    ]
+  },
+  {
+    "categoria": "Outros",
+    "subcategorias": []
+  },
+  {
+    "categoria": "🍽️ ALIMENTAÇÃO",
+    "subcategorias": [
+      "🍔 Delivery (iFood / 99Food)",
+      "🥖 Padaria",
+      "🛒 Supermercado / Feira"
+    ]
+  },
+  {
+    "categoria": "🚕 Chaves Transportes",
+    "subcategorias": [
+      "⛽ Combustível (Trabalho)",
+      "📱 Ferramentas de Trabalho (Internet móvel, suporte celular, carregador)",
+      "🥪 Alimentação na Rua",
+      "🧽 Lavagem/Limpeza"
+    ]
+  },
+  {
+    "categoria": "🙏 DÍZIMO E DOAÇÕES",
+    "subcategorias": [
+      "🏦 Dízimo (Igreja)",
+      "🤝 Doações"
+    ]
+  },
+  {
+    "categoria": "🏠 HABITAÇÃO",
+    "subcategorias": [
+      "⚡ Energia (CEMIG + CEMIG SIM)",
+      "🌐 Internet",
+      "💧 Água (Copasa)",
+      "📦 Outros",
+      "📱 Telefones",
+      "🛠️ Manutenção e Reparos"
+    ]
+  },
+  {
+    "categoria": "💰 INVESTIMENTOS",
+    "subcategorias": [
+      "🏦 Conta Capital Sicoob (R$30/mês)",
+      "🐖 Reserva de Emergência"
+    ]
+  },
+  {
+    "categoria": "👶 PEDRO",
+    "subcategorias": [
+      "🍼 Higiene / Fraldas",
+      "🎒 Escola / Material",
+      "🐖 Poupança do Pedro",
+      "👕 Roupas / Brinquedos",
+      "🩺 Médico / Vacinas"
+    ]
+  },
+  {
+    "categoria": "👤 PESSOAL — Carlos",
+    "subcategorias": [
+      "👕 Vestuário",
+      "💇 Barbearia",
+      "🧴 Higiene / Farmácia",
+      "🪙 Mesada Carlos"
+    ]
+  },
+  {
+    "categoria": "👤 PESSOAL — Fernanda",
+    "subcategorias": [
+      "👗 Vestuário",
+      "💄 Higiene / Cosméticos",
+      "💇 Cabelo / Beleza",
+      "🪙 Mesada Fernanda"
+    ]
+  },
+  {
+    "categoria": "🚗 TRANSPORTE PESSOAL",
+    "subcategorias": [
+      "⛽ Combustível (viagens)",
+      "📄 Documentação (IPVA, Multas)",
+      "🚖 Táxi / Uber",
+      "🛠️ Manutenção Veículo"
+    ]
+  },
+  {
+    "categoria": "Investimentos",
+    "subcategorias": [
+      "📈 Rendimentos (cofrinhos MP, qualquer aplicação)"
+    ]
+  },
+  {
+    "categoria": "Receitas Fixas",
+    "subcategorias": [
+      "💼 Salário Fernanda"
+    ]
+  },
+  {
+    "categoria": "Receitas Variáveis",
+    "subcategorias": [
+      "🏦 Empréstimo / Aporte",
+      "💰 Receitas Extras (13º, férias, dividendos Sicoob)",
+      "🚕 99 / Chaves (Carlos)"
+    ]
+  }
+]

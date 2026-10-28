@@ -1,0 +1,491 @@
+[
+  {
+    "id": "3200238080",
+    "lines": [
+      "01/10/26",
+      "Conta vencida",
+      "Copasa - Água e Esgoto",
+      "Mercado Pago",
+      "-72,46",
+      "Saldo no dia",
+      "213,02",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-72,46",
+    "is_overdue": true
+  },
+  {
+    "id": "3249172252",
+    "lines": [
+      "03/10/26",
+      "Raia Fraldas- Venvanse - Paga Leve",
+      "3/4",
+      "Mercado Pago",
+      "-73,63",
+      "Saldo no dia",
+      "139,39",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-73,63",
+    "is_overdue": false
+  },
+  {
+    "id": "3236201304",
+    "lines": [
+      "05/10/26",
+      "Ozivy -Paga Leve",
+      "4/4",
+      "Mercado Pago",
+      "-69,72"
+    ],
+    "valor": "-69,72",
+    "is_overdue": false
+  },
+  {
+    "id": "3236201889",
+    "lines": [
+      "Conta vencida",
+      "Seguro HB20 AGV - Paga Leve",
+      "3/3",
+      "Mercado Pago",
+      "-52,52",
+      "Saldo no dia",
+      "69,67",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-52,52",
+    "is_overdue": true
+  },
+  {
+    "id": "3051339437",
+    "lines": [
+      "06/10/26",
+      "Salário Fernanda",
+      "Mercado Pago",
+      "3.523,43"
+    ],
+    "valor": "3.523,43",
+    "is_overdue": false
+  },
+  {
+    "id": "3236215620",
+    "lines": [
+      "Psyllium - Paga Leve",
+      "4/4",
+      "Mercado Pago",
+      "-7,53",
+      "Saldo no dia",
+      "3.585,57",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-7,53",
+    "is_overdue": false
+  },
+  {
+    "id": "3184882209",
+    "lines": [
+      "07/10/26",
+      "Plano de Saúde Família Desconto em Folha",
+      "Mercado Pago",
+      "-578,17"
+    ],
+    "valor": "-578,17",
+    "is_overdue": false
+  },
+  {
+    "id": "3184882864",
+    "lines": [
+      "Planos Odontológicos",
+      "Mercado Pago",
+      "-19,94"
+    ],
+    "valor": "-19,94",
+    "is_overdue": false
+  },
+  {
+    "id": "3221601556",
+    "lines": [
+      "Crediserv - Empréstimo 2",
+      "4/42",
+      "Mercado Pago",
+      "-433,86"
+    ],
+    "valor": "-433,86",
+    "is_overdue": false
+  },
+  {
+    "id": "3221602612",
+    "lines": [
+      "Transferência",
+      "30,00"
+    ],
+    "valor": "30,00",
+    "is_overdue": false
+  },
+  {
+    "id": "3236300465",
+    "lines": [
+      "CrediServ - Capital Social",
+      "Mercado Pago",
+      "-30,00"
+    ],
+    "valor": "-30,00",
+    "is_overdue": false
+  },
+  {
+    "id": "3255619513",
+    "lines": [
+      "Pagamento de fatura",
+      "Cartão Inter Aparecida",
+      "-2.410,71",
+      "Saldo no dia",
+      "112,89",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-2.410,71",
+    "is_overdue": false
+  },
+  {
+    "id": "3228576415",
+    "lines": [
+      "08/10/26",
+      "YouCine",
+      "Mercado Pago",
+      "-24,90",
+      "Saldo no dia",
+      "87,99",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-24,90",
+    "is_overdue": false
+  },
+  {
+    "id": "3223416797",
+    "lines": [
+      "09/10/26",
+      "Conta vencida",
+      "CEMIG SIM - Energia",
+      "Mercado Pago",
+      "-132,92",
+      "Saldo no dia",
+      "87,99",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-132,92",
+    "is_overdue": true
+  },
+  {
+    "id": "3080107609",
+    "lines": [
+      "10/10/26",
+      "Conta vencida",
+      "Fatura Claro Controle Fernanda",
+      "Mercado Pago",
+      "-34,36"
+    ],
+    "valor": "-34,36",
+    "is_overdue": true
+  },
+  {
+    "id": "3090836084",
+    "lines": [
+      "Conta vencida",
+      "Pós-graduação Fernanda",
+      "Mercado Pago",
+      "-99,90",
+      "Saldo no dia",
+      "87,99",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-99,90",
+    "is_overdue": true
+  },
+  {
+    "id": "3249171703",
+    "lines": [
+      "12/10/26",
+      "Conta vencida",
+      "Raia whey - Paga Leve",
+      "3/4",
+      "Mercado Pago",
+      "-40,35"
+    ],
+    "valor": "-40,35",
+    "is_overdue": true
+  },
+  {
+    "id": "3250596378",
+    "lines": [
+      "Conta vencida",
+      "Almoço Domingo 99 Food - Paga Leve Júnior",
+      "2/4",
+      "Mercado Pago",
+      "-17,81"
+    ],
+    "valor": "-17,81",
+    "is_overdue": true
+  },
+  {
+    "id": "3250596448",
+    "lines": [
+      "Conta vencida",
+      "Boleto coparticipação Saúde Unimed setembro",
+      "Mercado Pago",
+      "-47,81"
+    ],
+    "valor": "-47,81",
+    "is_overdue": true
+  },
+  {
+    "id": "3257561403",
+    "lines": [
+      "Renda 99",
+      "Mercado Pago",
+      "612,05",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "612,05",
+    "is_overdue": false
+  },
+  {
+    "id": "3242367928",
+    "lines": [
+      "13/10/26",
+      "Conta vencida",
+      "WellHub Júnior",
+      "Mercado Pago",
+      "-119,99",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-119,99",
+    "is_overdue": true
+  },
+  {
+    "id": "3218352060",
+    "lines": [
+      "Hoje",
+      "Barbeador Júnior",
+      "Mercado Pago",
+      "-50,00"
+    ],
+    "valor": "-50,00",
+    "is_overdue": false
+  },
+  {
+    "id": "3249172253",
+    "lines": [
+      "Raia Fraldas- Venvanse - Paga Leve",
+      "4/4",
+      "Mercado Pago",
+      "-73,63",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-73,63",
+    "is_overdue": false
+  },
+  {
+    "id": "3233290484",
+    "lines": [
+      "18/10/26",
+      "WellHub Fernanda",
+      "Mercado Pago",
+      "-137,50",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-137,50",
+    "is_overdue": false
+  },
+  {
+    "id": "3171310912",
+    "lines": [
+      "22/10/26",
+      "Assinatura Audible",
+      "Mercado Pago",
+      "-19,90"
+    ],
+    "valor": "-19,90",
+    "is_overdue": false
+  },
+  {
+    "id": "3243503600",
+    "lines": [
+      "Acordo BV",
+      "4/24",
+      "Mercado Pago",
+      "-1.428,82"
+    ],
+    "valor": "-1.428,82",
+    "is_overdue": false
+  },
+  {
+    "id": "3248405756",
+    "lines": [
+      "GM VISAGE - Corte Cabelo",
+      "Mercado Pago",
+      "-50,00",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-50,00",
+    "is_overdue": false
+  },
+  {
+    "id": "3249171704",
+    "lines": [
+      "26/10/26",
+      "Raia whey - Paga Leve",
+      "4/4",
+      "Mercado Pago",
+      "-40,35"
+    ],
+    "valor": "-40,35",
+    "is_overdue": false
+  },
+  {
+    "id": "3250596379",
+    "lines": [
+      "Almoço Domingo 99 Food - Paga Leve Júnior",
+      "3/4",
+      "Mercado Pago",
+      "-17,81",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-17,81",
+    "is_overdue": false
+  },
+  {
+    "id": "3079973999",
+    "lines": [
+      "27/10/26",
+      "Cemig",
+      "Mercado Pago",
+      "-93,95",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-93,95",
+    "is_overdue": false
+  },
+  {
+    "id": "3255878409",
+    "lines": [
+      "29/10/26",
+      "Parcelamento IPVA 2025 e 2026",
+      "Mercado Pago",
+      "-431,11",
+      "Saldo no dia",
+      "700,04",
+      "Saldo no dia anterior",
+      "Receita realizada",
+      "Receita prevista",
+      "Despesa realizada",
+      "Despesa prevista",
+      "Saldo no dia",
+      "Previsto do dia"
+    ],
+    "valor": "-431,11",
+    "is_overdue": false
+  }
+]
