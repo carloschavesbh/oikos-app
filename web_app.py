@@ -246,7 +246,7 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
 
     # 5. Contas Atrasadas (Vencidas)
     cur.execute("""
-        SELECT id, data, descricao, categoria, valor, conta, COALESCE(titular, '') as titular
+        SELECT id, data, descricao, categoria, valor, conta, conta_id, COALESCE(titular, '') as titular
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
         ORDER BY data ASC, id ASC
@@ -259,6 +259,8 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         tot_atrasadas += val
         dt_obj = datetime.datetime.strptime(str(r["data"])[:10], "%Y-%m-%d").date()
         dias_atraso = (hoje - dt_obj).days
+        conta_raw = (r["conta"] or "").strip()
+        conta_def = bool(conta_raw and conta_raw not in ("None", "A Confirmar"))
         atrasadas.append({
             "id": r["id"],
             "data": dt_obj.strftime("%d/%m"),
@@ -266,13 +268,15 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
             "descricao": r["descricao"],
             "categoria": r["categoria"],
             "valor": val,
-            "conta": r["conta"] or "Mercado Pago",
+            "conta": conta_raw if conta_def else "Mercado Pago",
+            "conta_id": r["conta_id"],
+            "conta_definida": conta_def,
             "dias_atraso": dias_atraso
         })
 
     # 6. Contas que Vencem Hoje
     cur.execute("""
-        SELECT id, data, descricao, categoria, valor, conta, COALESCE(titular, '') as titular
+        SELECT id, data, descricao, categoria, valor, conta, conta_id, COALESCE(titular, '') as titular
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data = ?
         ORDER BY id ASC
@@ -283,13 +287,17 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     for r in rows_hoje:
         val = float(r["valor"])
         tot_vence_hoje += val
+        conta_raw = (r["conta"] or "").strip()
+        conta_def = bool(conta_raw and conta_raw not in ("None", "A Confirmar"))
         vence_hoje.append({
             "id": r["id"],
             "data": hoje.strftime("%d/%m"),
             "descricao": r["descricao"],
             "categoria": r["categoria"],
             "valor": val,
-            "conta": r["conta"] or "Mercado Pago"
+            "conta": conta_raw if conta_def else "Mercado Pago",
+            "conta_id": r["conta_id"],
+            "conta_definida": conta_def
         })
 
     # 7. Contas Próximos 7 Dias (apenas contagem e valor resumido)
@@ -458,18 +466,56 @@ async def pagina_lancamentos(
             })
 
     cur = conn.cursor()
+    cur.execute("PRAGMA table_info(transacoes)")
+    cols_tr = [c["name"] for c in cur.fetchall()]
+    if "data_liquidacao" not in cols_tr:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN data_liquidacao TEXT")
+        conn.commit()
+    if "subcategoria" not in cols_tr:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
+        conn.commit()
+
     cur.execute("""
-        SELECT id, data, descricao, valor, tipo, categoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
+        SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
         FROM transacoes
-        WHERE data >= ? AND data <= ?
-        ORDER BY data DESC, id DESC
-    """, (inicio_mes, fim_mes))
+        WHERE (data >= ? AND data <= ?) OR (pago = 1 AND data_liquidacao >= ? AND data_liquidacao <= ?)
+        ORDER BY COALESCE(data_liquidacao, data) DESC, id DESC
+    """, (inicio_mes, fim_mes, inicio_mes, fim_mes))
     rows = cur.fetchall()
 
     hoje_str = hoje.strftime("%Y-%m-%d")
     transacoes = []
     tot_receitas = 0.0
     tot_despesas = 0.0
+
+    # Mapa de abastecimentos vinculados para exibir badge de economia no extrato
+    abast_map = {}
+    try:
+        cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
+        cols_ab = [c["name"] for c in cur.fetchall()]
+        if "app_desconto" not in cols_ab:
+            cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
+            conn.commit()
+        cur.execute("""
+            SELECT transacao_id, valor_bruto, valor_pago, desconto, litros, COALESCE(app_desconto, 'Nenhum') as app_desconto
+            FROM veiculo_abastecimentos
+            WHERE transacao_id IS NOT NULL
+        """)
+        for ab in cur.fetchall():
+            tid_ab = ab["transacao_id"]
+            vp = float(ab["valor_pago"] or 0.0)
+            vb = float(ab["valor_bruto"] or vp)
+            ec = round(max(0.0, vb - vp), 2) if vb > vp else round(float(ab["desconto"] or 0.0), 2)
+            if vb < vp + ec:
+                vb = round(vp + ec, 2)
+            pct = round((ec / vb) * 100.0, 1) if (vb > 0 and ec > 0) else 0.0
+            app_nm = (ab["app_desconto"] or "").strip()
+            if not app_nm or app_nm == "Nenhum":
+                app_nm = "Posto / Outro"
+            if ec > 0:
+                abast_map[tid_ab] = f"Economia de {formatar_moeda_br(ec)} ({pct:.1f}%) via {app_nm}"
+    except Exception:
+        abast_map = {}
 
     for r in rows:
         val = float(r["valor"] or 0.0)
@@ -479,7 +525,7 @@ async def pagina_lancamentos(
         else:
             tot_despesas += val
 
-        dt_str = str(r["data"])[:10]
+        dt_str = str(r["data_efetiva"] or r["data"])[:10]
         try:
             dt_obj = datetime.datetime.strptime(dt_str, "%Y-%m-%d").date()
             dt_fmt = dt_obj.strftime("%d/%m")
@@ -497,18 +543,20 @@ async def pagina_lancamentos(
             "valor": val,
             "tipo": tipo,
             "categoria": r["categoria"] or "Geral",
+            "subcategoria": r["subcategoria"] or "",
             "conta": r["conta"] or "Mercado Pago",
             "pago": pago_flag,
             "grupo_parcelamento": r["grupo_parcelamento"],
             "numero_parcela": r["numero_parcela"],
             "total_parcelas_compra": r["total_parcelas_compra"],
             "eh_passada": False,
-            "is_atrasada": is_atrasada
+            "is_atrasada": is_atrasada,
+            "economia_badge": abast_map.get(r["id"], "")
         })
 
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
-        SELECT id, data, descricao, valor, tipo, categoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
+        SELECT id, data, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
         ORDER BY data ASC, id ASC
@@ -536,6 +584,7 @@ async def pagina_lancamentos(
             "valor": val,
             "tipo": "despesa",
             "categoria": r["categoria"] or "Geral",
+            "subcategoria": r["subcategoria"] or "",
             "conta": r["conta"] or "Mercado Pago",
             "pago": 0,
             "grupo_parcelamento": r["grupo_parcelamento"],
@@ -572,9 +621,72 @@ async def pagina_lancamentos(
             "opcoes_periodo": opcoes_periodo,
             "filtro_inicial": filtro or "",
             "hoje_str": hoje_str,
+            "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
+            "categorias_subcategorias_json": json.dumps(CATEGORIAS_SUBCATEGORIAS, ensure_ascii=False),
             "active_tab": "lancamentos"
         }
     )
+
+
+# Estrutura hierárquica Categoria -> Subcategoria (Estilo Organizze)
+CATEGORIAS_SUBCATEGORIAS: Dict[str, List[str]] = {
+    "Alimentação": [
+        "Supermercado",
+        "Padaria",
+        "Feira/Sacolão",
+        "Almoço/Marmitex",
+        "Lanche",
+        "Restaurante"
+    ],
+    "Transporte": [
+        "Combustível",
+        "Transporte Fernanda/Escola",
+        "Manutenção",
+        "Estacionamento",
+        "Taxa Operação"
+    ],
+    "Moradia/Contas": [
+        "Energia/CEMIG",
+        "Telefone/Internet/Claro",
+        "Assinaturas/Google One",
+        "Água/Copasa",
+        "PagaLeve",
+        "Acordo BV",
+        "Outros"
+    ],
+    "Pessoal": [
+        "Doces/Mimos",
+        "Saúde/Farmácia",
+        "PagaLeve",
+        "Barbearia/Cuidados",
+        "Outros"
+    ],
+    "Saúde": [
+        "Saúde/Farmácia",
+        "Medicamentos",
+        "Consultas/Exames"
+    ],
+    "Combustível": [
+        "Etanol",
+        "Gasolina",
+        "GNV"
+    ],
+    "Transferência": [
+        "Dívida Cartão PicPay",
+        "Transferência Entre Contas",
+        "Aporte Cofrinho"
+    ],
+    "99 Produção": [
+        "Corridas Online (99Pay)",
+        "Corridas Dinheiro/Pix",
+        "Bônus / Incentivos"
+    ],
+    "Salário": [
+        "Salário Mensal",
+        "Adiantamento / Vale",
+        "Renda Extra"
+    ]
+}
 
 
 @app.post("/api/lancamentos")
@@ -584,15 +696,24 @@ async def api_criar_lancamento(
     valor: float = Form(...),
     descricao: str = Form(...),
     categoria: str = Form(...),
+    subcategoria: Optional[str] = Form(""),
     conta: str = Form(...),
-    pago: Optional[int] = Form(0)
+    pago: Optional[int] = Form(0),
+    id: Optional[int] = Form(None)
 ):
-    """Insere nova transação de receita ou despesa no banco SQLite."""
+    """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria e Subcategoria."""
     if valor <= 0:
         raise HTTPException(status_code=400, detail="Valor deve ser positivo.")
 
     conn = conectar_db()
     try:
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(transacoes)")
+        cols_tr = [c["name"] for c in cur.fetchall()]
+        if "subcategoria" not in cols_tr:
+            cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
+            conn.commit()
+
         cur.execute("SELECT id FROM contas_config WHERE nome = ?", (conta,))
         row_c = cur.fetchone()
         if row_c:
@@ -600,11 +721,21 @@ async def api_criar_lancamento(
         else:
             conta_id = 1 if "Mercado" in conta else (2 if "Dinheiro" in conta or "Carteira" in conta else (1779 if "99" in conta else 1))
         afeta_saldo = 1 if pago == 1 else 0
+        subcat_str = (subcategoria or "").strip()
+
+        if id and int(id) > 0:
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?
+                WHERE id = ?
+            """, (str(data)[:10], descricao.strip(), valor, tipo, categoria, subcat_str, conta, conta_id, pago, afeta_saldo, int(id)))
+            conn.commit()
+            return {"sucesso": True, "mensagem": f"Lançamento '{descricao}' atualizado com sucesso!"}
 
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (data, descricao.strip(), valor, tipo, categoria, conta, conta_id, pago, afeta_saldo))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (str(data)[:10], descricao.strip(), valor, tipo, categoria, subcat_str, conta, conta_id, pago, afeta_saldo))
         conn.commit()
         return {"sucesso": True, "mensagem": f"{tipo.capitalize()} '{descricao}' de {formatar_moeda_br(valor)} lançada com sucesso!"}
     except Exception as e:
@@ -612,6 +743,36 @@ async def api_criar_lancamento(
         return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
     finally:
         conn.close()
+
+
+@app.post("/api/lancamentos/editar")
+@app.post("/api/lancamentos/{transacao_id}")
+async def api_editar_lancamento(
+    transacao_id: Optional[int] = None,
+    id: Optional[int] = Form(None),
+    data: str = Form(...),
+    tipo: str = Form("despesa"),
+    valor: float = Form(...),
+    descricao: str = Form(...),
+    categoria: str = Form(...),
+    subcategoria: Optional[str] = Form(""),
+    conta: str = Form("Mercado Pago"),
+    pago: Optional[int] = Form(0)
+):
+    tid = transacao_id or id
+    if not tid:
+        raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
+    return await api_criar_lancamento(
+        data=data,
+        tipo=tipo,
+        valor=valor,
+        descricao=descricao,
+        categoria=categoria,
+        subcategoria=subcategoria,
+        conta=conta,
+        pago=pago,
+        id=int(tid)
+    )
 
 
 # =============================================================================
@@ -1275,18 +1436,22 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
 
         # Classificação de status & badges de integridade
         if st_upper == "EM_ANDAMENTO":
+            st_turno_norm = "EM_ANDAMENTO"
             tag_codigo = "EM_ANDAMENTO"
             tag_label = "● Em Andamento"
             tag_badge = "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 animate-pulse font-bold"
         elif km_val <= 0:
+            st_turno_norm = st_turno
             tag_codigo = "PENDENTE_KM"
             tag_label = "⚠️ Pendente KM"
             tag_badge = "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 font-bold"
         elif bruto_val <= 0:
+            st_turno_norm = st_turno
             tag_codigo = "A_CONFIRMAR"
             tag_label = "⚠️ A Confirmar"
             tag_badge = "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20 font-bold"
         else:
+            st_turno_norm = st_turno
             tag_codigo = "CONCLUIDO"
             tag_label = "✓ Concluído"
             tag_badge = "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-bold"
@@ -1310,7 +1475,7 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             "hora_fim": r["hora_fim"] or "",
             "km_inicial": float(r["km_inicial"]) if r["km_inicial"] is not None else None,
             "km_final": float(r["km_final"]) if r["km_final"] is not None else None,
-            "status_turno": st_turno,
+            "status_turno": st_turno_norm,
             "status_conciliacao": r["status_conciliacao"] or "conciliado",
             "tag_codigo": tag_codigo,
             "tag_label": tag_label,
@@ -1323,8 +1488,16 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
     turno_ativo = next((t for t in turnos if t["status_turno"].upper() == "EM_ANDAMENTO"), None)
 
     # Abastecimentos reais registrados (Drivvo)
+    cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
+    cols_abast = [c["name"] for c in cur.fetchall()]
+    if "app_desconto" not in cols_abast:
+        cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
+        conn.commit()
+
     cur.execute("""
-        SELECT id, data, valor_pago, litros, combustivel, preco_litro, posto, hodometro, observacao
+        SELECT id, data, valor_bruto, desconto, valor_pago, litros, combustivel,
+               preco_litro, posto, hodometro, observacao, COALESCE(app_desconto, '') as app_desconto,
+               COALESCE(conta, 'Dinheiro / Carteira') as conta
         FROM veiculo_abastecimentos
         ORDER BY data DESC, id DESC
     """)
@@ -1336,18 +1509,67 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
         except Exception:
             dt_fmt = dt_str
+
+        val_pago = round(float(a["valor_pago"] or 0.0), 2)
+        val_bomba = round(float(a["valor_bruto"] or val_pago), 2)
+        economia = round(max(0.0, val_bomba - val_pago), 2) if val_bomba > val_pago else round(float(a["desconto"] or 0.0), 2)
+        if val_bomba < val_pago + economia:
+            val_bomba = round(val_pago + economia, 2)
+
+        pct_economia = round((economia / val_bomba) * 100.0, 1) if (val_bomba > 0 and economia > 0) else 0.0
+        lits = round(float(a["litros"] or 0.0), 3)
+        # Preço Real por Litro = Valor Pago Real / Litros
+        preco_real_litro = round(val_pago / lits, 3) if lits > 0 else float(a["preco_litro"] or 0.0)
+        preco_bomba_litro = round(val_bomba / lits, 3) if lits > 0 else preco_real_litro
+
+        app_raw = (a["app_desconto"] or "").strip()
+        obs_str = a["observacao"] or ""
+        if not app_raw or app_raw == "Nenhum":
+            if economia > 0:
+                obs_low = obs_str.lower()
+                if "99" in obs_low:
+                    app_nome = "99 Abastece"
+                elif "shell" in obs_low:
+                    app_nome = "Shell Box"
+                elif "soutag" in obs_low:
+                    app_nome = "SouTag"
+                elif "premmia" in obs_low:
+                    app_nome = "Premmia"
+                else:
+                    app_nome = "Posto / Outro"
+            else:
+                app_nome = "Nenhum"
+        else:
+            app_nome = app_raw
+
+        economia_badge = f"Economia de {formatar_moeda_br(economia)} ({pct_economia:.1f}%) via {app_nome}" if economia > 0 else ""
+
         abastecimentos.append({
             "id": a["id"],
             "data": dt_str,
             "data_formatada": dt_fmt,
-            "valor_pago": float(a["valor_pago"] or 0.0),
-            "litros": float(a["litros"] or 0.0),
+            "valor_bomba": val_bomba,
+            "valor_pago": val_pago,
+            "economia": economia,
+            "pct_economia": pct_economia,
+            "app_desconto": app_nome,
+            "economia_badge": economia_badge,
+            "litros": lits,
             "combustivel": a["combustivel"] or "Etanol",
-            "preco_litro": float(a["preco_litro"] or 0.0),
+            "preco_litro": preco_real_litro,
+            "preco_bomba_litro": preco_bomba_litro,
             "posto": a["posto"] or "Posto de Combustível",
+            "conta": a["conta"] or "Dinheiro / Carteira",
             "hodometro": float(a["hodometro"] or 0.0),
-            "observacao": a["observacao"] or ""
+            "observacao": obs_str
         })
+
+    # Totais globais de abastecimento real para referência de consumo (km/L e custo/km)
+    tot_litros_global = sum(a["litros"] for a in abastecimentos)
+    tot_pago_global = sum(a["valor_pago"] for a in abastecimentos)
+    tot_km_global = sum(t["km"] for t in turnos)
+    custo_km_global = round(tot_pago_global / tot_km_global, 2) if (tot_km_global > 0 and tot_pago_global > 0) else 0.28
+    kml_global = round(tot_km_global / tot_litros_global, 2) if (tot_litros_global > 0 and tot_km_global > 0) else 0.0
 
     # CÁLCULO DOS 4 INDICADORES OPERACIONAIS POR PERÍODO
     def calcular_metricas(p_tipo):
@@ -1356,29 +1578,35 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             a_filtro = [a for a in abastecimentos if a["data"] == hoje_str]
             bruto = sum(t["ganho_bruto"] for t in t_filtro)
             abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
             tot_km = sum(t["km"] for t in t_filtro)
             tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
             comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = (comb_est / tot_km) if tot_km > 0 else 0.0
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else (custo_km_global if tot_km > 0 else 0.0)
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
             caixa_liquido = bruto - abast_real
             sub_bruto = f"{len(t_filtro)} turno(s) hoje"
-            sub_abast = f"{len(a_filtro)} abastecimento(s) hoje"
-            sub_km = f"{round(tot_km, 1)} km hoje"
-            sub_liq = "Bruto (-) Abastecido Real"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{len(a_filtro)} abastecimento(s) hoje"
+            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km hoje" if kml_periodo > 0 else f"{round(tot_km, 1)} km hoje"
+            sub_liq = "Bruto (-) Valor Pago Real"
 
         elif p_tipo == "semana":
             t_filtro = [t for t in turnos if inicio_semana <= t["data"] <= fim_semana]
             a_filtro = [a for a in abastecimentos if inicio_semana <= a["data"] <= fim_semana]
             bruto = sum(t["ganho_bruto"] for t in t_filtro) if t_filtro else semana_bruto
             abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
             tot_km = sum(t["km"] for t in t_filtro)
             tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
             comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = (comb_est / tot_km) if tot_km > 0 else 0.28
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
             caixa_liquido = bruto - abast_real
-            sub_bruto = "R$ 146,70 na semana"
-            sub_abast = f"{sum(a['litros'] for a in a_filtro):.2f} L Drivvo"
-            sub_km = f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
+            sub_bruto = f"{formatar_moeda_br(bruto)} na semana"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
             sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
 
         elif p_tipo == "mes":
@@ -1386,14 +1614,17 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             a_filtro = [a for a in abastecimentos if inicio_mes <= a["data"] <= fim_mes]
             bruto = total_mes_bruto
             abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
             tot_km = sum(t["km"] for t in t_filtro)
             tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
             comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = (comb_est / tot_km) if tot_km > 0 else 0.28
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
             caixa_liquido = bruto - abast_real
-            sub_bruto = "R$ 1.469,50 no mês"
-            sub_abast = f"{sum(a['litros'] for a in a_filtro):.2f} L Drivvo"
-            sub_km = f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
+            sub_bruto = f"{formatar_moeda_br(bruto)} no mês"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
             sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
 
         else: # todos
@@ -1401,20 +1632,26 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             a_filtro = abastecimentos
             bruto = total_mes_bruto
             abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
             tot_km = sum(t["km"] for t in t_filtro)
             tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
             comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = (comb_est / tot_km) if tot_km > 0 else 0.28
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
             caixa_liquido = bruto - abast_real
             sub_bruto = "Acumulado Histórico"
-            sub_abast = f"{sum(a['litros'] for a in a_filtro):.2f} L Drivvo"
-            sub_km = f"{round(tot_km, 1)} km registrados"
-            sub_liq = "Bruto (-) Abastecido Total"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km" if kml_periodo > 0 else f"{round(tot_km, 1)} km registrados"
+            sub_liq = "Bruto (-) Valor Pago Real"
 
         return {
             "bruto": bruto,
             "abastecido_real": abast_real,
             "consumo_estimado_km": consumo_km,
+            "km_por_litro": kml_periodo,
+            "economia_total": tot_econ,
+            "litros_total": round(tot_litros, 2),
             "caixa_liquido": caixa_liquido,
             "total_km": round(tot_km, 1),
             "total_horas": round(tot_horas, 2),
@@ -1464,12 +1701,14 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
 
 
 @app.post("/motorista/turnos/salvar")
+@app.post("/motorista/turnos/iniciar")
+@app.post("/motorista/turnos/encerrar")
 @app.post("/motorista/turnos/registrar")
 @app.post("/motorista/turnos/manual")
 @app.post("/motorista/turnos/editar")
 @app.post("/api/turnos")
 async def api_salvar_turno(
-    data: str = Form(...),
+    data: Optional[str] = Form(None),
     hora_inicio: Optional[str] = Form(None),
     hora_fim: Optional[str] = Form(None),
     horas: Optional[float] = Form(0.0),
@@ -1482,18 +1721,18 @@ async def api_salvar_turno(
     combustivel: Optional[float] = Form(None),
     observacao: Optional[str] = Form(""),
     periodo: Optional[str] = Form(None),
+    status_turno: Optional[str] = Form(None),
     id: Optional[int] = Form(None)
 ):
     """
-    Cria ou edita um turno operacional único com cálculos automáticos por horários e hodômetro.
-    - Horas Trabalhadas: calculado por Hora Início e Hora Fim.
-    - KM Rodados: Hodômetro Final - Hodômetro Inicial (opcional).
-    - Faturamento Bruto: soma automática de Online + Dinheiro.
-    - Se Hodômetro Final em branco: KM=0, status '⚠️ Pendente KM'.
+    Cria, inicia, edita ou encerra um turno operacional:
+    - Se 'hora_fim' estiver vazio/nulo (e horas <= 0), salva o turno com status 'EM_ANDAMENTO' (turno aberto).
+    - Se 'hora_fim' for informado no fechamento/edição, calcula as horas trabalhadas e salva como 'encerrado'.
     """
     conn = conectar_db()
     try:
         cur = conn.cursor()
+        data_turno = str(data).strip() if (data and str(data).strip() != "") else date.today().strftime("%Y-%m-%d")
 
         # 1. Tratar Horários & Horas Trabalhadas
         h_ini_str = str(hora_inicio).strip() if (hora_inicio and str(hora_inicio).strip() != "") else None
@@ -1504,7 +1743,7 @@ async def api_salvar_turno(
         except (TypeError, ValueError):
             h_val = 0.0
 
-        if h_val <= 0 and h_ini_str and h_fim_str:
+        if h_ini_str and h_fim_str:
             try:
                 hi, mi = map(int, h_ini_str.split(":")[:2])
                 hf, mf = map(int, h_fim_str.split(":")[:2])
@@ -1513,7 +1752,19 @@ async def api_salvar_turno(
                     diff_m += 24 * 60  # virada de meia-noite
                 h_val = round(diff_m / 60.0, 2)
             except Exception:
+                pass
+        elif not h_fim_str:
+            # Se hora_fim não foi informada, trata como turno aberto se horas não tiver sido forçado
+            if not status_turno or str(status_turno).upper() == "EM_ANDAMENTO":
                 h_val = 0.0
+
+        # Determinar status do turno (EM_ANDAMENTO vs encerrado)
+        if status_turno and str(status_turno).strip().upper() == "EM_ANDAMENTO" and not h_fim_str:
+            st_turno_db = "EM_ANDAMENTO"
+        elif not h_fim_str and h_val <= 0:
+            st_turno_db = "EM_ANDAMENTO"
+        else:
+            st_turno_db = "encerrado"
 
         # Auto-detecção de período
         periodo_val = str(periodo).strip() if (periodo and str(periodo).strip() != "") else None
@@ -1556,7 +1807,10 @@ async def api_salvar_turno(
         g_bruto = round(g_onl + g_din, 2) if (g_onl + g_din > 0) else (float(ganho_bruto or 0.0))
 
         # 4. Combustível estimado (R$ 0,38/km)
-        if km_val > 0:
+        if st_turno_db == "EM_ANDAMENTO":
+            c_val = round(km_val * 0.38, 2) if km_val > 0 else 0.0
+            st_conciliacao = "em_andamento"
+        elif km_val > 0:
             c_val = round(km_val * 0.38, 2)
             st_conciliacao = "conciliado" if (g_bruto > 0 and h_val > 0) else "pendente"
         else:
@@ -1569,13 +1823,16 @@ async def api_salvar_turno(
                 SET data = ?, periodo = ?, hora_inicio = ?, hora_fim = ?, horas = ?,
                     km_inicial = ?, km_final = ?, km = ?, ganho_bruto = ?,
                     ganho_online = ?, ganho_dinheiro_pix = ?, combustivel = ?,
-                    observacao = ?, status_turno = 'encerrado', status_conciliacao = ?
+                    observacao = ?, status_turno = ?, status_conciliacao = ?
                 WHERE id = ?
-            """, (data, periodo_val, h_ini_str, h_fim_str, h_val,
+            """, (data_turno, periodo_val, h_ini_str, h_fim_str, h_val,
                   k_ini_val, k_fim_val, km_val, g_bruto, g_onl, g_din, c_val,
-                  observacao or "", st_conciliacao, id))
+                  observacao or "", st_turno_db, st_conciliacao, id))
             conn.commit()
-            msg = f"Turno #{id} atualizado com sucesso!"
+            if st_turno_db == "EM_ANDAMENTO":
+                msg = f"Turno #{id} atualizado (Em Andamento)!"
+            else:
+                msg = f"Turno #{id} encerrado/atualizado com sucesso ({h_val}h)!"
             novo_id = id
         else:
             cur.execute("""
@@ -1583,15 +1840,18 @@ async def api_salvar_turno(
                     data, periodo, hora_inicio, hora_fim, horas, km_inicial, km_final, km,
                     ganho_bruto, ganho_online, ganho_dinheiro_pix, combustivel, observacao,
                     plataforma, status_turno, status_conciliacao, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '99', 'encerrado', ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '99', ?, ?, ?)
             """, (
-                data, periodo_val, h_ini_str, h_fim_str, h_val,
+                data_turno, periodo_val, h_ini_str, h_fim_str, h_val,
                 k_ini_val, k_fim_val, km_val, g_bruto, g_onl, g_din,
-                c_val, observacao or "", st_conciliacao, datetime.datetime.now().isoformat()
+                c_val, observacao or "", st_turno_db, st_conciliacao, datetime.datetime.now().isoformat()
             ))
             conn.commit()
             novo_id = cur.lastrowid
-            msg = f"Turno de {formatar_moeda_br(g_bruto)} ({h_val}h) registrado com sucesso!"
+            if st_turno_db == "EM_ANDAMENTO":
+                msg = f"Turno #{novo_id} iniciado às {h_ini_str or 'agora'} (Em Andamento)!"
+            else:
+                msg = f"Turno de {formatar_moeda_br(g_bruto)} ({h_val}h) registrado com sucesso!"
 
         # CONTABILIZAÇÃO FINANCEIRA SEGREGADA DOS GANHOS DO TURNO:
         # - Ganho Online (App) -> Destino: conta '99Pay'
@@ -1620,12 +1880,12 @@ async def api_salvar_turno(
                     SET data = ?, descricao = ?, valor = ?, tipo = 'receita', categoria = '99 / Chaves (Carlos)',
                         conta = '99Pay', conta_id = ?, pago = 1, afeta_saldo_bancario = 1
                     WHERE id = ?
-                """, (data, desc_onl, g_onl, c_id_99, tr_onl[0]))
+                """, (data_turno, desc_onl, g_onl, c_id_99, tr_onl[0]))
             else:
                 cur.execute("""
                     INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, turno_id)
                     VALUES (?, ?, ?, 'receita', '99 / Chaves (Carlos)', '99Pay', ?, 1, 1, ?)
-                """, (data, desc_onl, g_onl, c_id_99, novo_id))
+                """, (data_turno, desc_onl, g_onl, c_id_99, novo_id))
         else:
             if tr_onl:
                 cur.execute("DELETE FROM transacoes WHERE id = ?", (tr_onl[0],))
@@ -1641,19 +1901,19 @@ async def api_salvar_turno(
                     SET data = ?, descricao = ?, valor = ?, tipo = 'receita', categoria = '99 / Chaves (Carlos)',
                         conta = 'Dinheiro / Carteira', conta_id = ?, pago = 1, afeta_saldo_bancario = 1
                     WHERE id = ?
-                """, (data, desc_din, g_din, c_id_din, tr_din[0]))
+                """, (data_turno, desc_din, g_din, c_id_din, tr_din[0]))
             else:
                 cur.execute("""
                     INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, turno_id)
                     VALUES (?, ?, ?, 'receita', '99 / Chaves (Carlos)', 'Dinheiro / Carteira', ?, 1, 1, ?)
-                """, (data, desc_din, g_din, c_id_din, novo_id))
+                """, (data_turno, desc_din, g_din, c_id_din, novo_id))
         else:
             if tr_din:
                 cur.execute("DELETE FROM transacoes WHERE id = ?", (tr_din[0],))
 
         conn.commit()
 
-        if km_val <= 0:
+        if st_turno_db != "EM_ANDAMENTO" and km_val <= 0:
             msg += " (⚠️ Pendente KM)"
 
         return {
@@ -1662,7 +1922,7 @@ async def api_salvar_turno(
             "id": novo_id,
             "dados": {
                 "id": novo_id,
-                "data": data,
+                "data": data_turno,
                 "periodo": periodo_val,
                 "hora_inicio": h_ini_str,
                 "hora_fim": h_fim_str,
@@ -1674,6 +1934,7 @@ async def api_salvar_turno(
                 "ganho_dinheiro_pix": g_din,
                 "ganho_bruto": g_bruto,
                 "combustivel": c_val,
+                "status_turno": st_turno_db,
                 "status_conciliacao": st_conciliacao
             }
         }
@@ -1703,43 +1964,79 @@ async def api_excluir_turno(id: int = Form(...)):
 
 
 @app.post("/motorista/abastecer")
+@app.post("/api/abastecer")
 async def api_motorista_abastecer(
     data: str = Form(...),
     valor_pago: float = Form(...),
     litros: float = Form(...),
+    valor_bomba: Optional[float] = Form(None),
+    valor_bruto: Optional[float] = Form(None),
+    app_desconto: Optional[str] = Form(None),
+    origem_desconto: Optional[str] = Form(None),
     preco_litro: Optional[float] = Form(None),
     combustivel: Optional[str] = Form("Etanol"),
     posto: Optional[str] = Form("Posto de Combustível"),
     hodometro: Optional[float] = Form(None),
-    conta: Optional[str] = Form("Dinheiro / Carteira"),
+    conta: Optional[str] = Form(None),
+    conta_pagamento: Optional[str] = Form(None),
     desconto: Optional[float] = Form(0.0),
     tanque_cheio: Optional[int] = Form(0),
     observacao: Optional[str] = Form("")
 ):
-    """Registra abastecimento real do veículo (Drivvo) e gera transação de saída."""
+    """
+    Registra abastecimento real do veículo e gera transação de saída:
+    - Economia = Valor da Bomba - Valor Pago Real
+    - Preço Real por Litro = Valor Pago Real / Litros
+    - Débito financeiro na conta selecionada = estritamente o Valor Pago Real
+    """
     try:
-        val_pago = float(valor_pago)
-        lits = float(litros)
+        val_pago = round(float(valor_pago), 2)
+        lits = round(float(litros), 3)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Valor pago e litros devem ser numéricos.")
+        raise HTTPException(status_code=400, detail="Valor pago real e litros devem ser numéricos.")
 
     if val_pago <= 0 or lits <= 0:
-        raise HTTPException(status_code=400, detail="Valor pago e litros devem ser maiores que zero.")
+        raise HTTPException(status_code=400, detail="Valor pago real e litros abastecidos devem ser maiores que zero.")
+
+    # Tratar Valor Total da Bomba e Economia (Valor da Bomba - Valor Pago Real)
+    raw_bomba = valor_bomba if (valor_bomba is not None and not hasattr(valor_bomba, 'default')) else valor_bruto
+    try:
+        val_bomba = round(float(raw_bomba), 2) if (raw_bomba is not None and not hasattr(raw_bomba, 'default') and str(raw_bomba).strip() != "") else 0.0
+    except (TypeError, ValueError):
+        val_bomba = 0.0
 
     try:
-        p_litro = float(preco_litro) if (preco_litro is not None and not hasattr(preco_litro, 'default')) else None
+        desc_in = round(float(desconto), 2) if (desconto is not None and not hasattr(desconto, 'default')) else 0.0
     except (TypeError, ValueError):
-        p_litro = None
+        desc_in = 0.0
 
-    calc_preco = p_litro if (p_litro and p_litro > 0) else round(val_pago / lits, 3)
+    if val_bomba >= val_pago and val_bomba > 0:
+        desc_val = round(max(0.0, val_bomba - val_pago), 2)
+    else:
+        desc_val = round(max(0.0, desc_in), 2)
+        val_bomba = round(val_pago + desc_val, 2)
 
-    conta_nome = str(conta) if (conta and not hasattr(conta, 'default')) else "Dinheiro / Carteira"
-    conta_id = 1 if "Mercado" in conta_nome else 2
+    pct_economia = round((desc_val / val_bomba) * 100.0, 1) if (val_bomba > 0 and desc_val > 0) else 0.0
 
-    try:
-        desc_val = float(desconto) if (desconto is not None and not hasattr(desconto, 'default')) else 0.0
-    except (TypeError, ValueError):
-        desc_val = 0.0
+    # Preço Real por Litro = Valor Pago Real / Litros
+    calc_preco = round(val_pago / lits, 3)
+
+    raw_app = app_desconto if (app_desconto and not hasattr(app_desconto, 'default')) else origem_desconto
+    app_nome = str(raw_app).strip() if (raw_app and not hasattr(raw_app, 'default') and str(raw_app).strip() != "") else "Nenhum"
+    if desc_val > 0 and app_nome == "Nenhum":
+        app_nome = "Posto / Outro"
+
+    raw_conta = conta if (conta and not hasattr(conta, 'default')) else conta_pagamento
+    conta_nome = str(raw_conta).strip() if (raw_conta and not hasattr(raw_conta, 'default') and str(raw_conta).strip() != "") else "Mercado Pago"
+    if "Mercado" in conta_nome:
+        conta_id = 1
+        conta_nome = "Mercado Pago"
+    elif "99" in conta_nome:
+        conta_id = 1779
+        conta_nome = "99Pay"
+    else:
+        conta_id = 2
+        conta_nome = "Dinheiro / Carteira"
 
     try:
         hodo_val = float(hodometro) if (hodometro is not None and not hasattr(hodometro, 'default')) else 0.0
@@ -1755,31 +2052,52 @@ async def api_motorista_abastecer(
     posto_nome = str(posto) if (posto and not hasattr(posto, 'default')) else "Posto de Combustível"
     obs_txt = str(observacao) if (observacao and not hasattr(observacao, 'default')) else ""
 
+    badge_economia = f"Economia de {formatar_moeda_br(desc_val)} ({pct_economia:.1f}%) via {app_nome}" if desc_val > 0 else ""
+    if badge_economia and badge_economia not in obs_txt:
+        obs_txt = f"{badge_economia}" + (f" • {obs_txt}" if obs_txt else "")
+
+    data_raw_str = str(data).strip()
+    data_iso = data_raw_str[:10]
+
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        # 1. Registrar transação financeira de despesa
+        cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
+        cols_ab = [c["name"] for c in cur.fetchall()]
+        if "app_desconto" not in cols_ab:
+            cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
+            conn.commit()
+
+        # 1. Registrar transação financeira de despesa estritamente pelo Valor Pago Real
         desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
         cur.execute("""
             INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario)
             VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1)
-        """, (str(data), desc_trans, val_pago, conta_nome, conta_id))
+        """, (data_iso, desc_trans, val_pago, conta_nome, conta_id))
         trans_id = cur.lastrowid
 
         # 2. Registrar na tabela veiculo_abastecimentos (Drivvo)
-        valor_bruto = val_pago + desc_val
         cur.execute("""
             INSERT INTO veiculo_abastecimentos (
                 data, hodometro, combustivel, litros, preco_litro, valor_bruto,
                 desconto, valor_pago, conta, conta_id, tanque_cheio, posto,
-                observacao, transacao_id, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (str(data), hodo_val, comb_nome, lits, calc_preco, valor_bruto,
+                observacao, transacao_id, app_desconto, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (data_raw_str, hodo_val, comb_nome, lits, calc_preco, val_bomba,
               desc_val, val_pago, conta_nome, conta_id, tq_cheio,
-              posto_nome, obs_txt, trans_id))
+              posto_nome, obs_txt, trans_id, app_nome))
 
         conn.commit()
-        return {"sucesso": True, "mensagem": f"Abastecimento de {formatar_moeda_br(val_pago)} ({lits:.2f}L) registrado com sucesso!"}
+        msg_extra = f" • {badge_economia}" if badge_economia else ""
+        return {
+            "sucesso": True,
+            "mensagem": f"Abastecimento de {formatar_moeda_br(val_pago)} ({lits:.2f}L a R$ {calc_preco:.3f}/L){msg_extra} registrado com sucesso!",
+            "economia": desc_val,
+            "pct_economia": pct_economia,
+            "preco_real_litro": calc_preco,
+            "app_desconto": app_nome,
+            "economia_badge": badge_economia
+        }
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
@@ -1967,15 +2285,36 @@ async def pagina_missoes(request: Request):
 
 
 @app.post("/api/missoes/definir")
-async def api_definir_missao(transacao_id: int = Form(...)):
-    """Define a obrigação selecionada como Missão Ativa da Semana."""
+@app.post("/missoes/definir")
+@app.post("/api/missoes/remover")
+@app.post("/missoes/remover")
+async def api_definir_missao(request: Request, transacao_id: Optional[int] = Form(None)):
+    """Define ou remove/troca a obrigação selecionada como Missão Ativa da Semana."""
     conn = conectar_db()
     try:
+        tid = transacao_id
+        if tid is None:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    payload = await request.json()
+                    tid = int(payload.get("transacao_id") or 0)
+                except Exception:
+                    tid = 0
+            else:
+                try:
+                    form = await request.form()
+                    tid = int(form.get("transacao_id") or 0)
+                except Exception:
+                    tid = 0
+        if request.url.path.endswith("/remover"):
+            tid = 0
+
         hoje = date.today()
         mes_ano = f"{hoje.year}-{hoje.month:02d}"
-        ok, msg = planejamento_service.definir_missao_ativa_semana(conn, transacao_id=transacao_id, mes_ano=mes_ano)
+        ok, msg = planejamento_service.definir_missao_ativa_semana(conn, transacao_id=tid, mes_ano=mes_ano)
         if ok:
-            return {"sucesso": True, "mensagem": msg}
+            return {"sucesso": True, "mensagem": msg, "transacao_id": tid}
         else:
             return JSONResponse(status_code=400, content={"sucesso": False, "erro": msg})
     finally:
@@ -2017,20 +2356,92 @@ async def api_dados():
 
 
 @app.post("/api/baixa/{transacao_id}")
-async def api_baixar_conta(transacao_id: int):
+@app.post("/api/contas_pagar/pagar")
+@app.post("/api/contas_pagar/pagar/{transacao_id}")
+@app.post("/api/obrigacoes/baixar")
+@app.post("/api/obrigacoes/baixar/{transacao_id}")
+async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None):
     """
-    Executa a baixa imediata e oficial de uma conta a pagar no banco SQLite
-    via saldo_service.registrar_pagamento.
+    Executa a baixa imediata e oficial de uma conta a pagar no banco SQLite:
+    - Identifica a conta financeira de débito (ex: Mercado Pago, 99Pay, Dinheiro / Carteira)
+    - Deduz o valor pago diretamente do saldo dessa conta financeira
+    - Registra a saída (Despesa) liquidada no extrato/lançamentos com a data do pagamento,
+      categoria correspondente e referência à conta paga
+    - Atualiza o status da obrigação para 'PAGA' e registra a data de liquidação
     """
     conn = conectar_db()
     try:
+        payload = {}
+        try:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                payload = await request.json()
+            elif "form" in content_type:
+                form_data = await request.form()
+                payload = dict(form_data)
+        except Exception:
+            payload = {}
+
+        if transacao_id is None:
+            raw_id = payload.get("transacao_id") or payload.get("id") or payload.get("obrigacao_id")
+            if raw_id is not None:
+                transacao_id = int(raw_id)
+
+        if not transacao_id:
+            raise HTTPException(status_code=400, detail="ID da obrigação não informado.")
+
         resumo = saldo_service.obter_resumo_obrigacao(conn, transacao_id)
         if not resumo:
             raise HTTPException(status_code=404, detail="Obrigação não encontrada.")
 
         val_devedor = float(resumo["saldo_devedor"])
-        hoje_str = date.today().strftime("%Y-%m-%d")
-        conta_id = resumo.get("conta_id") or 1  # 1 = Mercado Pago
+        if val_devedor <= 0:
+            val_devedor = float(resumo.get("valor_original") or 0.0)
+
+        hoje_str = str(payload.get("data_pagamento") or date.today().strftime("%Y-%m-%d"))[:10]
+
+        # Identificar conta financeira de débito válida em contas_config
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, nome, tipo
+            FROM contas_config
+            WHERE COALESCE(tipo, '') != 'cofrinho'
+            ORDER BY id ASC
+        """)
+        contas_disp = cur.fetchall()
+        mapa_id = {int(c["id"]): c["nome"] for c in contas_disp}
+        mapa_nome = {str(c["nome"]).strip().lower(): int(c["id"]) for c in contas_disp}
+
+        conta_id_req = payload.get("conta_id")
+        conta_nome_req = (payload.get("conta") or payload.get("conta_debito") or "").strip()
+
+        conta_id = None
+        if conta_id_req:
+            try:
+                cid = int(conta_id_req)
+                if cid in mapa_id:
+                    conta_id = cid
+            except Exception:
+                pass
+
+        if not conta_id and conta_nome_req:
+            conta_id = mapa_nome.get(conta_nome_req.lower())
+
+        # Caso não tenha vindo no payload, usa a conta vinculada à obrigação
+        if not conta_id:
+            cid_obrig = resumo.get("conta_id")
+            if cid_obrig and int(cid_obrig) in mapa_id:
+                conta_id = int(cid_obrig)
+            else:
+                nome_obrig = str(resumo.get("conta") or "").strip().lower()
+                if nome_obrig in mapa_nome:
+                    conta_id = mapa_nome[nome_obrig]
+
+        # Se a obrigação não tiver uma conta vinculada válida, usa a conta principal padrão (Mercado Pago)
+        if not conta_id:
+            conta_id = 1 if 1 in mapa_id else ( next(iter(mapa_id.keys())) if mapa_id else 1 )
+
+        conta_nome = mapa_id.get(conta_id, "Mercado Pago")
 
         saldo_service.registrar_pagamento(
             conn=conn,
@@ -2040,7 +2451,8 @@ async def api_baixar_conta(transacao_id: int):
             conta_id=conta_id,
             afeta_saldo_bancario=1,
             considerado_no_marco=0,
-            forma_pagamento="Pix",
+            forma_pagamento=str(payload.get("forma_pagamento") or "Pix"),
+            observacao=f"Baixa de conta a pagar: {resumo['descricao']} ({resumo.get('categoria') or 'Geral'})",
             tipo_ajuste_valor="normal",
             valor_encargos=0.0,
             valor_desconto=0.0
@@ -2049,13 +2461,30 @@ async def api_baixar_conta(transacao_id: int):
 
         # Recalcular saldos e métricas consolidadas após a baixa
         dados = coletar_dados_dashboard()
+        contas_atualizadas = [
+            {
+                "id": c["id"],
+                "nome": c["nome"],
+                "saldo_atual": c["saldo_atual"],
+                "saldo_formatado": formatar_moeda_br(c["saldo_atual"])
+            }
+            for c in dados["contas"]
+        ]
+        conta_debitada_info = next((c for c in contas_atualizadas if int(c["id"]) == int(conta_id)), None)
+        novo_saldo_conta_fmt = conta_debitada_info["saldo_formatado"] if conta_debitada_info else formatar_moeda_br(0.0)
 
         return {
             "sucesso": True,
-            "mensagem": f"Baixa de '{resumo['descricao']}' ({formatar_moeda_br(val_devedor)}) realizada com sucesso!",
+            "mensagem": f"Baixa de '{resumo['descricao']}' ({formatar_moeda_br(val_devedor)}) debitada de {conta_nome}!",
             "transacao_id": transacao_id,
+            "status": "PAGA",
+            "data_liquidacao": hoje_str,
             "valor_baixado": val_devedor,
+            "conta_id": conta_id,
+            "conta_nome": conta_nome,
+            "novo_saldo_conta": novo_saldo_conta_fmt,
             "novo_saldo_caixa": formatar_moeda_br(dados["saldo_caixa"]),
+            "contas": contas_atualizadas,
             "novos_totais": {
                 "despesa_mensal": formatar_moeda_br(dados["despesa_mensal"]),
                 "despesas_pagas": formatar_moeda_br(dados["despesas_pagas"]),
@@ -2066,7 +2495,8 @@ async def api_baixar_conta(transacao_id: int):
                 "tot_atrasadas": formatar_moeda_br(dados["tot_atrasadas"]),
                 "qtd_atrasadas": len(dados["atrasadas"]),
                 "tot_prox7": formatar_moeda_br(dados["tot_prox7"]),
-                "qtd_prox7": dados["qtd_prox7"]
+                "qtd_prox7": dados["qtd_prox7"],
+                "contas": contas_atualizadas
             }
         }
     except Exception as e:

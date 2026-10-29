@@ -167,10 +167,10 @@
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <span class="font-bold text-sm sm:text-base text-amber-600 dark:text-amber-400">{{ item.valor | moeda }}</span>
-                <button type="button" onclick="confirmarBaixa({{ item.id }}, '{{ item.descricao }}', '{{ item.valor | moeda }}')" class="touch-target h-10 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer">
+                <button type="button" onclick="confirmarBaixa({{ item.id }}, '{{ item.descricao | replace("'", "\\'") }}', '{{ item.valor | moeda }}', '{{ item.conta | replace("'", "\\'") }}', {{ item.conta_id or 'null' }}, {{ 'true' if item.conta_definida else 'false' }})" class="touch-target h-10 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer">
                   <span>👍</span> <span>Baixar</span>
                 </button>
-                <button type="button" onclick="abrirModalExcluirConta({{ item.id }}, '{{ item.descricao }}', '{{ item.valor | moeda }}', '{{ item.data }}')" title="Excluir ou cancelar recorrência" class="touch-target h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-rose-50 dark:hover:bg-rose-500/20 active:scale-95 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700/60 hover:border-rose-300 dark:hover:border-rose-500/40 flex items-center justify-center transition cursor-pointer">
+                <button type="button" onclick="abrirModalExcluirConta({{ item.id }}, '{{ item.descricao | replace("'", "\\'") }}', '{{ item.valor | moeda }}', '{{ item.data }}')" title="Excluir ou cancelar recorrência" class="touch-target h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-rose-50 dark:hover:bg-rose-500/20 active:scale-95 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700/60 hover:border-rose-300 dark:hover:border-rose-500/40 flex items-center justify-center transition cursor-pointer">
                   <span class="text-sm">🗑️</span>
                 </button>
               </div>
@@ -203,10 +203,10 @@
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <span class="font-bold text-xs sm:text-sm text-rose-500 dark:text-rose-400">{{ item.valor | moeda }}</span>
-                <button type="button" onclick="confirmarBaixa({{ item.id }}, '{{ item.descricao }}', '{{ item.valor | moeda }}')" class="touch-target h-10 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer">
+                <button type="button" onclick="confirmarBaixa({{ item.id }}, '{{ item.descricao | replace("'", "\\'") }}', '{{ item.valor | moeda }}', '{{ item.conta | replace("'", "\\'") }}', {{ item.conta_id or 'null' }}, {{ 'true' if item.conta_definida else 'false' }})" class="touch-target h-10 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer">
                   <span>👍</span> <span>Pagar</span>
                 </button>
-                <button type="button" onclick="abrirModalExcluirConta({{ item.id }}, '{{ item.descricao }}', '{{ item.valor | moeda }}', '{{ item.data }}')" title="Excluir ou cancelar recorrência" class="touch-target h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-rose-50 dark:hover:bg-rose-500/20 active:scale-95 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700/60 hover:border-rose-300 dark:hover:border-rose-500/40 flex items-center justify-center transition cursor-pointer">
+                <button type="button" onclick="abrirModalExcluirConta({{ item.id }}, '{{ item.descricao | replace("'", "\\'") }}', '{{ item.valor | moeda }}', '{{ item.data }}')" title="Excluir ou cancelar recorrência" class="touch-target h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-rose-50 dark:hover:bg-rose-500/20 active:scale-95 text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700/60 hover:border-rose-300 dark:hover:border-rose-500/40 flex items-center justify-center transition cursor-pointer">
                   <span class="text-sm">🗑️</span>
                 </button>
               </div>
@@ -260,7 +260,7 @@
                 <p class="text-[10px] text-slate-500 dark:text-slate-400">{{ c.subtitulo }}</p>
               </div>
             </div>
-            <span class="font-black text-sm text-slate-900 dark:text-white">{{ c.saldo_atual | moeda }}</span>
+            <span id="conta-saldo-{{ c.id }}" data-conta-nome="{{ c.nome }}" class="font-black text-sm text-slate-900 dark:text-white transition-all duration-300">{{ c.saldo_atual | moeda }}</span>
           </div>
           {% endfor %}
         </div>
@@ -341,6 +341,21 @@
     <div class="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700/60 text-center">
       <span class="text-xs text-slate-500 dark:text-slate-400">Valor a liquidar</span>
       <p id="modal-valor" class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">R$ 0,00</p>
+    </div>
+
+    <!-- Seleção/Confirmação da Conta Financeira de Débito -->
+    <div class="space-y-1.5 text-left">
+      <label for="modal-baixa-conta" class="block text-xs font-bold text-slate-600 dark:text-slate-300">
+        Debitar de qual conta financeira?
+      </label>
+      <p id="modal-baixa-aviso-conta" class="hidden text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+        ⚠️ Conta não vinculada previamente. Confirme de onde o dinheiro saiu:
+      </p>
+      <select id="modal-baixa-conta" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        {% for c in d.contas %}
+        <option value="{{ c.id }}" data-nome="{{ c.nome }}">{{ c.nome }} ({{ c.saldo_atual | moeda }})</option>
+        {% endfor %}
+      </select>
     </div>
 
     <div class="grid grid-cols-2 gap-2 pt-2">
@@ -429,10 +444,47 @@
   let contaIdParaExcluir = null;
   let contaDescParaExcluir = '';
 
-  function confirmarBaixa(id, desc, val) {
+  function confirmarBaixa(id, desc, val, contaNome, contaId, contaDefinida) {
     contaIdParaBaixar = id;
     document.getElementById('modal-desc').textContent = `Deseja dar baixa imediata na conta: ${desc}?`;
     document.getElementById('modal-valor').textContent = val;
+
+    const selectConta = document.getElementById('modal-baixa-conta');
+    const avisoConta = document.getElementById('modal-baixa-aviso-conta');
+    if (selectConta) {
+      let selecionou = false;
+      if (contaId) {
+        for (const opt of selectConta.options) {
+          if (String(opt.value) === String(contaId)) {
+            selectConta.value = opt.value;
+            selecionou = true;
+            break;
+          }
+        }
+      }
+      if (!selecionou && contaNome) {
+        const alvo = String(contaNome).trim().toLowerCase();
+        for (const opt of selectConta.options) {
+          const optNome = String(opt.getAttribute('data-nome') || '').trim().toLowerCase();
+          if (optNome === alvo) {
+            selectConta.value = opt.value;
+            selecionou = true;
+            break;
+          }
+        }
+      }
+      if (!selecionou && selectConta.options.length > 0) {
+        selectConta.selectedIndex = 0; // Conta padrão principal (Mercado Pago)
+      }
+    }
+    if (avisoConta) {
+      if (contaDefinida === false) {
+        avisoConta.classList.remove('hidden');
+      } else {
+        avisoConta.classList.add('hidden');
+      }
+    }
+
     document.getElementById('modal-baixa').classList.remove('hidden');
   }
 
@@ -544,18 +596,51 @@
         const el = document.getElementById('qtd-prox7-display');
         if (el) el.textContent = `${totais.qtd_prox7} contas`;
       }
+
+      // 5. Atualizar card "Minhas Contas" e opções do seletor de baixa sem reload
+      if (Array.isArray(totais.contas)) {
+        const selectConta = document.getElementById('modal-baixa-conta');
+        totais.contas.forEach(c => {
+          const elSaldo = document.getElementById(`conta-saldo-${c.id}`);
+          if (elSaldo && c.saldo_formatado) {
+            elSaldo.textContent = c.saldo_formatado;
+            elSaldo.classList.add('text-emerald-500', 'scale-105');
+            setTimeout(() => {
+              elSaldo.classList.remove('text-emerald-500', 'scale-105');
+            }, 900);
+          }
+          if (selectConta && c.saldo_formatado) {
+            for (const opt of selectConta.options) {
+              if (String(opt.value) === String(c.id)) {
+                opt.textContent = `${c.nome} (${c.saldo_formatado})`;
+                break;
+              }
+            }
+          }
+        });
+      }
     }
   }
 
   document.getElementById('modal-btn-confirmar').addEventListener('click', async () => {
     if (!contaIdParaBaixar) return;
     const id = contaIdParaBaixar;
+    const selectConta = document.getElementById('modal-baixa-conta');
+    const contaIdSelecionada = selectConta ? parseInt(selectConta.value, 10) : 1;
+    const contaNomeSelecionada = (selectConta && selectConta.selectedOptions[0])
+      ? selectConta.selectedOptions[0].getAttribute('data-nome')
+      : 'Mercado Pago';
     fecharModalBaixa();
 
     try {
       const response = await fetch(`/api/baixa/${id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transacao_id: id,
+          conta_id: contaIdSelecionada,
+          conta: contaNomeSelecionada
+        })
       });
       const data = await response.json();
 

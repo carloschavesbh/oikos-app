@@ -191,7 +191,7 @@
                     {{ t.descricao }}
                   </p>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
-                    {{ t.categoria }} • {{ t.conta }}
+                    {{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} • {{ t.conta }}
                   </p>
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                     Mês Anterior
@@ -202,7 +202,10 @@
 
             <!-- Categoria (Desktop) -->
             <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-600 dark:text-slate-300">
-              {{ t.categoria }}
+              <div class="font-medium">{{ t.categoria }}</div>
+              {% if t.subcategoria %}
+              <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ {{ t.subcategoria }}</div>
+              {% endif %}
             </td>
 
             <!-- Conta (Desktop) -->
@@ -224,12 +227,29 @@
 
             <!-- Ações -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
-              <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
-                      title="Dar baixa imediata nesta conta passada" 
-                      id="btn-baixa-{{ t.id }}"
-                      class="touch-target inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition cursor-pointer">
-                <span>⚡</span> Baixar
-              </button>
+              <div class="inline-flex items-center gap-1.5">
+                <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
+                        title="Dar baixa imediata nesta conta passada" 
+                        id="btn-baixa-{{ t.id }}"
+                        class="touch-target inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+                  <span>⚡</span> Baixar
+                </button>
+                <button type="button"
+                        onclick="abrirModalEditarLancamento(this)"
+                        data-id="{{ t.id }}"
+                        data-data="{{ t.data }}"
+                        data-tipo="{{ t.tipo }}"
+                        data-valor="{{ t.valor }}"
+                        data-descricao="{{ t.descricao }}"
+                        data-categoria="{{ t.categoria }}"
+                        data-subcategoria="{{ t.subcategoria or '' }}"
+                        data-conta="{{ t.conta }}"
+                        data-pago="{{ t.pago }}"
+                        title="Editar lançamento"
+                        class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
+                  ✏️
+                </button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -241,7 +261,7 @@
               data-pago="{{ t.pago }}" 
               data-atrasada="{% if t.is_atrasada %}1{% else %}0{% endif %}"
               data-mes-passado="0"
-              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ t.conta | lower }}"
+              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }}"
               id="linha-tr-{{ t.id }}">
             
             <!-- Data -->
@@ -261,8 +281,13 @@
                     {{ t.descricao }}
                   </p>
                   <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
-                    {{ t.categoria }} • {{ t.conta }}
+                    {{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} • {{ t.conta }}
                   </p>
+                  {% if t.economia_badge %}
+                  <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    🏷️ {{ t.economia_badge }}
+                  </span>
+                  {% endif %}
                   {% if t.grupo_parcelamento %}
                     {% if 'fixa' in t.grupo_parcelamento or 'recorren' in t.grupo_parcelamento %}
                     <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
@@ -280,7 +305,10 @@
 
             <!-- Categoria (Desktop) -->
             <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-600 dark:text-slate-300">
-              {{ t.categoria }}
+              <div class="font-medium">{{ t.categoria }}</div>
+              {% if t.subcategoria %}
+              <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ {{ t.subcategoria }}</div>
+              {% endif %}
             </td>
 
             <!-- Conta (Desktop) -->
@@ -312,16 +340,31 @@
 
             <!-- Ações -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
-              {% if t.tipo == 'despesa' and t.pago != 1 %}
-              <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
-                      title="Dar baixa nesta conta" 
-                      id="btn-baixa-{{ t.id }}"
-                      class="touch-target inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition active:scale-95 cursor-pointer">
-                <span>⚡</span> Baixar
-              </button>
-              {% else %}
-              <span class="text-slate-400 dark:text-slate-600 text-xs">—</span>
-              {% endif %}
+              <div class="inline-flex items-center gap-1.5">
+                {% if t.tipo == 'despesa' and t.pago != 1 %}
+                <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
+                        title="Dar baixa nesta conta" 
+                        id="btn-baixa-{{ t.id }}"
+                        class="touch-target inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition active:scale-95 cursor-pointer">
+                  <span>⚡</span> Baixar
+                </button>
+                {% endif %}
+                <button type="button"
+                        onclick="abrirModalEditarLancamento(this)"
+                        data-id="{{ t.id }}"
+                        data-data="{{ t.data }}"
+                        data-tipo="{{ t.tipo }}"
+                        data-valor="{{ t.valor }}"
+                        data-descricao="{{ t.descricao }}"
+                        data-categoria="{{ t.categoria }}"
+                        data-subcategoria="{{ t.subcategoria or '' }}"
+                        data-conta="{{ t.conta }}"
+                        data-pago="{{ t.pago }}"
+                        title="Editar lançamento"
+                        class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
+                  ✏️
+                </button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -336,28 +379,30 @@
 
 </div>
 
-<!-- MODAL NOVO LANÇAMENTO -->
+<!-- MODAL NOVO / EDITAR LANÇAMENTO -->
 <div id="modal-lancamento" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+  <div id="modal-novo-lancamento" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
     <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
       <div class="flex items-center gap-2">
-        <span class="text-xl">📝</span>
-        <h3 class="font-bold text-slate-900 dark:text-white text-base">Novo Lançamento</h3>
+        <span class="text-xl" id="modal-lancamento-icone">📝</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base" id="modal-lancamento-titulo">Novo Lançamento</h3>
       </div>
       <button onclick="fecharModalLancamento()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
     </div>
 
     <form id="form-novo-lancamento" onsubmit="salvarLancamento(event)" class="space-y-3.5">
+      <input type="hidden" name="id" id="input-id" value="">
+
       <!-- Seletor Tipo: Despesa vs Receita -->
       <div>
         <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Tipo de Lançamento</label>
         <div class="grid grid-cols-2 gap-2">
           <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
-            <input type="radio" name="tipo" value="despesa" checked class="accent-rose-500" onchange="atualizarEstiloTipo()">
+            <input type="radio" name="tipo" id="radio-tipo-despesa" value="despesa" checked class="accent-rose-500" onchange="atualizarEstiloTipo()">
             <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
           </label>
           <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
-            <input type="radio" name="tipo" value="receita" class="accent-emerald-500" onchange="atualizarEstiloTipo()">
+            <input type="radio" name="tipo" id="radio-tipo-receita" value="receita" class="accent-emerald-500" onchange="atualizarEstiloTipo()">
             <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
           </label>
         </div>
@@ -384,32 +429,42 @@
                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
       </div>
 
-      <!-- Categoria e Conta -->
+      <!-- Categoria e Subcategoria (Estilo Organizze) -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
           <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Categoria</label>
-          <select name="categoria" id="input-categoria" required 
+          <select name="categoria" id="input-categoria" required onchange="atualizarSubcategorias()"
                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-            <option value="Supermercado">🛒 Alimentação / Mercado</option>
-            <option value="Combustível">⛽ Combustível / Posto</option>
-            <option value="Farmácia">💊 Saúde / Farmácia</option>
-            <option value="Habitação">🏠 Moradia / Contas</option>
-            <option value="Transporte">🚗 Veículo / Manutenção</option>
-            <option value="Pessoal">👤 Pessoal / Outros</option>
-            <option value="99 Produção">🚕 Produção Motorista 99</option>
+            <option value="Alimentação">🛒 Alimentação</option>
+            <option value="Transporte">🚗 Transporte</option>
+            <option value="Combustível">⛽ Combustível</option>
+            <option value="Moradia/Contas">🏠 Moradia/Contas</option>
+            <option value="Saúde">💊 Saúde</option>
+            <option value="Pessoal">👤 Pessoal</option>
+            <option value="Transferência">🔄 Transferência</option>
+            <option value="99 Produção">🚕 99 Produção</option>
             <option value="Salário">💼 Salário / Renda</option>
           </select>
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Bancária</label>
-          <select name="conta" id="input-conta" required 
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Subcategoria</label>
+          <select name="subcategoria" id="subcategoria"
                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-            <option value="Mercado Pago">Mercado Pago</option>
-            <option value="99Pay">99Pay</option>
-            <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
-            <option value="Mercado Pago Card">Mercado Pago Card (Crédito)</option>
+            <!-- Preenchido via JS por atualizarSubcategorias() -->
           </select>
         </div>
+      </div>
+
+      <!-- Conta Bancária -->
+      <div>
+        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Bancária</label>
+        <select name="conta" id="input-conta" required 
+                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+          <option value="Mercado Pago">Mercado Pago</option>
+          <option value="99Pay">99Pay</option>
+          <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
+          <option value="Mercado Pago Card">Mercado Pago Card (Crédito)</option>
+        </select>
       </div>
 
       <!-- Pago / Pendente -->
@@ -437,6 +492,36 @@
 
 {% block scripts %}
 <script>
+  const MAPA_SUBCATEGORIAS = {{ categorias_subcategorias_json | default('{}') | safe }};
+
+  function atualizarSubcategorias(subcatSelecionada = '') {
+    const selCat = document.getElementById('input-categoria');
+    const selSub = document.getElementById('subcategoria');
+    if (!selCat || !selSub) return;
+
+    const cat = selCat.value;
+    const opcoes = MAPA_SUBCATEGORIAS[cat] || ['Outros'];
+
+    selSub.innerHTML = '';
+    opcoes.forEach(sub => {
+      const opt = document.createElement('option');
+      opt.value = sub;
+      opt.textContent = sub;
+      if (subcatSelecionada && sub.toLowerCase() === subcatSelecionada.toLowerCase()) {
+        opt.selected = true;
+      }
+      selSub.appendChild(opt);
+    });
+
+    // Caso a subcategoria salva não esteja na lista padrão, preserva-a como opção
+    if (subcatSelecionada && !opcoes.some(s => s.toLowerCase() === subcatSelecionada.toLowerCase())) {
+      const optExtra = document.createElement('option');
+      optExtra.value = subcatSelecionada;
+      optExtra.textContent = subcatSelecionada;
+      optExtra.selected = true;
+      selSub.appendChild(optExtra);
+    }
+  }
   let filtroTipoAtual = 'todos';
   let filtroStatusAtual = '{{ filtro_inicial }}' || 'todos';
 
@@ -585,6 +670,64 @@
 
   // Modais
   function abrirModalLancamento() {
+    document.getElementById('input-id').value = '';
+    document.getElementById('modal-lancamento-titulo').textContent = 'Novo Lançamento';
+    document.getElementById('modal-lancamento-icone').textContent = '📝';
+    document.getElementById('btn-submit-lancamento').textContent = 'Salvar Lançamento';
+    document.getElementById('radio-tipo-despesa').checked = true;
+    document.getElementById('input-data').value = '{{ hoje_str }}';
+    document.getElementById('input-valor').value = '';
+    document.getElementById('input-descricao').value = '';
+    document.getElementById('input-categoria').value = 'Alimentação';
+    atualizarSubcategorias();
+    document.getElementById('input-conta').value = 'Mercado Pago';
+    document.getElementById('input-pago').checked = true;
+    document.getElementById('modal-lancamento').classList.remove('hidden');
+    document.getElementById('input-descricao').focus();
+  }
+
+  function abrirModalEditarLancamento(btn) {
+    const id = btn.getAttribute('data-id') || '';
+    const data = btn.getAttribute('data-data') || '{{ hoje_str }}';
+    const tipo = btn.getAttribute('data-tipo') || 'despesa';
+    const valor = btn.getAttribute('data-valor') || '';
+    const descricao = btn.getAttribute('data-descricao') || '';
+    let categoria = btn.getAttribute('data-categoria') || 'Alimentação';
+    const subcategoria = btn.getAttribute('data-subcategoria') || '';
+    const conta = btn.getAttribute('data-conta') || 'Mercado Pago';
+    const pago = btn.getAttribute('data-pago') === '1';
+
+    document.getElementById('input-id').value = id;
+    document.getElementById('modal-lancamento-titulo').textContent = 'Editar Lançamento';
+    document.getElementById('modal-lancamento-icone').textContent = '✏️';
+    document.getElementById('btn-submit-lancamento').textContent = 'Salvar Alterações';
+
+    if (tipo === 'receita') {
+      document.getElementById('radio-tipo-receita').checked = true;
+    } else {
+      document.getElementById('radio-tipo-despesa').checked = true;
+    }
+
+    document.getElementById('input-data').value = data;
+    document.getElementById('input-valor').value = parseFloat(valor || 0).toFixed(2);
+    document.getElementById('input-descricao').value = descricao;
+
+    const selCat = document.getElementById('input-categoria');
+    if (!Array.from(selCat.options).some(opt => opt.value === categoria)) {
+      const optExtra = document.createElement('option');
+      optExtra.value = categoria;
+      optExtra.textContent = categoria;
+      selCat.appendChild(optExtra);
+    }
+    selCat.value = categoria;
+    atualizarSubcategorias(subcategoria);
+
+    const selConta = document.getElementById('input-conta');
+    if (Array.from(selConta.options).some(opt => opt.value === conta)) {
+      selConta.value = conta;
+    }
+    document.getElementById('input-pago').checked = pago;
+
     document.getElementById('modal-lancamento').classList.remove('hidden');
     document.getElementById('input-descricao').focus();
   }
@@ -600,34 +743,37 @@
   async function salvarLancamento(event) {
     event.preventDefault();
     const btn = document.getElementById('btn-submit-lancamento');
+    const idEdicao = document.getElementById('input-id').value;
     btn.disabled = true;
     btn.textContent = 'Salvando...';
 
     const form = document.getElementById('form-novo-lancamento');
     const formData = new FormData(form);
+    const url = idEdicao ? '/api/lancamentos/editar' : '/api/lancamentos';
 
     try {
-      const res = await fetch('/api/lancamentos', {
+      const res = await fetch(url, {
         method: 'POST',
         body: formData
       });
       const data = await res.json();
       if (data.sucesso) {
-        showToast('Lançamento Registrado!', data.mensagem);
+        showToast(idEdicao ? 'Lançamento Atualizado!' : 'Lançamento Registrado!', data.mensagem);
         setTimeout(() => location.reload(), 800);
       } else {
         showToast('Erro ao Salvar', data.erro || 'Falha ao salvar lançamento', true);
         btn.disabled = false;
-        btn.textContent = 'Salvar Lançamento';
+        btn.textContent = idEdicao ? 'Salvar Alterações' : 'Salvar Lançamento';
       }
     } catch (err) {
       showToast('Erro de Conexão', err.message, true);
       btn.disabled = false;
-      btn.textContent = 'Salvar Lançamento';
+      btn.textContent = idEdicao ? 'Salvar Alterações' : 'Salvar Lançamento';
     }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    atualizarSubcategorias();
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('filtro') === 'atrasadas') {
       setFiltroStatus('atrasadas');

@@ -945,6 +945,10 @@ def obter_missao_ativa_semana(
     row = cur.fetchone()
 
     if not row:
+        cur.execute("SELECT COUNT(*) FROM planejamento_metas WHERE mes_ano = ?", (mes_ano,))
+        qtd_metas_mes = cur.fetchone()[0]
+        if qtd_metas_mes > 0:
+            return {"tem_missao": False, "mensagem": "Nenhuma missão ativa selecionada para esta semana."}
         return obter_status_missao_ipva(conn, mes_ano, data_referencia)
 
     meta_id, t_id, titulo, val_alvo, val_res, dt_limite, turnos, horas_t, status, prio = row
@@ -1023,6 +1027,9 @@ def obter_opcoes_missoes_semana(conn: sqlite3.Connection, mes_ano: Optional[str]
     cur.execute("SELECT transacao_alvo_id, ativa_na_semana FROM planejamento_metas WHERE mes_ano = ?", (mes_ano,))
     metas_map = {r[0]: r[1] for r in cur.fetchall()}
 
+    missao_atual = obter_missao_ativa_semana(conn, mes_ano=mes_ano, data_referencia=hoje)
+    id_missao_ativa = missao_atual.get("transacao_id") if missao_atual.get("tem_missao") else None
+
     opcoes = []
     for r in rows:
         t_id, t_data, t_desc, t_val, t_cat, t_conta = r
@@ -1034,7 +1041,7 @@ def obter_opcoes_missoes_semana(conn: sqlite3.Connection, mes_ano: Optional[str]
         is_vencida = str(t_data) < dt_hoje_str
         is_ipva = "ipva" in t_desc.lower()
         is_bv = "bv" in t_desc.lower()
-        is_ativa = bool(metas_map.get(t_id, 0) == 1)
+        is_ativa = bool((id_missao_ativa is not None and id_missao_ativa == t_id) or metas_map.get(t_id, 0) == 1)
 
         if is_ipva:
             rotulo = f"🎯 [Missão IPVA] {t_desc} • Restante: R$ {saldo_dev:,.2f}"
@@ -1081,9 +1088,17 @@ def definir_missao_ativa_semana(
 
     cur.execute("UPDATE planejamento_metas SET ativa_na_semana = 0 WHERE mes_ano = ?", (mes_ano,))
 
-    if not transacao_id or transacao_id == 0:
+    if not transacao_id or int(transacao_id) <= 0:
+        cur.execute("SELECT COUNT(*) FROM planejamento_metas WHERE mes_ano = ?", (mes_ano,))
+        if cur.fetchone()[0] == 0:
+            cur.execute("""
+                INSERT INTO planejamento_metas (
+                    mes_ano, titulo, transacao_alvo_id, valor_alvo, valor_reservado,
+                    data_limite, turnos_planejados, horas_por_turno, status, prioridade, ativa_na_semana
+                ) VALUES (?, 'Sem Missão Ativa', NULL, 0.0, 0.0, date('now'), 5, 4.0, 'pausada', 'normal', 0)
+            """, (mes_ano,))
         conn.commit()
-        return True, "Nenhuma missão extra ativa na semana. Meta focada apenas nas obrigações regulares."
+        return True, "Missão removida com sucesso! Escolha outra obrigação abaixo quando desejar."
 
     cur.execute("SELECT id FROM planejamento_metas WHERE transacao_alvo_id = ? AND mes_ano = ?", (transacao_id, mes_ano))
     row = cur.fetchone()

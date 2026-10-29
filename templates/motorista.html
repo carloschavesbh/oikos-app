@@ -26,6 +26,34 @@
 
     <!-- BOTÕES DE AÇÃO DO MOTORISTA -->
     <div class="flex flex-wrap items-center gap-2">
+      {% if turno_ativo %}
+      <!-- Botão rápido para encerrar turno em andamento -->
+      <button type="button" onclick="abrirModalEncerrarTurno(this)"
+              data-id="{{ turno_ativo.id }}"
+              data-data="{{ turno_ativo.data }}"
+              data-horainicio="{{ turno_ativo.hora_inicio }}"
+              data-horafim="{{ turno_ativo.hora_fim }}"
+              data-horas="{{ turno_ativo.horas }}"
+              data-kminicial="{{ turno_ativo.km_inicial if turno_ativo.km_inicial is not none else '' }}"
+              data-kmfinal="{{ turno_ativo.km_final if turno_ativo.km_final is not none else '' }}"
+              data-km="{{ turno_ativo.km if turno_ativo.km > 0 else '' }}"
+              data-online="{{ turno_ativo.ganho_online }}"
+              data-dinheiro="{{ turno_ativo.ganho_dinheiro_pix }}"
+              data-bruto="{{ turno_ativo.ganho_bruto }}"
+              data-combustivel="{{ turno_ativo.combustivel }}"
+              data-obs="{{ turno_ativo.observacao }}"
+              data-periodo="{{ turno_ativo.periodo }}"
+              class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-blue-600/20 transition cursor-pointer animate-pulse">
+        <span>⏹️</span> <span>Encerrar Turno</span>
+      </button>
+      {% else %}
+      <!-- 0. [ ▶️ Iniciar Turno ] -->
+      <button type="button" onclick="abrirModalIniciarTurno()" 
+              class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-blue-600/20 transition cursor-pointer">
+        <span>▶️</span> <span>Iniciar Turno</span>
+      </button>
+      {% endif %}
+
       <!-- 1. [ + Registrar Turno ] -->
       <button type="button" onclick="abrirModalRegistrarTurno()" 
               class="touch-target min-h-[42px] inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm shadow-md shadow-amber-500/20 transition cursor-pointer">
@@ -213,7 +241,11 @@
 
               <!-- Horas e KM -->
               <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-800 dark:text-slate-200">
+                {% if t.status_turno == 'EM_ANDAMENTO' and t.horas <= 0 %}
+                <span class="font-bold text-blue-600 dark:text-blue-400">Em aberto</span>
+                {% else %}
                 <span class="font-bold text-slate-900 dark:text-white">{{ t.horas }}h</span>
+                {% endif %}
                 {% if t.km > 0 %}
                 <span class="text-slate-500 dark:text-slate-400 text-xs">({{ t.km }} km)</span>
                 {% elif t.km_inicial %}
@@ -229,7 +261,7 @@
                 <span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold block">
                   {{ t.plataforma or '99' }}
                   {% if t.hora_inicio %}
-                  <span class="text-slate-500 font-mono font-normal">• {{ t.hora_inicio }}{% if t.hora_fim %} às {{ t.hora_fim }}{% endif %}</span>
+                  <span class="text-slate-500 font-mono font-normal">• {{ t.hora_inicio }}{% if t.hora_fim %} às {{ t.hora_fim }}{% else %} (Em aberto){% endif %}</span>
                   {% endif %}
                 </span>
               </td>
@@ -275,9 +307,33 @@
                 <span>Din: <strong class="text-slate-800 dark:text-slate-300">{{ t.ganho_dinheiro_pix | moeda }}</strong></span>
               </td>
 
-              <!-- Ações (Editar e Excluir) -->
+              <!-- Ações (Encerrar, Editar e Excluir) -->
               <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
                 <div class="inline-flex items-center gap-1.5 justify-center">
+                  {% if t.status_turno == 'EM_ANDAMENTO' %}
+                  <!-- Botão de Encerrar Turno -->
+                  <button type="button"
+                          onclick="abrirModalEncerrarTurno(this)"
+                          data-id="{{ t.id }}"
+                          data-data="{{ t.data }}"
+                          data-horainicio="{{ t.hora_inicio }}"
+                          data-horafim="{{ t.hora_fim }}"
+                          data-horas="{{ t.horas }}"
+                          data-kminicial="{{ t.km_inicial if t.km_inicial is not none else '' }}"
+                          data-kmfinal="{{ t.km_final if t.km_final is not none else '' }}"
+                          data-km="{{ t.km if t.km > 0 else '' }}"
+                          data-online="{{ t.ganho_online }}"
+                          data-dinheiro="{{ t.ganho_dinheiro_pix }}"
+                          data-bruto="{{ t.ganho_bruto }}"
+                          data-combustivel="{{ t.combustivel }}"
+                          data-obs="{{ t.observacao }}"
+                          data-periodo="{{ t.periodo }}"
+                          title="Encerrar Turno"
+                          class="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black transition cursor-pointer inline-flex items-center gap-1 shadow-sm">
+                    <span>⏹️</span> <span>Encerrar Turno</span>
+                  </button>
+                  {% endif %}
+
                   <!-- Botão de Lápis (Editar Turno) -->
                   <button type="button" 
                           onclick="abrirModalEditarTurno(this)"
@@ -344,10 +400,10 @@
           <thead>
             <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               <th class="py-3 px-3 sm:px-4">Data</th>
-              <th class="py-3 px-3 sm:px-4">Posto / Combustível</th>
-              <th class="py-3 px-3 sm:px-4">Litros</th>
-              <th class="py-3 px-3 sm:px-4">Preço / L</th>
-              <th class="py-3 px-3 sm:px-4 text-right">Valor Pago</th>
+              <th class="py-3 px-3 sm:px-4">Posto / Combustível / Desconto</th>
+              <th class="py-3 px-3 sm:px-4">Litros Abastecidos</th>
+              <th class="py-3 px-3 sm:px-4">Preço Real / L</th>
+              <th class="py-3 px-3 sm:px-4 text-right">Bomba vs Pago Real</th>
               <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Hodômetro</th>
             </tr>
           </thead>
@@ -358,17 +414,33 @@
                 {{ a.data_formatada }}
               </td>
               <td class="py-3 px-3 sm:px-4 text-slate-900 dark:text-white font-medium">
-                <div>{{ a.posto }}</div>
-                <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ a.combustivel }}</span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span>{{ a.posto }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{{ a.combustivel }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">{{ a.conta }}</span>
+                </div>
+                {% if a.economia and a.economia > 0 %}
+                <div class="mt-1">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    🏷️ Economia de {{ a.economia | moeda }} ({{ a.pct_economia }}%) via {{ a.app_desconto }}
+                  </span>
+                </div>
+                {% endif %}
               </td>
               <td class="py-3 px-3 sm:px-4 font-bold text-slate-800 dark:text-slate-200">
                 {{ a.litros }} L
               </td>
-              <td class="py-3 px-3 sm:px-4 text-slate-600 dark:text-slate-400">
-                {{ a.preco_litro | moeda }}
+              <td class="py-3 px-3 sm:px-4">
+                <span class="font-bold text-emerald-600 dark:text-emerald-400 font-mono">R$ {{ "%.3f"|format(a.preco_litro) }}</span>
+                {% if a.economia and a.economia > 0 %}
+                <span class="block text-[10px] text-slate-400 line-through font-mono">Bomba: R$ {{ "%.3f"|format(a.preco_bomba_litro) }}</span>
+                {% endif %}
               </td>
-              <td class="py-3 px-3 sm:px-4 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
-                {{ a.valor_pago | moeda }}
+              <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap">
+                <div class="font-black text-rose-600 dark:text-rose-400">{{ a.valor_pago | moeda }}</div>
+                {% if a.valor_bomba and a.valor_bomba > a.valor_pago %}
+                <div class="text-[10px] text-slate-400">Bomba: <span class="line-through">{{ a.valor_bomba | moeda }}</span></div>
+                {% endif %}
               </td>
               <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-500 dark:text-slate-400 font-mono text-xs">
                 {% if a.hodometro > 0 %}{{ a.hodometro | int }} km{% else %}--{% endif %}
@@ -441,9 +513,9 @@
           </div>
           <div>
             <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-              Hora Fim <span class="text-rose-500">*</span>
+              Hora Fim <span class="text-[9px] text-amber-500 font-normal">(Opcional ao abrir)</span>
             </label>
-            <input type="time" name="hora_fim" id="turno-hora-fim" required onchange="recalcularHorariosTurno()" oninput="recalcularHorariosTurno()"
+            <input type="time" name="hora_fim" id="turno-hora-fim" onchange="recalcularHorariosTurno()" oninput="recalcularHorariosTurno()"
                    class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono font-bold focus:outline-none focus:border-amber-500">
           </div>
         </div>
@@ -546,7 +618,7 @@
 <!-- MODAL 2: REGISTRAR ABASTECIMENTO REAL (DRIVVO)                            -->
 <!-- ========================================================================= -->
 <div id="modal-abastecer" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto custom-scroll">
     <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
       <div class="flex items-center gap-2">
         <span class="text-xl">⛽</span>
@@ -556,6 +628,8 @@
     </div>
 
     <form onsubmit="salvarAbastecimento(event)" class="space-y-3.5">
+      <input type="hidden" name="desconto" id="abast-desconto" value="0.00">
+
       <!-- Data e Combustível -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
@@ -576,60 +650,91 @@
         </div>
       </div>
 
-      <!-- Valor Total e Litros -->
+      <!-- Valor Total da Bomba e Valor Pago Real -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Pago (R$)</label>
-          <input type="number" step="0.01" min="0.01" name="valor_pago" id="abast-valor-pago" placeholder="Ex: 90.48" required onkeyup="calcularPrecoLitro()"
-                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-bold focus:outline-none focus:border-emerald-500">
-        </div>
-        <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros (L)</label>
-          <input type="number" step="0.001" min="0.1" name="litros" id="abast-litros" placeholder="Ex: 22.78" required onkeyup="calcularPrecoLitro()"
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Total da Bomba (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor_bomba" id="abast-valor-bomba" placeholder="Ex: 100.00" oninput="calcularPrecoLitro()"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
         </div>
-      </div>
-
-      <!-- Preço por Litro Calculado e Posto -->
-      <div class="grid grid-cols-2 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Preço / Litro (R$)</label>
-          <input type="number" step="0.001" min="0" name="preco_litro" id="abast-preco-litro" placeholder="Auto" readonly
-                 class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-mono">
-        </div>
-        <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Posto / Local</label>
-          <input type="text" name="posto" id="abast-posto" value="Posto Shell" placeholder="Ex: Posto Ipiranga" required
-                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+          <label class="block text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Valor Pago Real (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor_pago" id="abast-valor-pago" placeholder="Ex: 90.48" required oninput="calcularPrecoLitro()"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-rose-300 dark:border-rose-500/40 rounded-xl text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-black focus:outline-none focus:border-emerald-500">
         </div>
       </div>
 
-      <!-- Conta e Hodômetro -->
+      <!-- Litros Abastecidos e Desconto / Aplicativo -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Utilizada</label>
-          <select name="conta" id="abast-conta" 
-                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-            <option value="Dinheiro / Carteira" selected>💵 Dinheiro / Carteira</option>
-            <option value="Mercado Pago">🏦 Mercado Pago</option>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros Abastecidos (L)</label>
+          <input type="number" step="0.001" min="0.1" name="litros" id="abast-litros" placeholder="Ex: 22.78" required oninput="calcularPrecoLitro()"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Origem do Desconto</label>
+          <select name="app_desconto" id="abast-app-desconto" onchange="calcularPrecoLitro()"
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="99 Abastece" selected>99 Abastece</option>
+            <option value="Shell Box">Shell Box</option>
+            <option value="SouTag">SouTag</option>
+            <option value="Premmia">Premmia</option>
+            <option value="Posto / Outro">Posto / Outro</option>
+            <option value="Nenhum">Nenhum</option>
           </select>
         </div>
+      </div>
+
+      <!-- Card de Resumo Automático: Preço Real / Litro & Badge de Economia -->
+      <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-600 dark:text-slate-300 font-semibold">Preço Real por Litro:</span>
+          <div class="flex items-center gap-2">
+            <input type="hidden" name="preco_litro" id="abast-preco-litro">
+            <span id="abast-preco-real-txt" class="font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono">R$ 0,000/L</span>
+          </div>
+        </div>
+        <div id="abast-badge-economia" class="hidden pt-1 border-t border-emerald-500/20">
+          <span id="abast-badge-economia-txt" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+            🏷️ Economia de R$ 0,00 (0%) via 99 Abastece
+          </span>
+        </div>
+      </div>
+
+      <!-- Posto e Conta de Pagamento -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Posto / Local</label>
+          <input type="text" name="posto" id="abast-posto" value="Posto Calango Tango" placeholder="Ex: Posto Calango Tango" required
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Conta de Pagamento</label>
+          <select name="conta" id="abast-conta" required
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="Mercado Pago" selected>🏦 Mercado Pago</option>
+            <option value="99Pay">🚕 99Pay</option>
+            <option value="Dinheiro / Carteira">💵 Dinheiro / Carteira</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Hodômetro e Tanque Cheio -->
+      <div class="grid grid-cols-2 gap-2.5 items-end">
         <div>
           <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Hodômetro (Km)</label>
           <input type="number" step="1" name="hodometro" id="abast-hodometro" placeholder="Ex: 187330"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500">
         </div>
-      </div>
-
-      <!-- Tanque cheio e Observações -->
-      <div class="flex items-center gap-2 pt-1">
-        <input type="checkbox" name="tanque_cheio" id="abast-tanque-cheio" value="1" class="rounded text-emerald-600 focus:ring-emerald-500">
-        <label for="abast-tanque-cheio" class="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer">Tanque Cheio (Encheu até o automático)</label>
+        <div class="flex items-center gap-2 pb-2">
+          <input type="checkbox" name="tanque_cheio" id="abast-tanque-cheio" value="1" class="rounded text-emerald-600 focus:ring-emerald-500">
+          <label for="abast-tanque-cheio" class="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer">Tanque Cheio</label>
+        </div>
       </div>
 
       <div>
         <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação</label>
-        <input type="text" name="observacao" id="abast-obs" placeholder="Ex: Desconto cupom app Shell Box..." 
+        <input type="text" name="observacao" id="abast-obs" placeholder="Ex: Abastecimento com desconto no aplicativo..." 
                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
       </div>
 
@@ -966,8 +1071,13 @@
     }
 
     if (!hIni || !hFim) {
-      const currH = parseFloat(inputHoras.value) || 0;
-      tempoTxt.textContent = currH > 0 ? `${currH}h` : '--';
+      if (hIni && !hFim) {
+        inputHoras.value = '0.0';
+        tempoTxt.textContent = 'Em Andamento (Aberto)';
+      } else {
+        const currH = parseFloat(inputHoras.value) || 0;
+        tempoTxt.textContent = currH > 0 ? `${currH}h` : '--';
+      }
       return;
     }
 
@@ -1035,6 +1145,32 @@
     brutoInput.value = (onl + din).toFixed(2);
   }
 
+  function abrirModalIniciarTurno() {
+    document.getElementById('turno-id').value = '';
+    document.getElementById('modal-turno-titulo').textContent = 'Iniciar Turno (Em Andamento)';
+    document.getElementById('btn-submit-turno-texto').textContent = 'Iniciar Turno';
+
+    document.getElementById('turno-data').value = '{{ hoje_str }}';
+    document.getElementById('turno-hora-inicio').value = obterHoraAtual();
+    document.getElementById('turno-hora-fim').value = '';
+    document.getElementById('turno-km-inicial').value = '';
+    document.getElementById('turno-km-final').value = '';
+    document.getElementById('turno-online').value = '';
+    document.getElementById('turno-dinheiro').value = '';
+    document.getElementById('turno-bruto').value = '0.00';
+    document.getElementById('turno-obs').value = '';
+    document.getElementById('turno-horas').value = '0.0';
+    document.getElementById('turno-km').value = '0.0';
+    document.getElementById('turno-combustivel').value = '0.00';
+
+    recalcularHorariosTurno();
+    recalcularHodometroTurno();
+    recalcularBrutoTurno();
+
+    document.getElementById('modal-turno').classList.remove('hidden');
+    document.getElementById('turno-km-inicial').focus();
+  }
+
   function abrirModalRegistrarTurno() {
     document.getElementById('turno-id').value = '';
     document.getElementById('modal-turno-titulo').textContent = 'Registrar Novo Turno';
@@ -1058,9 +1194,21 @@
     recalcularBrutoTurno();
 
     document.getElementById('modal-turno').classList.remove('hidden');
-    document.getElementById('turno-hora-fim').focus();
+    document.getElementById('turno-km-inicial').focus();
   }
   window.abrirModalTurno = abrirModalRegistrarTurno;
+
+  function abrirModalEncerrarTurno(btn) {
+    abrirModalEditarTurno(btn);
+    const d = btn.dataset;
+    document.getElementById('modal-turno-titulo').textContent = `Encerrar Turno #${d.id}`;
+    document.getElementById('btn-submit-turno-texto').textContent = 'Encerrar Turno';
+    if (!document.getElementById('turno-hora-fim').value) {
+      document.getElementById('turno-hora-fim').value = obterHoraAtual();
+    }
+    recalcularHorariosTurno();
+    document.getElementById('turno-hora-fim').focus();
+  }
 
   function abrirModalEditarTurno(btn) {
     const d = btn.dataset;
@@ -1169,7 +1317,9 @@
   // --- MODAL ABASTECER (DRIVVO) ---
   function abrirModalAbastecer() {
     document.getElementById('modal-abastecer').classList.remove('hidden');
-    document.getElementById('abast-valor-pago').focus();
+    calcularPrecoLitro();
+    const elBomba = document.getElementById('abast-valor-bomba');
+    if (elBomba) elBomba.focus();
   }
 
   function fecharModalAbastecer() {
@@ -1177,13 +1327,40 @@
   }
 
   function calcularPrecoLitro() {
-    const v = parseFloat(document.getElementById('abast-valor-pago').value) || 0;
-    const l = parseFloat(document.getElementById('abast-litros').value) || 0;
-    const p = document.getElementById('abast-preco-litro');
-    if (v > 0 && l > 0) {
-      p.value = (v / l).toFixed(3);
+    const vBomba = parseFloat(document.getElementById('abast-valor-bomba')?.value) || 0;
+    const vPago = parseFloat(document.getElementById('abast-valor-pago')?.value) || 0;
+    const l = parseFloat(document.getElementById('abast-litros')?.value) || 0;
+    const appSel = document.getElementById('abast-app-desconto')?.value || 'Shell Box';
+    const pHidden = document.getElementById('abast-preco-litro');
+    const pTxt = document.getElementById('abast-preco-real-txt');
+    const descHidden = document.getElementById('abast-desconto');
+    const badgeWrap = document.getElementById('abast-badge-economia');
+    const badgeTxt = document.getElementById('abast-badge-economia-txt');
+
+    // Preço Real por Litro = Valor Pago Real / Litros
+    if (vPago > 0 && l > 0) {
+      const precoReal = vPago / l;
+      if (pHidden) pHidden.value = precoReal.toFixed(3);
+      if (pTxt) pTxt.textContent = `R$ ${precoReal.toFixed(3).replace('.', ',')}/L`;
     } else {
-      p.value = '';
+      if (pHidden) pHidden.value = '';
+      if (pTxt) pTxt.textContent = 'R$ 0,000/L';
+    }
+
+    // Economia = Valor da Bomba - Valor Pago Real
+    const economia = (vBomba > vPago && vPago > 0) ? Number((vBomba - vPago).toFixed(2)) : 0.0;
+    if (descHidden) descHidden.value = economia.toFixed(2);
+
+    if (economia > 0 && vBomba > 0) {
+      const pct = ((economia / vBomba) * 100).toFixed(1).replace('.0', '');
+      const econFmt = economia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const appLabel = appSel && appSel !== 'Nenhum' ? appSel : 'Posto / Outro';
+      if (badgeTxt) {
+        badgeTxt.textContent = `🏷️ Economia de ${econFmt} (${pct}%) via ${appLabel}`;
+      }
+      if (badgeWrap) badgeWrap.classList.remove('hidden');
+    } else {
+      if (badgeWrap) badgeWrap.classList.add('hidden');
     }
   }
 

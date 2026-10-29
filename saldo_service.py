@@ -841,10 +841,27 @@ def registrar_ajuste(
     saldo_calculado_cents = res_atual["saldo_centavos"]
     diferenca_cents = saldo_informado_cents - saldo_calculado_cents
 
-    ids_contemplados = transacoes_contempladas_ids or []
+    cur = conn.cursor()
+    if transacoes_contempladas_ids is None:
+        cur.execute("""
+            SELECT id FROM transacoes
+            WHERE data = ? AND (conta_id = ? OR conta_destino_id = ?)
+        """, (data_ajuste, conta_id, conta_id))
+        ids_contemplados = [r[0] for r in cur.fetchall()]
+    else:
+        ids_contemplados = transacoes_contempladas_ids
     json_contempladas = json.dumps(ids_contemplados)
 
-    cur = conn.cursor()
+    # Marca pagamentos de despesas já existentes até a data do ajuste como contemplados no marco
+    try:
+        cur.execute("""
+            UPDATE pagamentos_despesas
+            SET considerado_no_marco = 1
+            WHERE conta_id = ? AND cancelado = 0 AND data_pagamento <= ?
+        """, (conta_id, data_ajuste))
+    except Exception:
+        pass
+
     cur.execute("""
         INSERT INTO ajustes_saldo (
             conta_id, data, saldo_informado_centavos, saldo_calculado_centavos,
@@ -1017,7 +1034,7 @@ def registrar_pagamento(
     saldo_devedor = max(Decimal("0.00"), val_orig - total_pago)
 
     if total_pago >= val_orig:
-        novo_status = "pago"
+        novo_status = "PAGA"
         novo_pago = 1
     elif total_pago > Decimal("0.00"):
         novo_status = "parcial"
@@ -1026,7 +1043,27 @@ def registrar_pagamento(
         novo_status = "pendente"
         novo_pago = 0
 
-    cur.execute("UPDATE transacoes SET pago = ?, status_pagamento = ? WHERE id = ?", (novo_pago, novo_status, transacao_id))
+    try:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN data_liquidacao TEXT")
+    except Exception:
+        pass
+
+    cur.execute("SELECT nome FROM contas_config WHERE id = ?", (conta_id,))
+    row_c_nome = cur.fetchone()
+    nome_conta_pag = row_c_nome[0] if row_c_nome else None
+
+    if nome_conta_pag:
+        cur.execute("""
+            UPDATE transacoes
+            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta = ?, conta_id = ?, afeta_saldo_bancario = ?
+            WHERE id = ?
+        """, (novo_pago, novo_status, data_pagamento, nome_conta_pag, conta_id, afeta_saldo_bancario, transacao_id))
+    else:
+        cur.execute("""
+            UPDATE transacoes
+            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta_id = ?, afeta_saldo_bancario = ?
+            WHERE id = ?
+        """, (novo_pago, novo_status, data_pagamento, conta_id, afeta_saldo_bancario, transacao_id))
     conn.commit()
 
     return {
@@ -1817,21 +1854,39 @@ def salvar_abastecimento_veiculo(
     Se dados['transacao_id'] não for informado, cria um ÚNICO lançamento financeiro em transacoes com valor = valor_pago.
     """
     cur = conn.cursor()
+    cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
+    cols_abast = [c[1] for c in cur.fetchall()]
+    if "app_desconto" not in cols_abast:
+        cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
+        conn.commit()
+
     data_str = dados.get("data") or str(date.today())
     hodometro = float(dados.get("hodometro") or 0.0)
     combustivel = dados.get("combustivel") or "Etanol"
     litros = float(dados.get("litros") or 0.0)
-    valor_bruto = float(dados.get("valor_bruto") or 0.0)
-    desconto = float(dados.get("desconto") or 0.0)
-    valor_pago = float(dados.get("valor_pago") or max(0.0, valor_bruto - desconto))
+    valor_pago = float(dados.get("valor_pago") or 0.0)
+    valor_bruto_in = float(dados.get("valor_bomba") or dados.get("valor_bruto") or 0.0)
+    desconto_in = float(dados.get("desconto") or 0.0)
+
+    if valor_bruto_in > 0 and valor_pago <= 0:
+        valor_pago = max(0.0, valor_bruto_in - desconto_in)
+    if valor_bruto_in >= valor_pago and valor_bruto_in > 0:
+        valor_bruto = round(valor_bruto_in, 2)
+        desconto = round(max(0.0, valor_bruto - valor_pago), 2)
+    else:
+        desconto = round(max(0.0, desconto_in), 2)
+        valor_bruto = round(valor_pago + desconto, 2)
+
+    app_desconto = (dados.get("app_desconto") or "Nenhum").strip() or "Nenhum"
     conta = dados.get("conta") or "Dinheiro / Carteira"
-    conta_id = dados.get("conta_id") or 2
+    conta_id = dados.get("conta_id") or (1 if "Mercado" in conta else (1779 if "99" in conta else 2))
     tanque_cheio = 1 if dados.get("tanque_cheio", True) else 0
     posto = (dados.get("posto") or "").strip()
     obs = (dados.get("observacao") or "").strip()
     transacao_id = dados.get("transacao_id")
 
-    preco_litro = round(valor_bruto / litros, 3) if (litros and litros > 0) else None
+    # Preço Real por Litro = Valor Pago Real / Litros
+    preco_litro = round(valor_pago / litros, 3) if (litros and litros > 0) else None
 
     # Caso 0: Atualização de registro existente de veiculo_abastecimentos
     id_abast = dados.get("id")
