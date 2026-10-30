@@ -1,142 +1,164 @@
 {% extends "base.html" %}
 
-{% block title %}Oikos | Finanças & Operação{% endblock %}
+{% block title %}Oikos | Paga Leve • Parcelamentos Quinzenais{% endblock %}
 
 {% block content %}
-<div class="space-y-5">
+<div class="space-y-5 pb-16">
 
-  <!-- CABEÇALHO -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
-    <div>
-      <div class="flex items-center gap-2">
-        <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-          <span class="text-amber-400">⚡</span> Paga Leve • Parcelamentos Quinzenais
-        </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          Pix 4x Quinzenal
-        </span>
-      </div>
-      <p class="text-xs text-slate-400 mt-0.5">Gestão de compras parceladas quinzenalmente via Pix (1ª entrada quitada no ato da compra).</p>
+  <!-- CABEÇALHO LIMPO -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+    <div class="flex items-center gap-2">
+      <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+        <span class="text-amber-400">⚡</span> Paga Leve
+      </h1>
+      <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        Pix 4x
+      </span>
     </div>
 
-    <!-- Badge Próximo Vencimento -->
+    <!-- Botão + Nova Compra Paga Leve -->
+    <button type="button"
+            onclick="abrirModalNovaCompraPl()"
+            class="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-950/40 transition flex items-center gap-1.5 cursor-pointer self-start sm:self-auto">
+      <span class="text-sm font-black">+</span> Nova Compra Paga Leve
+    </button>
+  </div>
+
+  <!-- MÉTRICAS GERAIS CONSOLIDADAS: TOTAL A PAGAR & PRÓXIMO VENCIMENTO -->
+  <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+        💳
+      </div>
+      <div>
+        <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total a Pagar (Família)</p>
+        <p class="text-2xl font-black text-amber-400 leading-tight">{{ total_aberto_geral | moeda }}</p>
+      </div>
+    </div>
+
     {% if proximo_vencimento %}
-    <div class="flex items-center gap-2 bg-slate-900 border border-amber-500/30 px-3.5 py-2 rounded-2xl shadow-sm text-xs">
-      <span class="text-base">📅</span>
+    <div class="flex items-center gap-3 bg-slate-950/60 border border-slate-800/80 px-4 py-2.5 rounded-xl">
+      <span class="text-xl">📅</span>
       <div>
         <p class="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Próximo Vencimento</p>
-        <p class="font-extrabold text-white">{{ proximo_vencimento.data_formatada }} • {{ proximo_vencimento.valor | moeda }}</p>
+        <p class="text-sm font-extrabold text-white">{{ proximo_vencimento.data_formatada }} • {{ proximo_vencimento.valor | moeda }}</p>
       </div>
     </div>
     {% endif %}
   </div>
 
-  <!-- SEÇÃO 1: CONTAS PAGA LEVE (CARLOS E FERNANDA) -->
+  <!-- CARDS DOS TITULARES (CARLOS E FERNANDA) -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:gap-4 w-full">
     <!-- Conta Carlos -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-blue-900/40 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-      <div class="flex items-center justify-between mb-2">
+    <div class="bg-slate-900 border border-blue-900/40 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
+          <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
             👤
           </div>
-          <div>
-            <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">Conta Paga Leve — Carlos</h3>
-            <p class="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Limite Ref.: R$ 300,00 *</p>
-          </div>
+          <h3 class="font-extrabold text-white text-sm">Conta Paga Leve — Carlos</h3>
         </div>
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
           Titular
         </span>
       </div>
-      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-end justify-between">
+
+      <div class="grid grid-cols-3 gap-2 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-xs">
         <div>
-          <p class="text-[10px] text-slate-500 dark:text-slate-400">Saldo em Aberto</p>
-          <p class="text-2xl font-black text-amber-600 dark:text-amber-400">{{ aberto_carlos | moeda }}</p>
+          <p class="text-[9px] text-slate-400 font-bold uppercase">Limite</p>
+          <p class="font-black text-white text-sm sm:text-base mt-0.5">{{ limite_carlos | moeda }}</p>
         </div>
-        <p class="text-[10px] text-slate-400 dark:text-slate-500 max-w-[180px] text-right italic leading-tight">
-          * Limite de referência. Permite compras acumuladas aprovadas acima do valor.
-        </p>
+        <div>
+          <p class="text-[9px] text-slate-400 font-bold uppercase">Utilizado</p>
+          <p class="font-black text-amber-400 text-sm sm:text-base mt-0.5">{{ aberto_carlos | moeda }}</p>
+        </div>
+        <div>
+          <p class="text-[9px] text-slate-400 font-bold uppercase">Disponível</p>
+          <p class="font-black {% if disponivel_carlos >= 0 %}text-emerald-400{% else %}text-rose-400{% endif %} text-sm sm:text-base mt-0.5">
+            {{ disponivel_carlos | moeda }}
+          </p>
+        </div>
       </div>
     </div>
 
     <!-- Conta Fernanda -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-pink-900/40 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-      <div class="flex items-center justify-between mb-2">
+    <div class="bg-slate-900 border border-pink-900/40 rounded-2xl p-4 shadow-sm flex flex-col justify-between">
+      <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-xl bg-pink-50 dark:bg-pink-500/10 border border-pink-200 dark:border-pink-500/20 flex items-center justify-center text-pink-600 dark:text-pink-400 font-bold text-sm">
+          <div class="w-8 h-8 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 font-bold text-sm">
             👤
           </div>
-          <div>
-            <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">Conta Paga Leve — Fernanda</h3>
-            <p class="text-[10px] text-pink-600 dark:text-pink-400 font-medium">Modalidade Sob Demanda</p>
-          </div>
+          <h3 class="font-extrabold text-white text-sm">Conta Paga Leve — Fernanda</h3>
         </div>
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-50 dark:bg-pink-500/15 text-pink-700 dark:text-pink-400 border border-pink-200 dark:border-pink-500/30">
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/15 text-pink-400 border border-pink-500/30">
           Sob Demanda
         </span>
       </div>
-      <div class="mt-3 pt-3 border-t border-slate-800/80 flex items-end justify-between">
+
+      <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3 text-xs flex items-center justify-between">
         <div>
-          <p class="text-[10px] text-slate-400">Saldo em Aberto</p>
-          <p class="text-2xl font-black {% if aberto_fernanda > 0 %}text-amber-400{% else %}text-slate-400{% endif %}">
+          <p class="text-[9px] text-slate-400 font-bold uppercase">Total a Pagar</p>
+          <p class="text-xl sm:text-2xl font-black {% if aberto_fernanda > 0 %}text-amber-400{% else %}text-slate-400{% endif %} mt-0.5">
             {{ aberto_fernanda | moeda }}
           </p>
         </div>
-        <p class="text-[10px] text-slate-500 max-w-[180px] text-right leading-tight">
-          Aprovação por contrato diretamente no aplicativo Paga Leve.
-        </p>
       </div>
     </div>
   </div>
 
-  <!-- SEÇÃO 2: 4 CARDS DE KPIS -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 sm:p-4">
-      <p class="text-[10px] sm:text-xs text-slate-400 font-semibold mb-1 flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-amber-400"></span> Total em Aberto
-      </p>
-      <p class="text-base sm:text-xl font-black text-amber-400 truncate">{{ total_aberto_geral | moeda }}</p>
-      <p class="text-[10px] text-slate-500 mt-1">Saldo restante a liquidar</p>
+  <!-- BARRA DE AÇÃO: PAGAR / ANTECIPAR SELECIONADAS -->
+  <div id="barra-pagar-selecionadas"
+       class="hidden bg-slate-900/95 border border-amber-500/50 rounded-2xl p-3.5 shadow-xl shadow-amber-950/30 flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
+    <div class="flex items-center gap-2.5">
+      <span class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 text-base">
+        ⚡
+      </span>
+      <div>
+        <p class="text-xs font-extrabold text-white" id="lbl-resumo-selecionadas">
+          Pagar Selecionadas (0 parcelas - R$ 0,00)
+        </p>
+        <p class="text-[10px] text-slate-400">Liquida as parcelas marcadas registrando saída única na conta informada.</p>
+      </div>
     </div>
 
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 sm:p-4">
-      <p class="text-[10px] sm:text-xs text-slate-400 font-semibold mb-1 flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Total Já Quitado
-      </p>
-      <p class="text-base sm:text-xl font-black text-emerald-400 truncate">{{ total_pago_geral | moeda }}</p>
-      <p class="text-[10px] text-slate-500 mt-1">Entradas + parcelas pagas</p>
-    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <select id="select-conta-lote-pl"
+              class="rounded-xl bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs text-white focus:border-amber-400 focus:outline-none">
+        {% for cb in contas_bancarias %}
+        <option value="{{ cb.id }}" {% if 'mercado' in cb.nome | lower %}selected{% endif %}>
+          Débito: {{ cb.nome }}
+        </option>
+        {% endfor %}
+      </select>
 
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 sm:p-4">
-      <p class="text-[10px] sm:text-xs text-slate-400 font-semibold mb-1 flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-blue-400"></span> Contratos Ativos
-      </p>
-      <p class="text-base sm:text-xl font-black text-blue-400 truncate">{{ contratos_ativos | length }}</p>
-      <p class="text-[10px] text-slate-500 mt-1">Compras com parcelas futuras</p>
-    </div>
+      <button type="button"
+              onclick="limparSelecaoParcelasPl()"
+              class="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer">
+        Limpar
+      </button>
 
-    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 sm:p-4">
-      <p class="text-[10px] sm:text-xs text-slate-400 font-semibold mb-1 flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-purple-400"></span> Contratos Quitados
-      </p>
-      <p class="text-base sm:text-xl font-black text-purple-400 truncate">{{ contratos_quitados | length }}</p>
-      <p class="text-[10px] text-slate-500 mt-1">100% finalizados</p>
+      <button type="button"
+              id="btn-confirmar-lote-pl"
+              onclick="pagarParcelasSelecionadasPl()"
+              class="px-4 py-1.5 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/50 transition cursor-pointer">
+        Pagar Selecionadas (0 parcelas - R$ 0,00)
+      </button>
     </div>
   </div>
 
-  <!-- SEÇÃO 3: ACOMPANHAMENTO DETALHADO POR CONTRATO / COMPRA -->
-  <div class="space-y-4">
+  <!-- SEÇÃO 3: CONTRATOS ATIVOS (COM SALDO DEVEDOR > 0) -->
+  <div class="space-y-3.5">
     <div class="flex items-center justify-between">
-      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-        <span>📦</span> Contratos de Compras Paga Leve
+      <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+        <span>📦</span> Compras Ativas (Com Parcelas Pendentes)
       </h2>
-      <span class="text-xs text-slate-500">Total: <strong>{{ contratos | length }}</strong> contratos</span>
+      <span class="text-xs text-slate-400">Exibindo: <strong class="text-white">{{ contratos_ativos | length }}</strong> contrato(s) ativo(s)</span>
     </div>
 
+    {% if contratos_ativos %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {% for c in contratos %}
-      <div class="bg-slate-900/80 border {% if c.status == 'Ativa' %}border-amber-500/40 shadow-amber-500/5{% else %}border-slate-800/80{% endif %} rounded-2xl p-4 shadow-sm flex flex-col justify-between transition group">
+      {% for c in contratos_ativos %}
+      <div class="bg-slate-900/90 border border-amber-500/40 rounded-2xl p-4 shadow-sm flex flex-col justify-between transition group">
         <div>
           <!-- Topo do Card -->
           <div class="flex items-start justify-between gap-2 mb-2">
@@ -154,20 +176,15 @@
                 <h3 class="font-extrabold text-white text-sm group-hover:text-amber-300 transition leading-tight">
                   {{ c.nome }}
                 </h3>
-                <p class="text-[10px] text-slate-400">Titular: <strong class="text-slate-300">{{ c.titular }}</strong></p>
+                <p class="text-[10px] text-slate-400">
+                  Titular: <strong class="text-slate-300">{{ c.titular }}</strong> • Categoria: <span class="text-slate-300">{{ c.categoria }}</span>
+                </p>
               </div>
             </div>
 
-            <!-- Badge Status -->
-            {% if c.status == 'Ativa' %}
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Ativa
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1 shrink-0">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Em Aberto
             </span>
-            {% else %}
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-              <span>✓</span> Quitado
-            </span>
-            {% endif %}
           </div>
 
           <!-- Métricas da Compra -->
@@ -182,9 +199,7 @@
             </div>
             <div>
               <p class="text-[9px] text-slate-400 font-bold uppercase">Saldo Devedor</p>
-              <p class="font-black {% if c.aberto_total > 0 %}text-amber-400{% else %}text-slate-500{% endif %}">
-                {{ c.aberto_total | moeda }}
-              </p>
+              <p class="font-black text-amber-400">{{ c.aberto_total | moeda }}</p>
             </div>
           </div>
 
@@ -195,40 +210,64 @@
               <span class="font-bold text-white">{{ "%.0f"|format(c.percentual_pago) }}%</span>
             </div>
             <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
-              <div class="h-full rounded-full transition-all duration-500 {% if c.status == 'Quitada' %}bg-emerald-400{% else %}bg-gradient-to-r from-amber-500 to-emerald-400{% endif %}" 
+              <div class="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-amber-500 to-emerald-400"
                    style="width: {{ [c.percentual_pago, 100]|min }}%"></div>
             </div>
           </div>
 
           <!-- Detalhamento das Parcelas Quinzenais -->
           <div class="mt-3 pt-2 border-t border-slate-800/80 space-y-1.5">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Cronograma Quinzenal ({{ c.total_parcelas }}x de {{ c.valor_parcela | moeda }})
-            </p>
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Cronograma Quinzenal ({{ c.total_parcelas }}x de {{ c.valor_parcela | moeda }})
+              </p>
+              <span class="text-[10px] text-slate-500">Marque para pagar/antecipar</span>
+            </div>
 
             <div class="divide-y divide-slate-800/50 bg-slate-950/40 rounded-xl border border-slate-800/60 overflow-hidden">
               {% for p in c.parcelas %}
-              <div class="px-3 py-2 flex items-center justify-between text-xs" id="linha-pl-{{ p.id }}">
-                <div class="flex items-center gap-2">
-                  <span class="text-[10px] font-mono text-slate-400">
+              <div class="px-3 py-2 flex items-center justify-between gap-2 text-xs" id="linha-pl-{{ p.id }}">
+                <div class="flex items-center gap-2 min-w-0">
+                  {% if p.pago != 1 %}
+                  <input type="checkbox"
+                         class="chk-parcela-pl w-4 h-4 rounded accent-amber-500 cursor-pointer shrink-0"
+                         value="{{ p.id }}"
+                         data-id="{{ p.id }}"
+                         data-valor="{{ p.valor }}"
+                         data-desc="{{ p.descricao }}"
+                         onchange="atualizarBarraSelecionadasPl()">
+                  {% else %}
+                  <span class="w-4 h-4 inline-flex items-center justify-center text-[10px] text-emerald-400 shrink-0">✓</span>
+                  {% endif %}
+
+                  <span class="text-[10px] font-mono text-slate-400 shrink-0">
                     {{ p.data_formatada }}
                   </span>
-                  <span class="text-slate-300 font-medium">
+                  <span class="text-slate-200 font-medium truncate" title="{{ p.descricao }}">
                     {{ p.descricao }}
                   </span>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 shrink-0">
                   <span class="font-bold text-white">{{ p.valor | moeda }}</span>
+
+                  <!-- Botão Editar Parcela -->
+                  <button type="button"
+                          onclick='abrirModalEditarParcelaPl({{ p.id }}, {{ p.data | tojson }}, {{ p.valor }}, {{ p.descricao | tojson }})'
+                          class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                          title="Editar vencimento ou valor da parcela">
+                    ✏️
+                  </button>
 
                   {% if p.pago == 1 %}
                   <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
                     ✓ Pago
                   </span>
                   {% else %}
-                  <button onclick="baixarParcelaPl({{ p.id }}, '{{ p.descricao }}')" 
+                  <button type="button"
+                          onclick='baixarParcelaPl({{ p.id }}, {{ p.descricao | tojson }})'
                           id="btn-baixa-pl-{{ p.id }}"
-                          class="touch-target px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] border border-amber-500/40 transition active:scale-95 cursor-pointer">
+                          class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] border border-amber-500/40 transition active:scale-95 cursor-pointer">
                     ⚡ Baixar
                   </button>
                   {% endif %}
@@ -241,35 +280,530 @@
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center space-y-2">
+      <p class="text-2xl">🎉</p>
+      <p class="text-sm font-bold text-white">Nenhum contrato Paga Leve com saldo devedor pendente!</p>
+      <p class="text-xs text-slate-400">Todas as compras anteriores estão 100% quitadas no histórico abaixo.</p>
+    </div>
+    {% endif %}
   </div>
 
+  <!-- SEÇÃO 4: HISTÓRICO DE QUITADAS (COLAPSÁVEL) -->
+  <div class="pt-2 border-t border-slate-800/80">
+    <button type="button"
+            onclick="toggleHistoricoQuitadasPl()"
+            class="w-full flex items-center justify-between bg-slate-900/70 hover:bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-left transition cursor-pointer">
+      <div class="flex items-center gap-2.5">
+        <span class="text-base">🗂️</span>
+        <div>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            Histórico de Quitadas
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+              {{ contratos_quitados | length }} finalizadas
+            </span>
+          </h2>
+          <p class="text-[11px] text-slate-500">Compras Paga Leve 100% pagas e encerradas ({{ total_pago_geral | moeda }} quitados no total).</p>
+        </div>
+      </div>
+      <span id="icone-toggle-quitadas" class="text-xs font-bold text-slate-400 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
+        Mostrar ▼
+      </span>
+    </button>
+
+    <div id="secao-historico-quitadas" class="hidden mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {% for c in contratos_quitados %}
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 shadow-sm flex flex-col justify-between opacity-90 hover:opacity-100 transition">
+        <div>
+          <div class="flex items-start justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">
+                {% if 'whey' in c.nome | lower %}💪
+                {% elif 'food' in c.nome | lower or 'almoço' in c.nome | lower %}🍔
+                {% elif 'venvanse' in c.nome | lower or 'raia' in c.nome | lower %}💊
+                {% elif 'ozivy' in c.nome | lower %}💉
+                {% elif 'agv' in c.nome | lower or 'seguro' in c.nome | lower %}🚗
+                {% elif 'psyllium' in c.nome | lower %}🌿
+                {% else %}⚡{% endif %}
+              </span>
+              <div>
+                <h3 class="font-extrabold text-slate-200 text-sm leading-tight">{{ c.nome }}</h3>
+                <p class="text-[10px] text-slate-400">Titular: <strong class="text-slate-300">{{ c.titular }}</strong></p>
+              </div>
+            </div>
+
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <span>✓</span> 100% Quitado
+            </span>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 bg-slate-950/50 border border-slate-800/70 rounded-xl p-2.5 my-2.5 text-xs">
+            <div>
+              <p class="text-[9px] text-slate-400 font-bold uppercase">Valor Total</p>
+              <p class="font-black text-slate-200">{{ c.valor_original | moeda }}</p>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 font-bold uppercase">Total Quitado</p>
+              <p class="font-black text-emerald-400">{{ c.pago_total | moeda }}</p>
+            </div>
+            <div>
+              <p class="text-[9px] text-slate-400 font-bold uppercase">Saldo Devedor</p>
+              <p class="font-black text-slate-500">R$ 0,00</p>
+            </div>
+          </div>
+
+          <div class="divide-y divide-slate-800/50 bg-slate-950/40 rounded-xl border border-slate-800/60 overflow-hidden mt-2">
+            {% for p in c.parcelas %}
+            <div class="px-3 py-1.5 flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-[10px] font-mono text-slate-400">{{ p.data_formatada }}</span>
+                <span class="text-slate-300 truncate">{{ p.descricao }}</span>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span class="font-bold text-slate-200">{{ p.valor | moeda }}</span>
+                <button type="button"
+                        onclick='abrirModalEditarParcelaPl({{ p.id }}, {{ p.data | tojson }}, {{ p.valor }}, {{ p.descricao | tojson }})'
+                        class="p-1 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                        title="Editar parcela">
+                  ✏️
+                </button>
+                <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                  ✓ Pago
+                </span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL 1: + NOVA COMPRA PAGA LEVE -->
+<div id="modal-nova-pagaleve" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 my-8">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <h3 class="text-base font-black text-white flex items-center gap-2">
+        <span class="text-amber-400">⚡</span> Nova Compra Paga Leve (Pix 4x)
+      </h3>
+      <button type="button" onclick="fecharModalNovaCompraPl()" class="text-slate-400 hover:text-white text-lg leading-none cursor-pointer">✕</button>
+    </div>
+
+    <form id="form-nova-pagaleve" onsubmit="salvarNovaCompraPl(event)" class="space-y-3.5">
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Descrição da Compra *</label>
+        <input type="text" id="pl-nova-descricao" required placeholder="Ex: Farmácia Droga Raia / Supermercado"
+               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Titular *</label>
+          <select id="pl-nova-titular"
+                  class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+            <option value="Carlos">Carlos</option>
+            <option value="Fernanda">Fernanda</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Categoria *</label>
+          <select id="pl-nova-categoria"
+                  class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+            <option value="Medicamentos">Medicamentos / Farmácia</option>
+            <option value="Alimentação">Alimentação / Mercado</option>
+            <option value="Moradia/Contas">Moradia / Contas</option>
+            <option value="Pessoal">Pessoal</option>
+            <option value="Manutenção Veículo">Manutenção Veículo</option>
+            <option value="Eletrodomésticos">Eletrodomésticos</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Conta de Débito *</label>
+          <select id="pl-nova-conta"
+                  class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+            {% for cb in contas_bancarias %}
+            <option value="{{ cb.id }}" {% if 'mercado' in cb.nome | lower %}selected{% endif %}>{{ cb.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Valor Total (R$) *</label>
+          <input type="number" step="0.01" min="0.04" id="pl-nova-valor-total" required placeholder="200.00"
+                 oninput="recalcularParcelasModalPl()"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Data 1ª Parcela (Ato) *</label>
+          <input type="date" id="pl-nova-data-entrada" required value="{{ hoje_iso }}"
+                 onchange="recalcularParcelasModalPl()"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Cronograma Editável das 4 Parcelas -->
+      <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+            Cronograma das 4 Parcelas (Datas e Valores Editáveis)
+          </span>
+          <span class="text-[10px] text-slate-400">1ª paga no ato • 3 quinzenais</span>
+        </div>
+
+        <div class="space-y-2">
+          {% for idx in [1, 2, 3, 4] %}
+          <div class="grid grid-cols-12 gap-2 items-center text-xs">
+            <div class="col-span-4 flex items-center gap-1.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold {% if idx == 1 %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}bg-amber-500/15 text-amber-300 border border-amber-500/30{% endif %}">
+                {{ idx }}/4
+              </span>
+              <span class="text-[11px] text-slate-300 truncate">
+                {% if idx == 1 %}Entrada (Ato){% else %}+{{ (idx - 1) * 14 }} dias{% endif %}
+              </span>
+            </div>
+            <div class="col-span-5">
+              <input type="date" id="pl-parc-data-{{ idx }}" required
+                     class="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1 text-xs text-white focus:border-amber-400 focus:outline-none">
+            </div>
+            <div class="col-span-3">
+              <input type="number" step="0.01" min="0.01" id="pl-parc-valor-{{ idx }}" required placeholder="0.00"
+                     class="w-full rounded-lg bg-slate-900 border border-slate-800 px-2.5 py-1 text-xs text-right font-mono text-white focus:border-amber-400 focus:outline-none">
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+        <button type="button" onclick="fecharModalNovaCompraPl()"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-salvar-nova-pl"
+                class="px-4 py-2 rounded-xl text-xs font-black text-slate-950 bg-amber-500 hover:bg-amber-400 shadow-lg shadow-amber-950/50 transition cursor-pointer">
+          Confirmar Compra (4x)
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL 2: EDITAR PARCELA INDIVIDUAL -->
+<div id="modal-editar-parcela-pl" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <h3 class="text-sm font-black text-white flex items-center gap-2">
+        <span>✏️</span> Editar Parcela Paga Leve
+      </h3>
+      <button type="button" onclick="fecharModalEditarParcelaPl()" class="text-slate-400 hover:text-white text-lg leading-none cursor-pointer">✕</button>
+    </div>
+
+    <form id="form-editar-parcela-pl" onsubmit="salvarEdicaoParcelaPl(event)" class="space-y-3">
+      <input type="hidden" id="edit-pl-id" value="">
+
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Descrição da Parcela</label>
+        <input type="text" id="edit-pl-descricao" required
+               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Data Vencimento *</label>
+          <input type="date" id="edit-pl-data" required
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Valor (R$) *</label>
+          <input type="number" step="0.01" min="0.01" id="edit-pl-valor" required
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+        <button type="button" onclick="fecharModalEditarParcelaPl()"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-salvar-edit-pl"
+                class="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition cursor-pointer">
+          Salvar Alterações
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  function formatarMoedaJS(val) {
+    return (Number(val) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function adicionarDiasISO(dataIso, dias) {
+    const partes = (dataIso || '').split('-');
+    if (partes.length !== 3) return dataIso;
+    const dt = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+    dt.setDate(dt.getDate() + dias);
+    const yyyy = dt.getFullYear();
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Alternar exibição do Histórico de Quitadas
+  function toggleHistoricoQuitadasPl() {
+    const sec = document.getElementById('secao-historico-quitadas');
+    const icone = document.getElementById('icone-toggle-quitadas');
+    if (!sec) return;
+    if (sec.classList.contains('hidden')) {
+      sec.classList.remove('hidden');
+      if (icone) icone.textContent = 'Ocultar ▲';
+    } else {
+      sec.classList.add('hidden');
+      if (icone) icone.textContent = 'Mostrar ▼';
+    }
+  }
+
+  // Modal Nova Compra Paga Leve
+  function abrirModalNovaCompraPl() {
+    document.getElementById('pl-nova-descricao').value = '';
+    document.getElementById('pl-nova-valor-total').value = '';
+    recalcularParcelasModalPl();
+    const modal = document.getElementById('modal-nova-pagaleve');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function fecharModalNovaCompraPl() {
+    const modal = document.getElementById('modal-nova-pagaleve');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function recalcularParcelasModalPl() {
+    const dtEntrada = document.getElementById('pl-nova-data-entrada').value || '{{ hoje_iso }}';
+    const valTotal = parseFloat(document.getElementById('pl-nova-valor-total').value || '0');
+    const valBase = valTotal > 0 ? Math.floor((valTotal / 4) * 100) / 100 : 0;
+    const valP1 = valTotal > 0 ? Math.round((valTotal - valBase * 3) * 100) / 100 : 0;
+
+    for (let i = 1; i <= 4; i++) {
+      const inputData = document.getElementById(`pl-parc-data-${i}`);
+      const inputVal = document.getElementById(`pl-parc-valor-${i}`);
+      if (inputData) {
+        inputData.value = adicionarDiasISO(dtEntrada, (i - 1) * 14);
+      }
+      if (inputVal) {
+        inputVal.value = valTotal > 0 ? (i === 1 ? valP1.toFixed(2) : valBase.toFixed(2)) : '';
+      }
+    }
+  }
+
+  async function salvarNovaCompraPl(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-nova-pl');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const parcelas = [];
+    for (let i = 1; i <= 4; i++) {
+      parcelas.push({
+        numero: i,
+        data: document.getElementById(`pl-parc-data-${i}`).value,
+        valor: parseFloat(document.getElementById(`pl-parc-valor-${i}`).value || '0')
+      });
+    }
+
+    const payload = {
+      descricao: document.getElementById('pl-nova-descricao').value.trim(),
+      titular: document.getElementById('pl-nova-titular').value,
+      categoria: document.getElementById('pl-nova-categoria').value,
+      conta_id: parseInt(document.getElementById('pl-nova-conta').value || '1', 10),
+      valor_total: parseFloat(document.getElementById('pl-nova-valor-total').value || '0'),
+      data_entrada: document.getElementById('pl-nova-data-entrada').value,
+      parcelas: parcelas
+    };
+
+    try {
+      const res = await fetch('/api/pagaleve/nova', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.sucesso) {
+        if (typeof showToast === 'function') showToast('Compra Cadastrada!', data.mensagem);
+        setTimeout(() => location.reload(), 500);
+      } else {
+        alert(data.erro || 'Não foi possível cadastrar a compra.');
+        btn.disabled = false;
+        btn.textContent = 'Confirmar Compra (4x)';
+      }
+    } catch (err) {
+      alert('Erro de conexão ao salvar compra Paga Leve.');
+      btn.disabled = false;
+      btn.textContent = 'Confirmar Compra (4x)';
+    }
+  }
+
+  // Modal Editar Parcela Individual
+  function abrirModalEditarParcelaPl(id, dataIso, valor, descricao) {
+    document.getElementById('edit-pl-id').value = id;
+    document.getElementById('edit-pl-data').value = (dataIso || '').slice(0, 10);
+    document.getElementById('edit-pl-valor').value = Number(valor || 0).toFixed(2);
+    document.getElementById('edit-pl-descricao').value = descricao || '';
+
+    const modal = document.getElementById('modal-editar-parcela-pl');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function fecharModalEditarParcelaPl() {
+    const modal = document.getElementById('modal-editar-parcela-pl');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  async function salvarEdicaoParcelaPl(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-edit-pl');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const id = parseInt(document.getElementById('edit-pl-id').value, 10);
+    const payload = {
+      id: id,
+      data: document.getElementById('edit-pl-data').value,
+      valor: parseFloat(document.getElementById('edit-pl-valor').value || '0'),
+      descricao: document.getElementById('edit-pl-descricao').value.trim()
+    };
+
+    try {
+      const res = await fetch('/api/pagaleve/parcela/editar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok && data.sucesso) {
+        if (typeof showToast === 'function') showToast('Parcela Atualizada!', data.mensagem);
+        setTimeout(() => location.reload(), 400);
+      } else {
+        alert(data.erro || 'Erro ao editar parcela.');
+        btn.disabled = false;
+        btn.textContent = 'Salvar Alterações';
+      }
+    } catch (err) {
+      alert('Erro de comunicação ao editar parcela.');
+      btn.disabled = false;
+      btn.textContent = 'Salvar Alterações';
+    }
+  }
+
+  // Seleção Múltipla: Pagar / Antecipar Selecionadas
+  function atualizarBarraSelecionadasPl() {
+    const marcados = Array.from(document.querySelectorAll('.chk-parcela-pl:checked'));
+    const barra = document.getElementById('barra-pagar-selecionadas');
+    const lbl = document.getElementById('lbl-resumo-selecionadas');
+    const btn = document.getElementById('btn-confirmar-lote-pl');
+
+    const qtd = marcados.length;
+    const total = marcados.reduce((acc, el) => acc + parseFloat(el.dataset.valor || '0'), 0);
+    const texto = `Pagar Selecionadas (${qtd} ${qtd === 1 ? 'parcela' : 'parcelas'} - ${formatarMoedaJS(total)})`;
+
+    if (lbl) lbl.textContent = texto;
+    if (btn) btn.textContent = `⚡ ${texto}`;
+
+    if (qtd > 0) {
+      barra.classList.remove('hidden');
+      barra.classList.add('flex');
+    } else {
+      barra.classList.add('hidden');
+      barra.classList.remove('flex');
+    }
+  }
+
+  function limparSelecaoParcelasPl() {
+    document.querySelectorAll('.chk-parcela-pl').forEach(el => { el.checked = false; });
+    atualizarBarraSelecionadasPl();
+  }
+
+  async function pagarParcelasSelecionadasPl() {
+    const marcados = Array.from(document.querySelectorAll('.chk-parcela-pl:checked'));
+    if (!marcados.length) return;
+
+    const ids = marcados.map(el => parseInt(el.dataset.id, 10));
+    const total = marcados.reduce((acc, el) => acc + parseFloat(el.dataset.valor || '0'), 0);
+    const contaSelect = document.getElementById('select-conta-lote-pl');
+    const contaId = parseInt(contaSelect.value || '1', 10);
+
+    if (!confirm(`Confirmar a liquidação de ${ids.length} parcela(s) no valor total de ${formatarMoedaJS(total)}?`)) {
+      return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-lote-pl');
+    btn.disabled = true;
+    btn.textContent = '⏳ Liquidando...';
+
+    try {
+      const res = await fetch('/api/pagaleve/pagar-selecionadas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parcela_ids: ids,
+          conta_id: contaId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.sucesso) {
+        if (typeof showToast === 'function') showToast('Parcelas Liquidadas!', data.mensagem);
+        setTimeout(() => location.reload(), 600);
+      } else {
+        alert(data.erro || 'Erro ao liquidar parcelas selecionadas.');
+        btn.disabled = false;
+        atualizarBarraSelecionadasPl();
+      }
+    } catch (err) {
+      alert('Erro de conexão ao liquidar parcelas.');
+      btn.disabled = false;
+      atualizarBarraSelecionadasPl();
+    }
+  }
+
+  // Baixa individual rápida
   async function baixarParcelaPl(id, desc) {
     const btn = document.getElementById(`btn-baixa-pl-${id}`);
     if (btn) {
       btn.disabled = true;
-      btn.textContent = '⏳ Baixando...';
+      btn.textContent = '⏳...';
     }
 
     try {
       const res = await fetch(`/api/baixa/${id}`, { method: 'POST' });
       const data = await res.json();
       if (data.sucesso) {
-        showToast('Parcela Baixada!', data.mensagem);
-        setTimeout(() => location.reload(), 700);
+        if (typeof showToast === 'function') showToast('Parcela Baixada!', data.mensagem);
+        setTimeout(() => location.reload(), 600);
       } else {
-        showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
+        if (typeof showToast === 'function') showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
         if (btn) {
           btn.disabled = false;
           btn.textContent = '⚡ Baixar';
         }
       }
     } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
+      if (typeof showToast === 'function') showToast('Erro de Conexão', err.message, true);
       if (btn) {
         btn.disabled = false;
         btn.textContent = '⚡ Baixar';

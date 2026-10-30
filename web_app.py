@@ -522,7 +522,7 @@ async def pagina_lancamentos(
         tipo = r["tipo"] or "despesa"
         if tipo == "receita":
             tot_receitas += val
-        else:
+        elif tipo == "despesa":
             tot_despesas += val
 
         dt_str = str(r["data_efetiva"] or r["data"])[:10]
@@ -689,11 +689,31 @@ CATEGORIAS_SUBCATEGORIAS: Dict[str, List[str]] = {
 }
 
 
+def converter_valor_monetario(val: Any, default: float = 0.0) -> float:
+    """Converte valores com vírgula ou ponto (ex: '50,00', '1.250,50', '50.00', 50) para float seguro."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    val_str = str(val).strip()
+    if not val_str:
+        return default
+    val_str = val_str.replace("R$", "").replace("r$", "").strip()
+    if "." in val_str and "," in val_str:
+        val_str = val_str.replace(".", "").replace(",", ".")
+    elif "," in val_str:
+        val_str = val_str.replace(",", ".")
+    try:
+        return round(float(val_str), 2)
+    except (ValueError, TypeError):
+        return default
+
+
 @app.post("/api/lancamentos")
 async def api_criar_lancamento(
     data: str = Form(...),
     tipo: str = Form(...),
-    valor: float = Form(...),
+    valor: Any = Form(...),
     descricao: str = Form(...),
     categoria: str = Form(...),
     subcategoria: Optional[str] = Form(""),
@@ -702,8 +722,9 @@ async def api_criar_lancamento(
     id: Optional[int] = Form(None)
 ):
     """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria e Subcategoria."""
-    if valor <= 0:
-        raise HTTPException(status_code=400, detail="Valor deve ser positivo.")
+    valor_num = converter_valor_monetario(valor)
+    if valor_num <= 0:
+        return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
 
     conn = conectar_db()
     try:
@@ -714,13 +735,29 @@ async def api_criar_lancamento(
             cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
             conn.commit()
 
-        cur.execute("SELECT id FROM contas_config WHERE nome = ?", (conta,))
+        conta_input = str(conta).strip()
+        cur.execute("SELECT id, nome FROM contas_config WHERE nome = ? OR id = ?", (conta_input, conta_input))
         row_c = cur.fetchone()
         if row_c:
-            conta_id = row_c[0]
+            conta_id = row_c["id"]
+            conta_nome = row_c["nome"]
         else:
-            conta_id = 1 if "Mercado" in conta else (2 if "Dinheiro" in conta or "Carteira" in conta else (1779 if "99" in conta else 1))
-        afeta_saldo = 1 if pago == 1 else 0
+            c_low = conta_input.lower()
+            if "carteira" in c_low or "dinheiro" in c_low:
+                conta_id = 2
+                conta_nome = "Dinheiro / Carteira"
+            elif "99" in c_low:
+                conta_id = 1779
+                conta_nome = "99Pay"
+            elif "mercado" in c_low and "card" not in c_low:
+                conta_id = 1
+                conta_nome = "Mercado Pago"
+            else:
+                conta_id = 1
+                conta_nome = conta_input
+
+        pago_int = 1 if (pago == 1 or str(pago).strip() in ["1", "true", "True"]) else 0
+        afeta_saldo = 1 if pago_int == 1 else 0
         subcat_str = (subcategoria or "").strip()
 
         if id and int(id) > 0:
@@ -728,38 +765,91 @@ async def api_criar_lancamento(
                 UPDATE transacoes
                 SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?
                 WHERE id = ?
-            """, (str(data)[:10], descricao.strip(), valor, tipo, categoria, subcat_str, conta, conta_id, pago, afeta_saldo, int(id)))
+            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, int(id)))
+            
+            # Sincroniza veiculo_abastecimentos caso haja vínculo
+            try:
+                cur.execute("""
+                    UPDATE veiculo_abastecimentos
+                    SET data = ?, valor_pago = ?, conta = ?, conta_id = ?
+                    WHERE transacao_id = ?
+                """, (str(data)[:10], valor_num, conta_nome, conta_id, int(id)))
+            except Exception:
+                pass
+
             conn.commit()
-            return {"sucesso": True, "mensagem": f"Lançamento '{descricao}' atualizado com sucesso!"}
+
+            # Recalcula saldo consolidado imediatamente
+            res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+
+            return {
+                "status": "sucesso",
+                "sucesso": True,
+                "mensagem": f"Lançamento '{descricao.strip()}' atualizado com sucesso!",
+                "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
+            }
 
         cur.execute("""
             INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (str(data)[:10], descricao.strip(), valor, tipo, categoria, subcat_str, conta, conta_id, pago, afeta_saldo))
+        """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo))
         conn.commit()
-        return {"sucesso": True, "mensagem": f"{tipo.capitalize()} '{descricao}' de {formatar_moeda_br(valor)} lançada com sucesso!"}
+
+        res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+        return {
+            "status": "sucesso",
+            "sucesso": True,
+            "mensagem": f"{tipo.capitalize()} '{descricao.strip()}' de {formatar_moeda_br(valor_num)} lançada com sucesso!",
+            "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
+        }
     except Exception as e:
         conn.rollback()
-        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+        return JSONResponse(status_code=500, content={"status": "erro", "sucesso": False, "erro": str(e)})
     finally:
         conn.close()
 
 
 @app.post("/api/lancamentos/editar")
-@app.post("/api/lancamentos/{transacao_id}")
 async def api_editar_lancamento(
-    transacao_id: Optional[int] = None,
-    id: Optional[int] = Form(None),
+    id: Optional[Any] = Form(None),
     data: str = Form(...),
     tipo: str = Form("despesa"),
-    valor: float = Form(...),
+    valor: Any = Form(...),
     descricao: str = Form(...),
     categoria: str = Form(...),
     subcategoria: Optional[str] = Form(""),
     conta: str = Form("Mercado Pago"),
     pago: Optional[int] = Form(0)
 ):
-    tid = transacao_id or id
+    if not id:
+        raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
+    return await api_criar_lancamento(
+        data=data,
+        tipo=tipo,
+        valor=valor,
+        descricao=descricao,
+        categoria=categoria,
+        subcategoria=subcategoria,
+        conta=conta,
+        pago=pago,
+        id=int(id)
+    )
+
+
+@app.post("/api/lancamentos/{transacao_id}")
+async def api_editar_lancamento_por_id(
+    transacao_id: str,
+    id: Optional[Any] = Form(None),
+    data: str = Form(...),
+    tipo: str = Form("despesa"),
+    valor: Any = Form(...),
+    descricao: str = Form(...),
+    categoria: str = Form(...),
+    subcategoria: Optional[str] = Form(""),
+    conta: str = Form("Mercado Pago"),
+    pago: Optional[int] = Form(0)
+):
+    tid = id if (id and str(id).strip()) else (transacao_id if transacao_id != "editar" else None)
     if not tid:
         raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
     return await api_criar_lancamento(
@@ -1064,41 +1154,49 @@ async def api_cofrinho_resgatar(
 # ROTAS: CARTÕES & FATURAS
 # =============================================================================
 
+def garantir_schema_cartoes(conn: sqlite3.Connection) -> None:
+    """Garante colunas estendidas na tabela cartoes e remove cartões fictícios."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS cartoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            bandeira TEXT DEFAULT 'Mastercard',
+            limite_total REAL NOT NULL DEFAULT 0.0,
+            dia_fechamento INTEGER DEFAULT 1,
+            dia_vencimento INTEGER DEFAULT 7,
+            cor TEXT DEFAULT '#ea580c',
+            ultimos_digitos TEXT DEFAULT '0000',
+            titular TEXT DEFAULT 'Carlos'
+        )
+    """)
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(cartoes)").fetchall()]
+    if "ultimos_digitos" not in cols:
+        cur.execute("ALTER TABLE cartoes ADD COLUMN ultimos_digitos TEXT DEFAULT '0000'")
+    if "titular" not in cols:
+        cur.execute("ALTER TABLE cartoes ADD COLUMN titular TEXT DEFAULT 'Carlos'")
+    # Garante exclusão do cartão fictício Mercado Pago Card
+    cur.execute("DELETE FROM cartoes WHERE nome = 'Mercado Pago Card'")
+    conn.commit()
+
+
 @app.get("/cartoes", response_class=HTMLResponse)
-async def pagina_cartoes(request: Request, c: Optional[int] = 1):
+async def pagina_cartoes(request: Request, c: Optional[int] = None):
     conn = conectar_db()
     hoje = date.today()
-    ano = hoje.year
     mes = hoje.month
-    inicio_mes = f"{ano}-{mes:02d}-01"
-    ultimo_dia = calendar.monthrange(ano, mes)[1]
-    fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
 
+    garantir_schema_cartoes(conn)
     cur = conn.cursor()
 
-    # Garante que os dois cartões reais existem no banco
-    cur.execute("SELECT id FROM cartoes WHERE nome LIKE '%Inter%' OR nome LIKE '%Aparecida%'")
-    row_inter = cur.fetchone()
-    if not row_inter:
-        cur.execute("""
-            INSERT INTO cartoes (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor)
-            VALUES ('Cartão Inter Aparecida', 'Mastercard', 5000.0, 1, 7, '#ea580c')
-        """)
-        id_inter = cur.lastrowid
-        trans_inter = [
-            ('2026-11-07', 'Lava e Seca Midea 11kg - Parcela 04/10', 389.00, 'despesa', 'Eletrodomésticos', 'Cartão Inter Aparecida', id_inter, 0, 4, 10, 'Aparecida'),
-            ('2026-11-07', 'Venvanse 70mg - Drogaria Raia', 489.50, 'despesa', 'Medicamentos', 'Cartão Inter Aparecida', id_inter, 0, 1, 3, 'Carlos'),
-            ('2026-11-07', 'Empréstimo Pessoal Inter - Parcela 02/06', 1056.62, 'despesa', 'Empréstimos', 'Cartão Inter Aparecida', id_inter, 0, 2, 6, 'Carlos')
-        ]
-        for dt, desc, val, tp, cat, cnta, cid, pg, np, tp_compra, tit in trans_inter:
-            cur.execute("""
-                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, numero_parcela, total_parcelas_compra, titular, afeta_saldo_bancario)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-            """, (dt, desc, val, tp, cat, cnta, cid, pg, np, tp_compra, tit))
-        conn.commit()
-
-    # Busca todos os cartões cadastrados
-    cur.execute("SELECT id, nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor FROM cartoes ORDER BY id ASC")
+    # Busca apenas os cartões reais cadastrados
+    cur.execute("""
+        SELECT id, nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor,
+               COALESCE(ultimos_digitos, '0000') AS ultimos_digitos,
+               COALESCE(titular, 'Carlos') AS titular
+        FROM cartoes
+        ORDER BY id ASC
+    """)
     rows_crd = cur.fetchall()
 
     cartoes_dados = []
@@ -1107,41 +1205,40 @@ async def pagina_cartoes(request: Request, c: Optional[int] = 1):
     for r in rows_crd:
         cid = r["id"]
         nome = r["nome"]
-        bandeira = r["bandeira"]
+        bandeira = r["bandeira"] or "Mastercard"
         lim_total = float(r["limite_total"] or 0.0)
-        dia_fech = r["dia_fechamento"]
-        dia_venc = r["dia_vencimento"]
-        cor = r["cor"] or "#0f172a"
+        dia_fech = int(r["dia_fechamento"] or 1)
+        dia_venc = int(r["dia_vencimento"] or 7)
+        cor = r["cor"] or "#ea580c"
+        digitos_raw = str(r["ultimos_digitos"] or "0000").strip()
+        ultimos_digitos = digitos_raw[-4:].zfill(4) if digitos_raw else "0000"
+        titular_cartao = (r["titular"] or "Carlos").strip()
 
-        # Compras estritamente de cartão de crédito para este cartão:
-        # Exclui Copasa, Cemig, receitas, e parcelamentos Pix (Paga Leve)
-        if "Inter" in nome or "Aparecida" in nome:
+        # Compras estritamente vinculadas a este cartão de crédito
+        if "inter" in nome.lower() or "aparecida" in nome.lower():
             cur.execute("""
-                SELECT id, data, descricao, valor, categoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
+                SELECT id, data, descricao, valor, categoria, conta, pago,
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
                 FROM transacoes
                 WHERE tipo = 'despesa'
-                  AND (conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
+                  AND (conta = ? OR conta_id = ? OR conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
+                  AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                  AND descricao NOT LIKE 'Pagamento de fatura%'
+                  AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
                 ORDER BY data ASC, id ASC
-            """)
+            """, (nome, cid))
         else:
-            # Mercado Pago Card: Compras e despesas no cartão MP
             cur.execute("""
-                SELECT id, data, descricao, valor, categoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
+                SELECT id, data, descricao, valor, categoria, conta, pago,
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
                 FROM transacoes
                 WHERE tipo = 'despesa'
-                  AND (
-                    conta = 'Mercado Pago Card'
-                    OR (descricao LIKE '%Fatura Cartão%' AND categoria = 'Pagamento de fatura')
-                    OR (descricao LIKE '%Mercado Pago Card%')
-                    OR (descricao LIKE '%Audible%' OR descricao LIKE '%YouCine%')
-                  )
-                  AND (grupo_parcelamento IS NULL OR NOT grupo_parcelamento LIKE 'pagaleve%')
-                  AND categoria NOT IN ('HABITAÇÃO', 'Energia', 'Impostos Veículo', 'Acordo BV')
-                  AND descricao NOT LIKE '%Copasa%'
-                  AND descricao NOT LIKE '%Cemig%'
-                  AND descricao NOT LIKE '%Salário%'
+                  AND (conta = ? OR conta_id = ?)
+                  AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                  AND descricao NOT LIKE 'Pagamento de fatura%'
+                  AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
                 ORDER BY data ASC, id ASC
-            """)
+            """, (nome, cid))
 
         raw_compras = cur.fetchall()
         compras = []
@@ -1152,7 +1249,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = 1):
             tot_fatura += val
             dt_str = str(it["data"])[:10]
             try:
-                dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
+                dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m/%Y")
             except Exception:
                 dt_fmt = dt_str
 
@@ -1167,11 +1264,11 @@ async def pagina_cartoes(request: Request, c: Optional[int] = 1):
                 "pago": 1 if it["pago"] == 1 else 0,
                 "numero_parcela": it["numero_parcela"],
                 "total_parcelas_compra": it["total_parcelas_compra"],
-                "titular": it["titular"] or ("Aparecida" if "Inter" in nome else "Carlos")
+                "titular": it["titular"] or titular_cartao
             })
 
         lim_disp = max(0.0, lim_total - tot_fatura) if lim_total > 0 else 0.0
-        pct_uso = (tot_fatura / lim_total * 100) if lim_total > 0 else 100.0
+        pct_uso = (tot_fatura / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_fatura > 0 else 0.0)
 
         c_info = {
             "id": cid,
@@ -1184,11 +1281,13 @@ async def pagina_cartoes(request: Request, c: Optional[int] = 1):
             "dia_fechamento": dia_fech,
             "dia_vencimento": dia_venc,
             "cor": cor,
+            "ultimos_digitos": ultimos_digitos,
+            "titular": titular_cartao,
             "compras": compras
         }
         cartoes_dados.append(c_info)
 
-        if cid == c:
+        if c is not None and cid == c:
             cartao_ativo = c_info
 
     if not cartao_ativo and cartoes_dados:
@@ -1208,6 +1307,129 @@ async def pagina_cartoes(request: Request, c: Optional[int] = 1):
     )
 
 
+@app.post("/api/cartoes/salvar")
+@app.post("/cartoes/salvar")
+async def api_salvar_cartao(request: Request):
+    """Cria ou edita um cartão de crédito real."""
+    conn = conectar_db()
+    try:
+        garantir_schema_cartoes(conn)
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cartao_id_raw = data.get("id") or data.get("cartao_id")
+        cartao_id = int(cartao_id_raw) if (cartao_id_raw and str(cartao_id_raw).strip().isdigit() and int(cartao_id_raw) > 0) else None
+
+        nome = str(data.get("nome") or "").strip()
+        if not nome:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Informe o nome do cartão."})
+
+        bandeira = str(data.get("bandeira") or "Mastercard").strip()
+        limite_raw = str(data.get("limite") if data.get("limite") is not None else (data.get("limite_total") or "0")).strip()
+        if "," in limite_raw and "." in limite_raw:
+            limite_raw = limite_raw.replace(".", "").replace(",", ".")
+        elif "," in limite_raw:
+            limite_raw = limite_raw.replace(",", ".")
+        limite_total = float(limite_raw or 0.0)
+
+        dia_fechamento = max(1, min(31, int(data.get("fechamento") or data.get("dia_fechamento") or 1)))
+        dia_vencimento = max(1, min(31, int(data.get("vencimento") or data.get("dia_vencimento") or 7)))
+
+        digitos_raw = re.sub(r"\D", "", str(data.get("ultimos_digitos") or "0000"))
+        ultimos_digitos = digitos_raw[-4:].zfill(4) if digitos_raw else "0000"
+
+        titular = str(data.get("titular") or "Carlos").strip() or "Carlos"
+        cor = str(data.get("cor") or "#ea580c").strip() or "#ea580c"
+
+        cur = conn.cursor()
+        if cartao_id:
+            cur.execute("SELECT nome FROM cartoes WHERE id = ?", (cartao_id,))
+            row_ant = cur.fetchone()
+            nome_antigo = row_ant["nome"] if row_ant else None
+
+            cur.execute("""
+                UPDATE cartoes
+                SET nome = ?, bandeira = ?, limite_total = ?, dia_fechamento = ?,
+                    dia_vencimento = ?, cor = ?, ultimos_digitos = ?, titular = ?
+                WHERE id = ?
+            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular, cartao_id))
+
+            if nome_antigo and nome_antigo != nome:
+                cur.execute("UPDATE transacoes SET conta = ? WHERE conta = ? OR conta_id = ?", (nome, nome_antigo, cartao_id))
+
+            conn.commit()
+            return JSONResponse({
+                "sucesso": True,
+                "success": True,
+                "cartao_id": cartao_id,
+                "mensagem": f"Cartão '{nome}' atualizado com sucesso!"
+            })
+        else:
+            cur.execute("""
+                INSERT INTO cartoes (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular))
+            novo_id = cur.lastrowid
+            conn.commit()
+            return JSONResponse({
+                "sucesso": True,
+                "success": True,
+                "cartao_id": novo_id,
+                "mensagem": f"Cartão '{nome}' cadastrado com sucesso!"
+            })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/cartoes/{cartao_id}/excluir")
+@app.post("/cartoes/{cartao_id}/excluir")
+@app.post("/api/cartoes/excluir")
+async def api_excluir_cartao(request: Request, cartao_id: Optional[int] = None):
+    """Remove o cartão e limpa vínculos sem apagar transações financeiras."""
+    conn = conectar_db()
+    try:
+        target_id = cartao_id
+        if not target_id:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                payload = await request.json()
+                target_id = int(payload.get("id") or payload.get("cartao_id") or 0)
+            else:
+                form = await request.form()
+                target_id = int(form.get("id") or form.get("cartao_id") or 0)
+
+        if not target_id:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "ID do cartão não informado."})
+
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM cartoes WHERE id = ?", (target_id,))
+        row = cur.fetchone()
+        nome_cartao = row["nome"] if row else ""
+
+        # Limpa vínculo de ID sem apagar nenhuma transação financeira
+        cur.execute("UPDATE transacoes SET conta_id = NULL WHERE conta_id = ?", (target_id,))
+        cur.execute("DELETE FROM cartoes WHERE id = ?", (target_id,))
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "success": True,
+            "mensagem": f"Cartão '{nome_cartao}' removido com sucesso (transações preservadas)."
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # ROTAS: PAGA LEVE (PIX 4X QUINZENAL)
 # =============================================================================
@@ -1221,26 +1443,35 @@ async def pagina_pagaleve(request: Request):
     cur.execute("SELECT * FROM pagaleve_contas WHERE ativo = 1 ORDER BY id ASC")
     contas_pl = [dict(r) for r in cur.fetchall()]
 
+    # Contas bancárias disponíveis para débito
+    cur.execute("""
+        SELECT id, nome, tipo
+        FROM contas_config
+        WHERE COALESCE(tipo, '') != 'cofrinho'
+        ORDER BY id ASC
+    """)
+    contas_bancarias = [dict(r) for r in cur.fetchall()]
+
     # 2. Metadados de compras cadastradas em pagaleve_compras
     cur.execute("SELECT * FROM pagaleve_compras ORDER BY id ASC")
     compras_meta = {r["grupo_parcelamento"]: dict(r) for r in cur.fetchall()}
 
     # 3. Transações de Paga Leve
     cur.execute("""
-        SELECT id, data, descricao, valor, categoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
+        SELECT id, data, descricao, valor, categoria, conta, conta_id, pago,
+               grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
         FROM transacoes
         WHERE tipo = 'despesa'
-          AND (grupo_parcelamento LIKE 'pagaleve%' OR descricao LIKE '%Paga Leve%')
+          AND (grupo_parcelamento LIKE 'pagaleve%' OR descricao LIKE '%Paga Leve%' OR descricao LIKE '%PagaLeve%')
         ORDER BY data ASC, id ASC
     """)
     trans_pl = [dict(r) for r in cur.fetchall()]
 
-    import re
     grupos = {}
     for t in trans_pl:
         grp = t.get("grupo_parcelamento")
         if not grp:
-            grp = re.sub(r' - Paga Leve.*', '', t["descricao"], flags=re.I).strip()
+            grp = re.sub(r' - Paga\s*Leve.*', '', t["descricao"], flags=re.I).strip()
         if grp not in grupos:
             grupos[grp] = []
         grupos[grp].append(t)
@@ -1254,25 +1485,26 @@ async def pagina_pagaleve(request: Request):
 
     for grp_id, itens in grupos.items():
         meta = compras_meta.get(grp_id, {})
-        nome = meta.get("descricao") or re.sub(r' - Paga Leve.*', '', itens[0]["descricao"], flags=re.I).strip()
-        val_orig = float(meta.get("valor_original") or sum(r["valor"] for r in itens))
-        total_parc = int(meta.get("total_parcelas") or len(itens))
+        nome = meta.get("descricao") or re.sub(r' - Paga\s*Leve.*', '', itens[0]["descricao"], flags=re.I).strip()
+        total_parc = int(meta.get("total_parcelas") or max(len(itens), 4))
         titular = meta.get("titular") or itens[0].get("titular") or "Carlos"
         if titular in ("A Confirmar", "None", ""):
             titular = "Carlos"
 
-        itens_sorted = sorted(itens, key=lambda x: str(x["data"]))
-        pago_itens = sum(r["valor"] for r in itens_sorted if r["pago"] == 1)
-        aberto_itens = sum(r["valor"] for r in itens_sorted if r["pago"] != 1)
+        itens_sorted = sorted(itens, key=lambda x: (str(x["data"]), int(x["id"])))
+        pago_itens = sum(float(r["valor"] or 0.0) for r in itens_sorted if r["pago"] == 1)
+        aberto_itens = sum(float(r["valor"] or 0.0) for r in itens_sorted if r["pago"] != 1)
 
-        # 1ª parcela no ato quitada antes do banco
+        # 1ª parcela no ato quitada antes do banco (para contratos históricos com menos de 4 itens registrados)
         parc_reg = len(itens_sorted)
         parc_anteriores_quitadas = max(0, total_parc - parc_reg)
-        val_parc = float(meta.get("valor_parcela") or (val_orig / total_parc if total_parc > 0 else 0))
-        valor_quitado_anterior = parc_anteriores_quitadas * val_parc
+        val_meta_orig = float(meta.get("valor_original") or 0.0)
+        val_parc = float(meta.get("valor_parcela") or (val_meta_orig / total_parc if (total_parc > 0 and val_meta_orig > 0) else (itens_sorted[0]["valor"] if itens_sorted else 0.0)))
+        valor_quitado_anterior = round(parc_anteriores_quitadas * val_parc, 2)
 
-        pago_total = valor_quitado_anterior + pago_itens
-        aberto_total = aberto_itens
+        pago_total = round(valor_quitado_anterior + pago_itens, 2)
+        aberto_total = round(aberto_itens, 2)
+        val_orig = round(pago_total + aberto_total, 2) if (pago_total + aberto_total) > 0 else val_meta_orig
 
         tot_aberto_geral += aberto_total
         tot_pago_geral += pago_total
@@ -1282,28 +1514,38 @@ async def pagina_pagaleve(request: Request):
         else:
             aberto_carlos += aberto_total
 
-        pct = min(100.0, (pago_total / val_orig * 100)) if val_orig > 0 else 100.0
+        pct = min(100.0, (pago_total / val_orig * 100.0)) if val_orig > 0 else 100.0
 
         parcelas_formatadas = []
-        for it in itens_sorted:
+        for idx, it in enumerate(itens_sorted, start=parc_anteriores_quitadas + 1):
             dt_s = str(it["data"])[:10]
             try:
-                dt_f = datetime.datetime.strptime(dt_s, "%Y-%m-%d").strftime("%d/%m")
+                dt_f = datetime.datetime.strptime(dt_s, "%Y-%m-%d").strftime("%d/%m/%Y")
+                dt_curta = datetime.datetime.strptime(dt_s, "%Y-%m-%d").strftime("%d/%m")
             except Exception:
                 dt_f = dt_s
+                dt_curta = dt_s
+
+            num_p = it.get("numero_parcela") or idx
+            tot_p = it.get("total_parcelas_compra") or total_parc
 
             parcelas_formatadas.append({
                 "id": it["id"],
                 "data": dt_s,
-                "data_formatada": dt_f,
+                "data_formatada": dt_curta,
+                "data_completa": dt_f,
                 "descricao": it["descricao"],
                 "valor": float(it["valor"]),
-                "pago": 1 if it["pago"] == 1 else 0
+                "pago": 1 if it["pago"] == 1 else 0,
+                "numero_parcela": num_p,
+                "total_parcelas": tot_p,
+                "conta": it.get("conta") or "Mercado Pago",
+                "categoria": it.get("categoria") or "Moradia/Contas"
             })
             if it["pago"] != 1:
                 proximas_parcelas.append({
                     "data": dt_s,
-                    "data_formatada": dt_f,
+                    "data_formatada": dt_curta,
                     "valor": float(it["valor"]),
                     "nome": nome,
                     "id": it["id"]
@@ -1313,13 +1555,15 @@ async def pagina_pagaleve(request: Request):
             "grupo_id": grp_id,
             "nome": nome,
             "titular": titular,
+            "categoria": itens_sorted[0].get("categoria") or "Moradia/Contas",
+            "conta": itens_sorted[0].get("conta") or "Mercado Pago",
             "valor_original": val_orig,
             "total_parcelas": total_parc,
             "valor_parcela": val_parc,
             "pago_total": pago_total,
             "aberto_total": aberto_total,
             "percentual_pago": pct,
-            "status": "Quitada" if aberto_total <= 0.001 else "Ativa",
+            "status": "Quitada" if aberto_total <= 0.009 else "Ativa",
             "parcelas": parcelas_formatadas
         })
 
@@ -1330,6 +1574,8 @@ async def pagina_pagaleve(request: Request):
 
     contratos_ativos = [c for c in contratos if c["status"] == "Ativa"]
     contratos_quitados = [c for c in contratos if c["status"] == "Quitada"]
+
+    hoje_iso = date.today().strftime("%Y-%m-%d")
 
     return templates.TemplateResponse(
         request=request,
@@ -1342,10 +1588,370 @@ async def pagina_pagaleve(request: Request):
             "total_pago_geral": tot_pago_geral,
             "aberto_carlos": aberto_carlos,
             "aberto_fernanda": aberto_fernanda,
+            "limite_carlos": 300.0,
+            "disponivel_carlos": round(300.0 - aberto_carlos, 2),
             "proximo_vencimento": prox_venc,
+            "contas_bancarias": contas_bancarias,
+            "hoje_iso": hoje_iso,
             "active_tab": "pagaleve"
         }
     )
+
+
+@app.post("/api/pagaleve/nova")
+@app.post("/api/pagaleve/salvar")
+async def api_pagaleve_nova_compra(request: Request):
+    """
+    Cadastra nova compra Paga Leve em 4x quinzenais:
+    - 1ª parcela (entrada) quitada no ato e debitada da conta escolhida
+    - 3 parcelas quinzenais pendentes com datas/valores editáveis
+    """
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        descricao = str(data.get("descricao") or "").strip()
+        if not descricao:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Informe a descrição da compra."})
+
+        titular = str(data.get("titular") or "Carlos").strip()
+        if titular not in ("Carlos", "Fernanda"):
+            titular = "Carlos"
+
+        categoria = str(data.get("categoria") or "Moradia/Contas").strip() or "Moradia/Contas"
+        subcategoria = str(data.get("subcategoria") or "PagaLeve").strip() or "PagaLeve"
+
+        val_raw = str(data.get("valor_total") or "0").strip()
+        if "," in val_raw and "." in val_raw:
+            val_raw = val_raw.replace(".", "").replace(",", ".")
+        elif "," in val_raw:
+            val_raw = val_raw.replace(",", ".")
+        valor_total = round(float(val_raw or 0.0), 2)
+        if valor_total <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "O valor total deve ser maior que zero."})
+
+        data_entrada = str(data.get("data_entrada") or date.today().strftime("%Y-%m-%d"))[:10]
+        try:
+            dt_base = datetime.datetime.strptime(data_entrada, "%Y-%m-%d").date()
+        except Exception:
+            dt_base = date.today()
+            data_entrada = dt_base.strftime("%Y-%m-%d")
+
+        cur = conn.cursor()
+        # Resolve conta de débito
+        cur.execute("SELECT id, nome FROM contas_config WHERE COALESCE(tipo, '') != 'cofrinho' ORDER BY id ASC")
+        contas_disp = cur.fetchall()
+        mapa_id = {int(c["id"]): c["nome"] for c in contas_disp}
+        mapa_nome = {str(c["nome"]).strip().lower(): int(c["id"]) for c in contas_disp}
+
+        conta_req = data.get("conta_id") or data.get("conta") or "Mercado Pago"
+        conta_id = None
+        if str(conta_req).isdigit() and int(conta_req) in mapa_id:
+            conta_id = int(conta_req)
+        else:
+            conta_id = mapa_nome.get(str(conta_req).strip().lower(), 1)
+        conta_nome = mapa_id.get(conta_id, "Mercado Pago")
+
+        # Gera ou lê as 4 parcelas enviadas pelo formulário
+        parcelas_req = data.get("parcelas")
+        val_base = round(valor_total / 4.0, 2)
+        val_p1_padrao = round(valor_total - (val_base * 3), 2)
+
+        parcelas_final = []
+        if isinstance(parcelas_req, list) and len(parcelas_req) == 4:
+            for idx, p in enumerate(parcelas_req, start=1):
+                dt_p = str(p.get("data") or (dt_base + timedelta(days=14 * (idx - 1))).strftime("%Y-%m-%d"))[:10]
+                vp_raw = str(p.get("valor") if p.get("valor") is not None else (val_p1_padrao if idx == 1 else val_base))
+                if "," in vp_raw and "." in vp_raw:
+                    vp_raw = vp_raw.replace(".", "").replace(",", ".")
+                elif "," in vp_raw:
+                    vp_raw = vp_raw.replace(",", ".")
+                vp = round(float(vp_raw or 0.0), 2)
+                parcelas_final.append({
+                    "numero": idx,
+                    "data": dt_p,
+                    "valor": vp,
+                    "pago": 1 if idx == 1 else 0
+                })
+        else:
+            for idx in range(1, 5):
+                dt_p = (dt_base + timedelta(days=14 * (idx - 1))).strftime("%Y-%m-%d")
+                vp = val_p1_padrao if idx == 1 else val_base
+                parcelas_final.append({
+                    "numero": idx,
+                    "data": dt_p,
+                    "valor": vp,
+                    "pago": 1 if idx == 1 else 0
+                })
+
+        soma_parcelas = round(sum(p["valor"] for p in parcelas_final), 2)
+        slug = re.sub(r"[^a-z0-9]+", "_", descricao.lower()).strip("_")[:20] or "compra"
+        grp_id = f"pagaleve_{slug}_{int(datetime.datetime.now().timestamp())}"
+
+        # 1. Registra contrato em pagaleve_compras
+        cur.execute("""
+            INSERT INTO pagaleve_compras (
+                grupo_parcelamento, descricao, titular, valor_original,
+                total_parcelas, valor_parcela, valor_financiado_total, data_compra, status
+            ) VALUES (?, ?, ?, ?, 4, ?, ?, ?, 'ativa')
+        """, (grp_id, descricao, titular, soma_parcelas, val_base, soma_parcelas, data_entrada))
+
+        # 2. Insere as 4 parcelas em transacoes
+        ids_inseridos = []
+        for p in parcelas_final:
+            num = p["numero"]
+            dt_p = p["data"]
+            val_p = p["valor"]
+            eh_paga = (num == 1)
+            desc_parc = f"{descricao} - Paga Leve {num}/4"
+
+            cur.execute("""
+                INSERT INTO transacoes (
+                    data, data_liquidacao, descricao, valor, tipo, categoria, subcategoria,
+                    conta, conta_id, pago, status_pagamento, grupo_parcelamento,
+                    numero_parcela, total_parcelas_compra, titular, afeta_saldo_bancario
+                ) VALUES (?, ?, ?, ?, 'despesa', ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?)
+            """, (
+                dt_p,
+                dt_p if eh_paga else None,
+                desc_parc,
+                val_p,
+                categoria,
+                subcategoria,
+                conta_nome,
+                conta_id,
+                1 if eh_paga else 0,
+                "PAGA" if eh_paga else "pendente",
+                grp_id,
+                num,
+                titular,
+                1 if eh_paga else 0
+            ))
+            tid = cur.lastrowid
+            ids_inseridos.append(tid)
+
+            # Registra o pagamento auditável da 1ª parcela (entrada paga no ato)
+            if eh_paga:
+                try:
+                    saldo_service.registrar_pagamento(
+                        conn=conn,
+                        transacao_id=tid,
+                        data_pagamento=dt_p,
+                        valor_pago=val_p,
+                        conta_id=conta_id,
+                        afeta_saldo_bancario=1,
+                        considerado_no_marco=0,
+                        forma_pagamento="Pix",
+                        observacao=f"Entrada 1/4 Paga Leve no ato: {descricao}"
+                    )
+                except Exception:
+                    pass
+
+        conn.commit()
+        return JSONResponse({
+            "sucesso": True,
+            "grupo_id": grp_id,
+            "ids": ids_inseridos,
+            "mensagem": f"Compra '{descricao}' cadastrada com sucesso (1ª parcela quitada no ato e 3 quinzenais geradas)!"
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/pagaleve/parcela/editar")
+@app.post("/api/pagaleve/parcela/{parcela_id}/editar")
+async def api_pagaleve_editar_parcela(request: Request, parcela_id: Optional[int] = None):
+    """Permite editar individualmente a data de vencimento, o valor ou a descrição de uma parcela Paga Leve."""
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        tid = parcela_id or int(data.get("id") or data.get("parcela_id") or 0)
+        if not tid:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "ID da parcela não informado."})
+
+        nova_data = str(data.get("data") or "").strip()[:10]
+        if not nova_data:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Informe a data de vencimento."})
+
+        val_raw = str(data.get("valor") or "0").strip()
+        if "," in val_raw and "." in val_raw:
+            val_raw = val_raw.replace(".", "").replace(",", ".")
+        elif "," in val_raw:
+            val_raw = val_raw.replace(",", ".")
+        novo_valor = round(float(val_raw or 0.0), 2)
+        if novo_valor <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "O valor da parcela deve ser maior que zero."})
+
+        nova_desc = str(data.get("descricao") or "").strip()
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, descricao, pago, grupo_parcelamento FROM transacoes WHERE id = ?", (tid,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Parcela não encontrada."})
+
+        desc_final = nova_desc if nova_desc else row["descricao"]
+        grp_id = row["grupo_parcelamento"]
+
+        if row["pago"] == 1:
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?, data_liquidacao = COALESCE(data_liquidacao, ?), valor = ?, descricao = ?
+                WHERE id = ?
+            """, (nova_data, nova_data, novo_valor, desc_final, tid))
+        else:
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?, valor = ?, descricao = ?
+                WHERE id = ?
+            """, (nova_data, novo_valor, desc_final, tid))
+
+        # Atualiza valor_original em pagaleve_compras se todas as parcelas estiverem vinculadas
+        if grp_id:
+            cur.execute("SELECT COUNT(*), COALESCE(SUM(valor), 0) FROM transacoes WHERE grupo_parcelamento = ?", (grp_id,))
+            cnt, soma = cur.fetchone()
+            cur.execute("SELECT total_parcelas, valor_parcela FROM pagaleve_compras WHERE grupo_parcelamento = ?", (grp_id,))
+            meta_row = cur.fetchone()
+            if meta_row:
+                tot_p = int(meta_row["total_parcelas"] or 4)
+                vp_ant = float(meta_row["valor_parcela"] or 0.0)
+                faltantes = max(0, tot_p - int(cnt or 0))
+                novo_total_contrato = round(float(soma or 0.0) + (faltantes * vp_ant), 2)
+                cur.execute("""
+                    UPDATE pagaleve_compras
+                    SET valor_original = ?, valor_financiado_total = ?
+                    WHERE grupo_parcelamento = ?
+                """, (novo_total_contrato, novo_total_contrato, grp_id))
+
+        conn.commit()
+        return JSONResponse({
+            "sucesso": True,
+            "id": tid,
+            "data": nova_data,
+            "valor": novo_valor,
+            "mensagem": "Parcela atualizada com sucesso!"
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/pagaleve/pagar-selecionadas")
+@app.post("/api/pagaleve/antecipar")
+async def api_pagaleve_pagar_selecionadas(request: Request):
+    """
+    Liquida em lote as parcelas Paga Leve selecionadas (pagamento / antecipação),
+    registrando a saída correspondente na conta informada.
+    """
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        raw_ids = data.get("parcela_ids") or data.get("ids") or []
+        if isinstance(raw_ids, str):
+            raw_ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip().isdigit()]
+        else:
+            raw_ids = [int(x) for x in raw_ids if str(x).isdigit()]
+
+        if not raw_ids:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Selecione ao menos uma parcela pendente."})
+
+        data_pagamento = str(data.get("data_pagamento") or date.today().strftime("%Y-%m-%d"))[:10]
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM contas_config WHERE COALESCE(tipo, '') != 'cofrinho' ORDER BY id ASC")
+        contas_disp = cur.fetchall()
+        mapa_id = {int(c["id"]): c["nome"] for c in contas_disp}
+        mapa_nome = {str(c["nome"]).strip().lower(): int(c["id"]) for c in contas_disp}
+
+        conta_req = data.get("conta_id") or data.get("conta") or "Mercado Pago"
+        if str(conta_req).isdigit() and int(conta_req) in mapa_id:
+            conta_id = int(conta_req)
+        else:
+            conta_id = mapa_nome.get(str(conta_req).strip().lower(), 1)
+        conta_nome = mapa_id.get(conta_id, "Mercado Pago")
+
+        placeholders = ",".join("?" for _ in raw_ids)
+        cur.execute(f"""
+            SELECT id, descricao, valor, pago, grupo_parcelamento
+            FROM transacoes
+            WHERE id IN ({placeholders})
+        """, tuple(raw_ids))
+        parcelas_rows = cur.fetchall()
+
+        pendentes = [r for r in parcelas_rows if r["pago"] != 1]
+        if not pendentes:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "As parcelas selecionadas já estão quitadas."})
+
+        total_liquidado = round(sum(float(r["valor"] or 0.0) for r in pendentes), 2)
+        qtd_liquidadas = len(pendentes)
+        obs_lote = f"Saída única Paga Leve ({qtd_liquidadas} parcela(s) - {formatar_moeda_br(total_liquidado)}) debitada em {conta_nome}"
+
+        grupos_afetados = set()
+        for r in pendentes:
+            pid = int(r["id"])
+            val_p = float(r["valor"] or 0.0)
+            if r["grupo_parcelamento"]:
+                grupos_afetados.add(r["grupo_parcelamento"])
+
+            saldo_service.registrar_pagamento(
+                conn=conn,
+                transacao_id=pid,
+                data_pagamento=data_pagamento,
+                valor_pago=val_p,
+                conta_id=conta_id,
+                afeta_saldo_bancario=1,
+                considerado_no_marco=0,
+                forma_pagamento="Pix",
+                observacao=obs_lote,
+                tipo_ajuste_valor="normal"
+            )
+
+        # Atualiza status para 'quitada' nos contratos que não possuem mais parcelas pendentes
+        for grp in grupos_afetados:
+            cur.execute("""
+                SELECT COUNT(*) FROM transacoes
+                WHERE grupo_parcelamento = ? AND (pago = 0 OR pago IS NULL)
+            """, (grp,))
+            restantes = cur.fetchone()[0]
+            if restantes == 0:
+                cur.execute("UPDATE pagaleve_compras SET status = 'quitada' WHERE grupo_parcelamento = ?", (grp,))
+
+        conn.commit()
+        return JSONResponse({
+            "sucesso": True,
+            "quantidade": qtd_liquidadas,
+            "valor_total": total_liquidado,
+            "valor_total_formatado": formatar_moeda_br(total_liquidado),
+            "conta_nome": conta_nome,
+            "mensagem": f"{qtd_liquidadas} parcela(s) liquidada(s) ({formatar_moeda_br(total_liquidado)}) com débito em {conta_nome}!"
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
 
 
 # =============================================================================
@@ -1369,23 +1975,395 @@ def calcular_horas_periodo(hora_ini: Optional[str], hora_fim: Optional[str]) -> 
         return 0.0
 
 
-@app.get("/drive", response_class=HTMLResponse)
-@app.get("/motorista", response_class=HTMLResponse)
-async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
+# =============================================================================
+# ROTAS: PLANEJAMENTO & ANÁLISE FINANCEIRA
+# =============================================================================
+
+@app.get("/planejamento", response_class=HTMLResponse)
+async def pagina_planejamento(
+    request: Request,
+    mes: Optional[int] = Query(None),
+    ano: Optional[int] = Query(None),
+    periodo: Optional[str] = Query(None)
+):
     conn = conectar_db()
     hoje = date.today()
-    ano = hoje.year
-    mes = hoje.month
-    hoje_str = hoje.strftime("%Y-%m-%d")
 
-    # Início e fim do mês
+    if periodo and "-" in str(periodo):
+        try:
+            parts = periodo.strip().split("-")
+            ano = int(parts[0])
+            mes = int(parts[1])
+        except Exception:
+            pass
+
+    if ano is None:
+        ano = hoje.year
+    if mes is None or mes < 1 or mes > 12:
+        mes = hoje.month
+
+    MESES_PT = [
+        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    mes_nome = MESES_PT[mes]
+
+    if mes == 1:
+        mes_ant, ano_ant = 12, ano - 1
+    else:
+        mes_ant, ano_ant = mes - 1, ano
+
+    if mes == 12:
+        mes_prox, ano_prox = 1, ano + 1
+    else:
+        mes_prox, ano_prox = mes + 1, ano
+
+    eh_mes_atual = (ano == hoje.year and mes == hoje.month)
+
     inicio_mes = f"{ano}-{mes:02d}-01"
     ultimo_dia = calendar.monthrange(ano, mes)[1]
     fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
 
-    # Início e fim da semana (Segunda a Domingo)
-    inicio_semana = (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
-    fim_semana = (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
+    opcoes_periodo = []
+    anos_disp = sorted(list({hoje.year - 1, hoje.year, ano, ano + 1}))
+    for a in anos_disp:
+        for m in range(1, 13):
+            opcoes_periodo.append({
+                "valor": f"{a}-{m:02d}",
+                "label": f"{MESES_PT[m]} {a}",
+                "mes": m,
+                "ano": a,
+                "selecionado": (a == ano and m == mes)
+            })
+
+    cur = conn.cursor()
+
+    # 1. Receitas e Despesas do Mês Selecionado
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END), 0) as receitas_pagas,
+            COALESCE(SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END), 0) as total_receitas,
+            COALESCE(SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END), 0) as despesas_pagas,
+            COALESCE(SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END), 0) as total_despesas
+        FROM transacoes
+        WHERE data BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    tot_row = cur.fetchone()
+    receitas_pagas = float(tot_row[0]) if tot_row else 0.0
+    total_receitas = float(tot_row[1]) if tot_row else 0.0
+    despesas_pagas = float(tot_row[2]) if tot_row else 0.0
+    total_despesas = float(tot_row[3]) if tot_row else 0.0
+
+    resultado_operacional = round(receitas_pagas - despesas_pagas, 2)
+
+    # 2. Compromissos e Atrasadas
+    hoje_iso = hoje.strftime("%Y-%m-%d")
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0), COUNT(*)
+        FROM transacoes
+        WHERE tipo = 'despesa' AND pago = 0 AND data < ?
+    """, (hoje_iso,))
+    row_atr = cur.fetchone()
+    total_atrasadas = float(row_atr[0]) if row_atr else 0.0
+    qtd_atrasadas = int(row_atr[1]) if row_atr else 0
+
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0), COUNT(*)
+        FROM transacoes
+        WHERE tipo = 'despesa' AND pago = 0 AND data BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    row_pend_mes = cur.fetchone()
+    total_pendente_mes = float(row_pend_mes[0]) if row_pend_mes else 0.0
+
+    # 3. Saldo em Caixa Livre Consolidado
+    res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+    saldo_caixa = float(res_saldo.get("saldo_consolidado", 0.0))
+
+    # 4. INDICADOR DE SAÚDE FINANCEIRA (Score 0 a 100)
+    # A) Superávit / Margem de Poupança (0 a 40 pts)
+    if receitas_pagas > 0:
+        tx_poupanca = (receitas_pagas - despesas_pagas) / receitas_pagas
+        if tx_poupanca >= 0.20:
+            pts_poupanca = 40
+        elif tx_poupanca >= 0.10:
+            pts_poupanca = 32
+        elif tx_poupanca >= 0.0:
+            pts_poupanca = 24
+        elif tx_poupanca >= -0.20:
+            pts_poupanca = 14
+        else:
+            pts_poupanca = 5
+    else:
+        pts_poupanca = 20 if despesas_pagas == 0 else 5
+
+    # B) Dívidas e Atrasadas (0 a 30 pts)
+    if total_atrasadas == 0:
+        pts_dividas = 30
+    elif total_atrasadas < 150:
+        pts_dividas = 22
+    elif total_atrasadas < 500:
+        pts_dividas = 12
+    else:
+        pts_dividas = 5
+
+    # C) Caixa Livre / Liquidez (0 a 30 pts)
+    if saldo_caixa >= 300:
+        pts_caixa = 30
+    elif saldo_caixa >= 100:
+        pts_caixa = 22
+    elif saldo_caixa > 0:
+        pts_caixa = 15
+    else:
+        pts_caixa = 2
+
+    score_saude = min(100, max(0, pts_poupanca + pts_dividas + pts_caixa))
+
+    if score_saude >= 80:
+        status_saude = "Excelente"
+        cor_saude = "emerald"
+        msg_saude = "Finanças com superávit consistente e liquidez positiva. Excelente momento para fortalecer reservas e cofrinhos."
+    elif score_saude >= 60:
+        status_saude = "Equilibrada"
+        cor_saude = "amber"
+        msg_saude = "Contas sob controle com margem operacional estável. Mantenha os limites de orçamento para expandir o caixa."
+    elif score_saude >= 40:
+        status_saude = "Atenção"
+        cor_saude = "orange"
+        msg_saude = "Despesas próximas da receita ou compromissos pendentes. Monitore os limites das categorias para evitar deficit."
+    else:
+        status_saude = "Crítica"
+        cor_saude = "rose"
+        msg_saude = "Alerta de pressão no fluxo de caixa. Priorize a quitação de atrasadas e contenção imediata de gastos variáveis."
+
+    # 5. ORÇAMENTO POR CATEGORIA (Budget vs Realizado)
+    cur.execute("CREATE TABLE IF NOT EXISTS limites_categoria (categoria TEXT PRIMARY KEY, limite REAL NOT NULL)")
+    cur.execute("SELECT categoria, limite FROM limites_categoria")
+    limites_db = {r[0]: float(r[1]) for r in cur.fetchall()}
+
+    cur.execute("""
+        SELECT categoria, COALESCE(SUM(valor), 0) as gasto_real, COUNT(*) as qtd
+        FROM transacoes
+        WHERE tipo = 'despesa' AND data BETWEEN ? AND ?
+        GROUP BY categoria
+        ORDER BY gasto_real DESC
+    """, (inicio_mes, fim_mes))
+    rows_cats = cur.fetchall()
+
+    gastos_por_cat = {}
+    for r in rows_cats:
+        c_nome = r[0] or "Outros"
+        gastos_por_cat[c_nome] = {
+            "gasto_real": round(float(r[1]), 2),
+            "qtd": int(r[2])
+        }
+
+    todas_categorias = sorted(list(set(list(gastos_por_cat.keys()) + list(limites_db.keys()))))
+
+    orcamento_categorias = []
+    total_orcado_geral = 0.0
+    total_gasto_geral = 0.0
+
+    for cat in todas_categorias:
+        gasto_info = gastos_por_cat.get(cat, {"gasto_real": 0.0, "qtd": 0})
+        g_real = gasto_info["gasto_real"]
+
+        if cat in limites_db:
+            limite = limites_db[cat]
+        else:
+            limite = round(g_real * 1.15, 2) if g_real > 0 else 200.0
+
+        total_orcado_geral += limite
+        total_gasto_geral += g_real
+
+        pct = round((g_real / limite) * 100, 1) if limite > 0 else 0.0
+        pct_barra = min(100.0, pct)
+        dif = round(limite - g_real, 2)
+
+        if pct < 80:
+            status_cor = "emerald"
+            status_texto = "Dentro do Orçamento"
+        elif pct <= 100:
+            status_cor = "amber"
+            status_texto = "Perto do Limite"
+        else:
+            status_cor = "rose"
+            status_texto = "Orçamento Estourado!"
+
+        cat_lower = cat.lower()
+        if "combust" in cat_lower or "abast" in cat_lower:
+            icone = "⛽"
+        elif "supermerc" in cat_lower or "feira" in cat_lower or "alimen" in cat_lower:
+            icone = "🛒"
+        elif "habit" in cat_lower or "moradia" in cat_lower or "contas" in cat_lower:
+            icone = "🏠"
+        elif "saude" in cat_lower or "saúde" in cat_lower or "medic" in cat_lower:
+            icone = "💊"
+        elif "veic" in cat_lower or "veíc" in cat_lower or "manut" in cat_lower or "ipva" in cat_lower:
+            icone = "🚗"
+        elif "restaur" in cat_lower or "padaria" in cat_lower or "lanche" in cat_lower:
+            icone = "🍔"
+        elif "stream" in cat_lower or "assina" in cat_lower:
+            icone = "📺"
+        elif "pessoal" in cat_lower or "barbearia" in cat_lower:
+            icone = "✂️"
+        elif "acordo" in cat_lower or "divida" in cat_lower or "dívida" in cat_lower or "emprést" in cat_lower:
+            icone = "📑"
+        else:
+            icone = "📦"
+
+        orcamento_categorias.append({
+            "categoria": cat,
+            "icone": icone,
+            "gasto_real": g_real,
+            "orcado": limite,
+            "diferenca": dif,
+            "percentual": pct,
+            "percentual_barra": pct_barra,
+            "status_cor": status_cor,
+            "status_texto": status_texto,
+            "qtd_transacoes": gasto_info["qtd"]
+        })
+
+    orcamento_categorias.sort(key=lambda x: x["gasto_real"], reverse=True)
+    pct_geral_orcamento = round((total_gasto_geral / total_orcado_geral) * 100, 1) if total_orcado_geral > 0 else 0.0
+
+    conn.close()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="planejamento.html",
+        context={
+            "mes": mes,
+            "ano": ano,
+            "mes_nome": mes_nome,
+            "mes_ant": mes_ant,
+            "ano_ant": ano_ant,
+            "mes_prox": mes_prox,
+            "ano_prox": ano_prox,
+            "eh_mes_atual": eh_mes_atual,
+            "opcoes_periodo": opcoes_periodo,
+            "receitas_pagas": receitas_pagas,
+            "total_receitas": total_receitas,
+            "despesas_pagas": despesas_pagas,
+            "total_despesas": total_despesas,
+            "resultado_operacional": resultado_operacional,
+            "total_atrasadas": total_atrasadas,
+            "qtd_atrasadas": qtd_atrasadas,
+            "total_pendente_mes": total_pendente_mes,
+            "saldo_caixa": saldo_caixa,
+            "score_saude": score_saude,
+            "pts_poupanca": pts_poupanca,
+            "pts_dividas": pts_dividas,
+            "pts_caixa": pts_caixa,
+            "status_saude": status_saude,
+            "cor_saude": cor_saude,
+            "msg_saude": msg_saude,
+            "orcamento_categorias": orcamento_categorias,
+            "total_orcado_geral": total_orcado_geral,
+            "total_gasto_geral": total_gasto_geral,
+            "pct_geral_orcamento": pct_geral_orcamento,
+            "active_tab": "planejamento"
+        }
+    )
+
+
+@app.post("/api/planejamento/limite")
+async def api_salvar_limite_categoria(
+    categoria: str = Form(...),
+    limite: Any = Form(...)
+):
+    val_limite = converter_valor_monetario(limite)
+    if val_limite < 0:
+        return JSONResponse(status_code=400, content={"status": "erro", "erro": "Limite não pode ser negativo."})
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS limites_categoria (categoria TEXT PRIMARY KEY, limite REAL NOT NULL)")
+        cur.execute("""
+            INSERT INTO limites_categoria (categoria, limite)
+            VALUES (?, ?)
+            ON CONFLICT(categoria) DO UPDATE SET limite = excluded.limite
+        """, (categoria.strip(), val_limite))
+        conn.commit()
+        return {"status": "sucesso", "sucesso": True, "mensagem": f"Orçamento da categoria '{categoria}' atualizado para {formatar_moeda_br(val_limite)}!"}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"status": "erro", "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.get("/drive", response_class=HTMLResponse)
+@app.get("/motorista", response_class=HTMLResponse)
+async def pagina_motorista(
+    request: Request,
+    filtro: Optional[str] = "semana",
+    mes: Optional[int] = Query(None),
+    ano: Optional[int] = Query(None),
+    periodo: Optional[str] = Query(None)
+):
+    conn = conectar_db()
+    hoje = date.today()
+
+    if periodo and "-" in str(periodo):
+        try:
+            parts = periodo.strip().split("-")
+            ano = int(parts[0])
+            mes = int(parts[1])
+        except Exception:
+            pass
+
+    if ano is None:
+        ano = hoje.year
+    if mes is None or mes < 1 or mes > 12:
+        mes = hoje.month
+
+    MESES_PT = [
+        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    mes_nome = MESES_PT[mes]
+
+    if mes == 1:
+        mes_ant, ano_ant = 12, ano - 1
+    else:
+        mes_ant, ano_ant = mes - 1, ano
+
+    if mes == 12:
+        mes_prox, ano_prox = 1, ano + 1
+    else:
+        mes_prox, ano_prox = mes + 1, ano
+
+    eh_mes_atual = (ano == hoje.year and mes == hoje.month)
+
+    # Início e fim do mês selecionado
+    inicio_mes = f"{ano}-{mes:02d}-01"
+    ultimo_dia = calendar.monthrange(ano, mes)[1]
+    fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
+
+    # Dropdown de seleção de mês/ano
+    opcoes_periodo = []
+    anos_disp = sorted(list({hoje.year - 1, hoje.year, ano, ano + 1}))
+    for a in anos_disp:
+        for m in range(1, 13):
+            opcoes_periodo.append({
+                "valor": f"{a}-{m:02d}",
+                "label": f"{MESES_PT[m]} {a}",
+                "mes": m,
+                "ano": a,
+                "selecionado": (a == ano and m == mes)
+            })
+
+    hoje_str = hoje.strftime("%Y-%m-%d")
+
+    cur = conn.cursor()
+
+    # Início e fim da semana estritamente de SEGUNDA a DOMINGO usando lógica padrão ISO SQLite
+    cur.execute("SELECT date(?, 'weekday 0', '-6 days'), date(?, 'weekday 0')", (hoje_str, hoje_str))
+    row_sem = cur.fetchone()
+    inicio_semana = row_sem[0] if row_sem else (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
+    fim_semana = row_sem[1] if row_sem else (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
 
     # Produção 99 consolidada oficial
     prod_99 = saldo_service.obter_producao_consolidada_99(conn)
@@ -1405,8 +2383,6 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
     app_99_conta = next((c for c in contas_lista if any(k in c["conta_nome"].lower() for k in ["99pay", "99 pay", "saldo 99"])), None)
     saldo_99_app = float(app_99_conta["saldo_atual"]) if app_99_conta else 0.0
 
-    cur = conn.cursor()
-
     # Todos os turnos com todos os campos de controle operacional
     cur.execute("""
         SELECT id, data, horas, km, ganho_bruto, combustivel, observacao, periodo, plataforma,
@@ -1414,7 +2390,7 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
                status_turno, status_conciliacao, created_at
         FROM turnos
         ORDER BY 
-            CASE WHEN UPPER(COALESCE(status_turno, '')) = 'EM_ANDAMENTO' THEN 0 ELSE 1 END,
+            CASE WHEN UPPER(COALESCE(status_turno, '')) IN ('EM_ANDAMENTO', 'PAUSADO') THEN 0 ELSE 1 END,
             data DESC, id DESC
     """)
     turnos_raw = cur.fetchall()
@@ -1440,6 +2416,11 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             tag_codigo = "EM_ANDAMENTO"
             tag_label = "● Em Andamento"
             tag_badge = "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 animate-pulse font-bold"
+        elif st_upper == "PAUSADO":
+            st_turno_norm = "PAUSADO"
+            tag_codigo = "PAUSADO"
+            tag_label = "⏸️ Pausado"
+            tag_badge = "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 animate-pulse font-bold"
         elif km_val <= 0:
             st_turno_norm = st_turno
             tag_codigo = "PENDENTE_KM"
@@ -1484,8 +2465,70 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             "created_at": r["created_at"] or ""
         })
 
-    # Detecta se há turno ativo rodando em tempo real
-    turno_ativo = next((t for t in turnos if t["status_turno"].upper() == "EM_ANDAMENTO"), None)
+    # Detecta se há turno ativo rodando em tempo real (EM_ANDAMENTO ou PAUSADO)
+    turno_ativo = next((t for t in turnos if t["status_turno"].upper() in ("EM_ANDAMENTO", "PAUSADO")), None)
+
+    pausas_turno = []
+    pausa_ativa = None
+    total_segundos_pausa_anteriores = 0
+
+    if turno_ativo:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS turnos_pausas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                turno_id INTEGER NOT NULL,
+                inicio_pausa TEXT NOT NULL,
+                fim_pausa TEXT,
+                duracao_minutos INTEGER DEFAULT 0,
+                duracao_programada_minutos INTEGER DEFAULT 0,
+                motivo TEXT NOT NULL,
+                created_at TEXT,
+                FOREIGN KEY (turno_id) REFERENCES turnos(id)
+            )
+        """)
+        conn.commit()
+
+        cur.execute("""
+            SELECT id, inicio_pausa, fim_pausa, duracao_minutos, duracao_programada_minutos, motivo, created_at
+            FROM turnos_pausas
+            WHERE turno_id = ?
+            ORDER BY id ASC
+        """, (turno_ativo["id"],))
+        rows_p = cur.fetchall()
+        for rp in rows_p:
+            p_dict = {
+                "id": rp["id"],
+                "inicio_pausa": rp["inicio_pausa"],
+                "fim_pausa": rp["fim_pausa"],
+                "duracao_minutos": int(rp["duracao_minutos"] or 0),
+                "duracao_programada_minutos": int(rp["duracao_programada_minutos"] or 0),
+                "motivo": rp["motivo"] or "Descanso",
+                "created_at": rp["created_at"] or ""
+            }
+            pausas_turno.append(p_dict)
+            if not p_dict["fim_pausa"]:
+                pausa_ativa = p_dict
+            else:
+                total_segundos_pausa_anteriores += p_dict["duracao_minutos"] * 60
+
+        turno_ativo["pausas"] = pausas_turno
+        turno_ativo["pausa_ativa"] = pausa_ativa
+        turno_ativo["total_minutos_pausa"] = total_segundos_pausa_anteriores // 60
+        turno_ativo["total_segundos_pausa"] = total_segundos_pausa_anteriores
+
+        # Formata hora de início com segundos para garantir timestamp ISO sem NaN
+        h_ini_c = str(turno_ativo.get("hora_inicio") or "00:00").strip()
+        if len(h_ini_c) == 5:
+            h_ini_c += ":00"
+        elif len(h_ini_c) == 4:
+            h_ini_c = f"0{h_ini_c}:00"
+        elif not h_ini_c:
+            h_ini_c = "00:00:00"
+
+        turno_ativo["hora_inicio_completa"] = h_ini_c
+        turno_ativo["timestamp_inicio_iso"] = f"{turno_ativo.get('data')}T{h_ini_c}"
+
+    turno_ativo_json = json.dumps(turno_ativo, default=str) if turno_ativo else "null"
 
     # Abastecimentos reais registrados (Drivvo)
     cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
@@ -1612,7 +2655,11 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
         elif p_tipo == "mes":
             t_filtro = [t for t in turnos if inicio_mes <= t["data"] <= fim_mes]
             a_filtro = [a for a in abastecimentos if inicio_mes <= a["data"] <= fim_mes]
-            bruto = total_mes_bruto
+            soma_turnos_mes = sum(t["ganho_bruto"] for t in t_filtro)
+            if eh_mes_atual:
+                bruto = total_mes_bruto if total_mes_bruto > soma_turnos_mes else soma_turnos_mes
+            else:
+                bruto = soma_turnos_mes
             abast_real = sum(a["valor_pago"] for a in a_filtro)
             tot_litros = sum(a["litros"] for a in a_filtro)
             tot_econ = sum(a["economia"] for a in a_filtro)
@@ -1622,7 +2669,7 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
             kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
             caixa_liquido = bruto - abast_real
-            sub_bruto = f"{formatar_moeda_br(bruto)} no mês"
+            sub_bruto = f"{formatar_moeda_br(bruto)} em {mes_nome}"
             sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
             sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
             sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
@@ -1645,6 +2692,10 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km" if kml_periodo > 0 else f"{round(tot_km, 1)} km registrados"
             sub_liq = "Bruto (-) Valor Pago Real"
 
+        h_fechadas = round(tot_horas, 2)
+        ganho_hora = round(bruto / h_fechadas, 2) if (h_fechadas > 0 and bruto > 0) else 0.0
+        sub_horas = f"Ganho Médio: {formatar_moeda_br(ganho_hora)}/h" if ganho_hora > 0 else "Sem horas fechadas"
+
         return {
             "bruto": bruto,
             "abastecido_real": abast_real,
@@ -1654,7 +2705,10 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             "litros_total": round(tot_litros, 2),
             "caixa_liquido": caixa_liquido,
             "total_km": round(tot_km, 1),
-            "total_horas": round(tot_horas, 2),
+            "total_horas": round(tot_horas, 1),
+            "ganho_hora": ganho_hora,
+            "ganho_hora_formatado": formatar_moeda_br(ganho_hora) + "/h" if ganho_hora > 0 else "--",
+            "sub_horas": sub_horas,
             "combustivel_estimado_total": comb_est,
             "sub_bruto": sub_bruto,
             "sub_abast": sub_abast,
@@ -1675,14 +2729,29 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
 
     conn.close()
 
+    tpl_drive = "oikos_drive.html" if os.path.exists("templates/oikos_drive.html") else "motorista.html"
+
     return templates.TemplateResponse(
         request=request,
-        name="motorista.html",
+        name=tpl_drive,
         context={
             "filtro_ativo": filtro_ativo,
             "metricas": metricas_ativas,
             "periodos_dados": periodos_dados,
             "periodos_json": json.dumps(periodos_dados),
+            "inicio_semana": inicio_semana,
+            "fim_semana": fim_semana,
+            "inicio_mes": inicio_mes,
+            "fim_mes": fim_mes,
+            "mes": mes,
+            "ano": ano,
+            "mes_nome": mes_nome,
+            "mes_ant": mes_ant,
+            "ano_ant": ano_ant,
+            "mes_prox": mes_prox,
+            "ano_prox": ano_prox,
+            "eh_mes_atual": eh_mes_atual,
+            "opcoes_periodo": opcoes_periodo,
             "total_mes_bruto": total_mes_bruto,
             "marco_bruto": marco_bruto,
             "semana_bruto": semana_bruto,
@@ -1693,6 +2762,8 @@ async def pagina_motorista(request: Request, filtro: Optional[str] = "semana"):
             "saldo_99pay": saldo_99_app,
             "turnos": turnos,
             "turno_ativo": turno_ativo,
+            "turno_ativo_json": turno_ativo_json,
+            "pausa_ativa": pausa_ativa,
             "abastecimentos": abastecimentos,
             "hoje_str": hoje_str,
             "active_tab": "drive"
@@ -1711,14 +2782,14 @@ async def api_salvar_turno(
     data: Optional[str] = Form(None),
     hora_inicio: Optional[str] = Form(None),
     hora_fim: Optional[str] = Form(None),
-    horas: Optional[float] = Form(0.0),
-    km_inicial: Optional[float] = Form(None),
-    km_final: Optional[float] = Form(None),
-    km: Optional[float] = Form(None),
-    ganho_online: Optional[float] = Form(0.0),
-    ganho_dinheiro_pix: Optional[float] = Form(0.0),
-    ganho_bruto: Optional[float] = Form(None),
-    combustivel: Optional[float] = Form(None),
+    horas: Optional[Any] = Form(0.0),
+    km_inicial: Optional[Any] = Form(None),
+    km_final: Optional[Any] = Form(None),
+    km: Optional[Any] = Form(None),
+    ganho_online: Optional[Any] = Form(0.0),
+    ganho_dinheiro_pix: Optional[Any] = Form(0.0),
+    ganho_bruto: Optional[Any] = Form(None),
+    combustivel: Optional[Any] = Form(None),
     observacao: Optional[str] = Form(""),
     periodo: Optional[str] = Form(None),
     status_turno: Optional[str] = Form(None),
@@ -1738,10 +2809,7 @@ async def api_salvar_turno(
         h_ini_str = str(hora_inicio).strip() if (hora_inicio and str(hora_inicio).strip() != "") else None
         h_fim_str = str(hora_fim).strip() if (hora_fim and str(hora_fim).strip() != "") else None
 
-        try:
-            h_val = float(horas or 0.0)
-        except (TypeError, ValueError):
-            h_val = 0.0
+        h_val = converter_valor_monetario(horas, default=0.0)
 
         if h_ini_str and h_fim_str:
             try:
@@ -1784,27 +2852,25 @@ async def api_salvar_turno(
                 periodo_val = "Manhã"
 
         # 2. Tratar Hodômetros & KM Rodados
-        try:
-            k_ini_val = float(km_inicial) if (km_inicial is not None and str(km_inicial).strip() != "") else None
-        except (TypeError, ValueError):
+        k_ini_val = converter_valor_monetario(km_inicial, default=-1.0)
+        if k_ini_val < 0:
             k_ini_val = None
 
-        try:
-            k_fim_val = float(km_final) if (km_final is not None and str(km_final).strip() != "") else None
-        except (TypeError, ValueError):
+        k_fim_val = converter_valor_monetario(km_final, default=-1.0)
+        if k_fim_val < 0:
             k_fim_val = None
 
         if k_ini_val is not None and k_fim_val is not None and k_fim_val >= k_ini_val:
             km_val = round(k_fim_val - k_ini_val, 1)
-        elif km is not None and str(km).strip() != "" and float(km) > 0:
-            km_val = round(float(km), 1)
+        elif km is not None and str(km).strip() != "" and converter_valor_monetario(km) > 0:
+            km_val = round(converter_valor_monetario(km), 1)
         else:
             km_val = 0.0
 
         # 3. Tratar Ganhos (Faturamento Bruto travado: Online + Dinheiro)
-        g_onl = float(ganho_online or 0.0)
-        g_din = float(ganho_dinheiro_pix or 0.0)
-        g_bruto = round(g_onl + g_din, 2) if (g_onl + g_din > 0) else (float(ganho_bruto or 0.0))
+        g_onl = converter_valor_monetario(ganho_online, default=0.0)
+        g_din = converter_valor_monetario(ganho_dinheiro_pix, default=0.0)
+        g_bruto = round(g_onl + g_din, 2) if (g_onl + g_din > 0) else converter_valor_monetario(ganho_bruto, default=0.0)
 
         # 4. Combustível estimado (R$ 0,38/km)
         if st_turno_db == "EM_ANDAMENTO":
@@ -1818,6 +2884,28 @@ async def api_salvar_turno(
             st_conciliacao = "pendente"
 
         if id and int(id) > 0:
+            target_id = int(id)
+
+            # Se o turno estiver sendo encerrado, fecha qualquer pausa em aberto
+            if st_turno_db == "encerrado":
+                agora_iso = datetime.datetime.now().isoformat()
+                cur.execute("SELECT id, inicio_pausa FROM turnos_pausas WHERE turno_id = ? AND fim_pausa IS NULL", (target_id,))
+                for pa in cur.fetchall():
+                    try:
+                        ini_p = datetime.datetime.fromisoformat(pa["inicio_pausa"])
+                        dur_p = max(1, int((datetime.datetime.now() - ini_p).total_seconds() // 60))
+                    except Exception:
+                        dur_p = 0
+                    cur.execute("UPDATE turnos_pausas SET fim_pausa = ?, duracao_minutos = ? WHERE id = ?", (agora_iso, dur_p, pa["id"]))
+
+                # Desconta o total de minutos pausados do tempo trabalhado se houver horários
+                if h_ini_str and h_fim_str:
+                    cur.execute("SELECT SUM(duracao_minutos) FROM turnos_pausas WHERE turno_id = ?", (target_id,))
+                    row_sum = cur.fetchone()
+                    tot_p_min = row_sum[0] if (row_sum and row_sum[0]) else 0
+                    diff_m_liq = max(0, diff_m - tot_p_min)
+                    h_val = round(diff_m_liq / 60.0, 2)
+
             cur.execute("""
                 UPDATE turnos
                 SET data = ?, periodo = ?, hora_inicio = ?, hora_fim = ?, horas = ?,
@@ -1962,24 +3050,156 @@ async def api_excluir_turno(id: int = Form(...)):
         conn.close()
 
 
+@app.post("/api/turnos/pausar")
+@app.post("/motorista/turnos/pausar")
+async def api_pausar_turno(
+    turno_id: int = Form(...),
+    motivo: str = Form("Almoço"),
+    duracao_programada: int = Form(0)
+):
+    """Registra o início de uma pausa programada ou livre para o turno ativo."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        agora_iso = datetime.datetime.now().isoformat()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS turnos_pausas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                turno_id INTEGER NOT NULL,
+                inicio_pausa TEXT NOT NULL,
+                fim_pausa TEXT,
+                duracao_minutos INTEGER DEFAULT 0,
+                duracao_programada_minutos INTEGER DEFAULT 0,
+                motivo TEXT NOT NULL,
+                created_at TEXT,
+                FOREIGN KEY (turno_id) REFERENCES turnos(id)
+            )
+        """)
+
+        # Fecha pausas anteriores que ainda estivessem sem fim_pausa
+        cur.execute("SELECT id, inicio_pausa FROM turnos_pausas WHERE turno_id = ? AND fim_pausa IS NULL", (turno_id,))
+        for pa in cur.fetchall():
+            try:
+                ini_dt = datetime.datetime.fromisoformat(pa["inicio_pausa"])
+                dur_m = max(1, int((datetime.datetime.now() - ini_dt).total_seconds() // 60))
+            except Exception:
+                dur_m = 0
+            cur.execute("UPDATE turnos_pausas SET fim_pausa = ?, duracao_minutos = ? WHERE id = ?", (agora_iso, dur_m, pa["id"]))
+
+        cur.execute("""
+            INSERT INTO turnos_pausas (turno_id, inicio_pausa, duracao_programada_minutos, motivo, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (turno_id, agora_iso, duracao_programada, motivo, agora_iso))
+        pausa_id = cur.lastrowid
+
+        cur.execute("UPDATE turnos SET status_turno = 'PAUSADO' WHERE id = ?", (turno_id,))
+        conn.commit()
+
+        return {
+            "success": True,
+            "pausa_id": pausa_id,
+            "turno_id": turno_id,
+            "inicio_pausa": agora_iso,
+            "motivo": motivo,
+            "duracao_programada": duracao_programada,
+            "mensagem": f"Pausa '{motivo}' iniciada com sucesso!"
+        }
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"success": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/turnos/retomar")
+@app.post("/motorista/turnos/retomar")
+async def api_retomar_turno(turno_id: int = Form(...)):
+    """Encerra a pausa ativa e retorna o status do turno para EM_ANDAMENTO."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        agora = datetime.datetime.now()
+        agora_iso = agora.isoformat()
+
+        cur.execute("""
+            SELECT id, inicio_pausa FROM turnos_pausas
+            WHERE turno_id = ? AND fim_pausa IS NULL
+            ORDER BY id DESC LIMIT 1
+        """, (turno_id,))
+        p = cur.fetchone()
+        duracao_efetiva = 0
+        if p:
+            try:
+                ini = datetime.datetime.fromisoformat(p["inicio_pausa"])
+                duracao_efetiva = max(1, int((agora - ini).total_seconds() // 60))
+            except Exception:
+                duracao_efetiva = 0
+            cur.execute("UPDATE turnos_pausas SET fim_pausa = ?, duracao_minutos = ? WHERE id = ?", (agora_iso, duracao_efetiva, p["id"]))
+
+        cur.execute("UPDATE turnos SET status_turno = 'EM_ANDAMENTO' WHERE id = ?", (turno_id,))
+        conn.commit()
+
+        return {
+            "success": True,
+            "turno_id": turno_id,
+            "duracao_minutos": duracao_efetiva,
+            "mensagem": f"Turno retomado! (Pausa durou {duracao_efetiva} min)"
+        }
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"success": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/turnos/pausa/adicionar-tempo")
+@app.post("/motorista/turnos/pausa/adicionar-tempo")
+async def api_adicionar_tempo_pausa(
+    turno_id: int = Form(...),
+    minutos: int = Form(5)
+):
+    """Adiciona minutos à contagem regressiva da pausa ativa programada."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, duracao_programada_minutos FROM turnos_pausas
+            WHERE turno_id = ? AND fim_pausa IS NULL
+            ORDER BY id DESC LIMIT 1
+        """, (turno_id,))
+        p = cur.fetchone()
+        if p:
+            nova_duracao = int(p["duracao_programada_minutos"] or 0) + minutos
+            cur.execute("UPDATE turnos_pausas SET duracao_programada_minutos = ? WHERE id = ?", (nova_duracao, p["id"]))
+            conn.commit()
+            return {"success": True, "duracao_programada": nova_duracao, "mensagem": f"+{minutos} min adicionados à pausa!"}
+        return {"success": False, "erro": "Nenhuma pausa ativa encontrada."}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"success": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 
 @app.post("/motorista/abastecer")
 @app.post("/api/abastecer")
 async def api_motorista_abastecer(
     data: str = Form(...),
-    valor_pago: float = Form(...),
-    litros: float = Form(...),
-    valor_bomba: Optional[float] = Form(None),
-    valor_bruto: Optional[float] = Form(None),
+    valor_pago: Any = Form(...),
+    litros: Any = Form(...),
+    valor_bomba: Optional[Any] = Form(None),
+    valor_bruto: Optional[Any] = Form(None),
     app_desconto: Optional[str] = Form(None),
     origem_desconto: Optional[str] = Form(None),
-    preco_litro: Optional[float] = Form(None),
+    preco_litro: Optional[Any] = Form(None),
     combustivel: Optional[str] = Form("Etanol"),
     posto: Optional[str] = Form("Posto de Combustível"),
-    hodometro: Optional[float] = Form(None),
+    hodometro: Optional[Any] = Form(None),
     conta: Optional[str] = Form(None),
     conta_pagamento: Optional[str] = Form(None),
-    desconto: Optional[float] = Form(0.0),
+    desconto: Optional[Any] = Form(0.0),
     tanque_cheio: Optional[int] = Form(0),
     observacao: Optional[str] = Form("")
 ):
@@ -1989,11 +3209,8 @@ async def api_motorista_abastecer(
     - Preço Real por Litro = Valor Pago Real / Litros
     - Débito financeiro na conta selecionada = estritamente o Valor Pago Real
     """
-    try:
-        val_pago = round(float(valor_pago), 2)
-        lits = round(float(litros), 3)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="Valor pago real e litros devem ser numéricos.")
+    val_pago = converter_valor_monetario(valor_pago)
+    lits = converter_valor_monetario(litros)
 
     if val_pago <= 0 or lits <= 0:
         raise HTTPException(status_code=400, detail="Valor pago real e litros abastecidos devem ser maiores que zero.")

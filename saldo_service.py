@@ -413,21 +413,16 @@ def calcular_saldo_conta(
     data_referencia: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Calcula o saldo real de uma conta com base no último marco/ajuste ativo e 
-    nas movimentações efetivadas posteriores.
+    Calcula o saldo real e dinâmico de uma conta com base no saldo inicial oficial
+    e em TODO o histórico de transações consolidadas até a data de referência / atual.
     
-    Regras de Negócio:
-    1. Se houver marco/ajuste ativo:
-       - Saldo inicial = saldo informado no marco.
-       - Lançamentos com data < data_marco: ignorados (já contemplados).
-       - Lançamentos com data == data_marco: considerados apenas se seu ID NÃO estiver
-         em transacoes_contempladas_ids (ou seja, se for posterior ao corte).
-       - Lançamentos com data > data_marco (e <= data_referencia): somados/subtraídos.
-    2. Se NÃO houver marco/ajuste:
-       - Saldo inicial = 0.
-       - Todas as movimentações efetivadas (<= data_referencia) são somadas/subtraídas.
-    3. Movimentações com afeta_saldo_bancario = 0 (desconto em folha) NÃO alteram o saldo.
-    4. Transferências debitam a conta de origem e creditam a conta de destino.
+    Fórmula Contábil Oficial:
+    Saldo = Saldo Inicial + SUM(entradas pagas) - SUM(despesas pagas) - SUM(transferências enviadas) + SUM(transferências recebidas).
+    
+    Garantias:
+    - Qualquer despesa com pago = 1 (mesmo com data retroativa como 20/10 ou 25/10) abate diretamente do saldo da conta.
+    - Transferências internas atualizam origem e destino simultaneamente.
+    - Despesas com afeta_saldo_bancario = 0 não debitam saldo bancário.
     """
     cur = conn.cursor()
 
@@ -450,28 +445,32 @@ def calcular_saldo_conta(
     
     conta_nome = conta_row[1]
 
-    # Busca o marco/ajuste ativo mais recente
-    marco = obter_ajuste_ativo(conn, conta_id, data_limite=data_referencia)
+    # Busca o primeiro marco inicial da conta para obter o Saldo Inicial Base da implantação
+    cur.execute("""
+        SELECT id, data, saldo_informado_centavos, motivo
+        FROM ajustes_saldo
+        WHERE conta_id = ? AND tipo = 'marco_inicial'
+        ORDER BY data ASC, id ASC
+        LIMIT 1
+    """, (conta_id,))
+    marco_ini = cur.fetchone()
 
-    if marco:
-        saldo_cents = marco["saldo_informado_centavos"]
-        data_corte = marco["data"]
-        contempladas_ids = marco["transacoes_contempladas_ids"]
+    if marco_ini:
+        saldo_cents = marco_ini[2]
+        data_inicio = marco_ini[1]
         tem_marco = True
-        ajuste_id = marco["id"]
-        marco_data = marco["data"]
-        marco_saldo = marco["saldo_informado"]
+        ajuste_id = marco_ini[0]
+        marco_data = marco_ini[1]
+        marco_saldo = cents_to_decimal(saldo_cents)
     else:
         saldo_cents = 0
-        data_corte = None
-        contempladas_ids = set()
+        data_inicio = "2026-10-19"  # Data base de corte/implantação do sistema
         tem_marco = False
         ajuste_id = None
         marco_data = None
         marco_saldo = None
 
-    # Busca todas as movimentações efetivadas que envolvem esta conta como origem ou destino
-    # Respeita o campo afeta_saldo_bancario = 1 e pago = 1
+    # Busca todas as movimentações consolidadas da conta a partir da data base
     query = """
         SELECT id, data, valor, tipo, conta_id, conta_destino_id, afeta_saldo_bancario, conta
         FROM transacoes
@@ -485,9 +484,15 @@ def calcular_saldo_conta(
     """
     params = [conta_id, conta_id, conta_nome]
 
+    if data_inicio:
+        query += " AND data >= ?"
+        params.append(data_inicio)
+
     if data_referencia:
         query += " AND data <= ?"
         params.append(data_referencia)
+
+    query += " ORDER BY data ASC, id ASC"
 
     cur.execute(query, params)
     rows = cur.fetchall()
@@ -497,42 +502,10 @@ def calcular_saldo_conta(
     transf_in_cents = 0
     transf_out_cents = 0
 
-    # Identifica despesas que possuem pagamentos registrados na tabela dedicada
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pagamentos_despesas'")
-    tem_tabela_pagamentos = cur.fetchone() is not None
-
-    ids_com_pagamentos = set()
-    if tem_tabela_pagamentos:
-        cur.execute("SELECT DISTINCT transacao_id FROM pagamentos_despesas WHERE cancelado = 0")
-        ids_com_pagamentos = set(row[0] for row in cur.fetchall())
-
     for r in rows:
         t_id, t_data, t_val, t_tipo, t_origem_id, t_dest_id, t_afeta, t_conta_str = r
         val_cents = decimal_to_cents(to_decimal(t_val))
 
-        # Se for despesa com pagamentos registrados em pagamentos_despesas, o débito contábil
-        # virá exclusivamente dos pagamentos efetivos para evitar dupla contagem.
-        if t_tipo == "despesa" and t_id in ids_com_pagamentos:
-            continue
-
-        # Determina se a transação é posterior ao corte
-        eh_posterior = False
-        if not tem_marco:
-            eh_posterior = True
-        else:
-            if t_data > data_corte:
-                eh_posterior = True
-            elif t_data == data_corte:
-                # Na mesma data: só afeta se NÃO constar na lista de contempladas
-                if t_id not in contempladas_ids:
-                    eh_posterior = True
-            else:
-                eh_posterior = False
-
-        if not eh_posterior:
-            continue
-
-        # Aplicação das regras contábeis para transações legadas/diretas
         eh_origem = (t_origem_id == conta_id) or (t_origem_id is None and t_conta_str == conta_nome)
         eh_destino = (t_dest_id == conta_id)
 
@@ -549,44 +522,6 @@ def calcular_saldo_conta(
             if eh_destino:
                 saldo_cents += val_cents
                 transf_in_cents += val_cents
-
-    # Incorpora pagamentos reais de despesas da tabela dedicada pagamentos_despesas
-    if tem_tabela_pagamentos:
-        q_pag = """
-            SELECT id, transacao_id, data_pagamento, valor_pago_centavos, considerado_no_marco, afeta_saldo_bancario
-            FROM pagamentos_despesas
-            WHERE conta_id = ? 
-              AND cancelado = 0 
-              AND (afeta_saldo_bancario = 1 OR afeta_saldo_bancario IS NULL)
-        """
-        params_pag = [conta_id]
-        if data_referencia:
-            q_pag += " AND (data_pagamento IS NULL OR data_pagamento <= ?)"
-            params_pag.append(data_referencia)
-        cur.execute(q_pag, params_pag)
-        pags = cur.fetchall()
-
-        for p in pags:
-            p_id, p_t_id, p_data, p_val_cents, p_considerado, p_afeta = p
-            # Se o pagamento foi marcado como já refletido no marco inicial ou se a data real for desconhecida pré-marco, não desconta
-            if p_considerado == 1 or p_data is None:
-                continue
-
-            eh_post_pag = False
-            if not tem_marco:
-                eh_post_pag = True
-            else:
-                if p_data > data_corte:
-                    eh_post_pag = True
-                elif p_data == data_corte:
-                    # Na data do marco: se considerado_no_marco == 0, ocorreu após a conciliação
-                    eh_post_pag = True
-                else:
-                    eh_post_pag = False
-
-            if eh_post_pag:
-                saldo_cents -= p_val_cents
-                desp_post_cents += p_val_cents
 
     return {
         "conta_id": conta_id,

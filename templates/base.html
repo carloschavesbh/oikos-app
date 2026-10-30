@@ -305,11 +305,19 @@
       border-color: #10b981 !important;
     }
 
-    /* Modais no modo claro */
+    /* Modais no modo claro e responsividade */
     html:not(.dark) [id^="modal-"] > div {
       background-color: #ffffff !important;
       border-color: #cbd5e1 !important;
       box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25) !important;
+    }
+
+    /* Correção do Seletor de Hora e campos de formulário em modais mobile */
+    [id^="modal-"] > div {
+      min-width: min(100%, 340px);
+    }
+    input[type="time"] {
+      min-width: 130px;
     }
 
     /* Navbar fixa inferior mobile no modo claro */
@@ -357,11 +365,28 @@
   <header class="border-b border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30 transition-colors">
     <div class="max-w-6xl mx-auto px-3 sm:px-6 py-2.5">
       <div class="flex items-center justify-between">
-        <!-- Logo Oficial Horizontal Oikos -->
-        <a href="/" class="flex items-center hover:opacity-95 transition shrink-0" title="Oikos • Início">
-          <img src="/static/logo-header.png" 
-               alt="Oikos • Mordomia & Gestão Familiar" 
-               class="h-8 sm:h-9 md:h-10 w-auto object-contain rounded-xl bg-white px-2 py-0.5 shadow-sm border border-slate-200/60 dark:border-slate-700/60 transition">
+        <!-- Logo Oficial Oikos (Compacto e limpo no Mobile com badge PWA; Horizontal completo no Desktop) -->
+        <a href="/" class="flex items-center gap-2 hover:opacity-95 transition shrink-0" title="Oikos • Início">
+          <!-- Versão Mobile: Símbolo / Ícone limpo + Badge PWA discreto -->
+          <div class="flex items-center gap-1.5 md:hidden">
+            <img src="/static/app-icon.png" 
+                 alt="Oikos" 
+                 class="h-8 w-8 object-contain rounded-xl bg-white px-1 py-1 shadow-sm border border-slate-200/60 dark:border-slate-700/60">
+            <span class="font-black text-slate-900 dark:text-white text-base tracking-tight">Oikos</span>
+            <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+              PWA
+            </span>
+          </div>
+
+          <!-- Versão Desktop: Logo Oficial Horizontal -->
+          <div class="hidden md:flex items-center gap-2">
+            <img src="/static/logo-header.png" 
+                 alt="Oikos" 
+                 class="h-9 md:h-10 w-auto object-contain rounded-xl bg-white px-2 py-0.5 shadow-sm border border-slate-200/60 dark:border-slate-700/60 transition">
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              PWA
+            </span>
+          </div>
         </a>
 
         <!-- Ações do Topo: Tema Claro/Noturno & Atualizar -->
@@ -385,7 +410,10 @@
       <!-- Links de Navegação Global (Oculto no celular < 768px para evitar duplicação com a barra inferior) -->
       <nav class="hidden md:flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-800/60 overflow-x-auto custom-scroll whitespace-nowrap pb-1 scroll-smooth touch-pan-x -mx-1 px-1">
         <a href="/" class="shrink-0 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition {% if active_tab == 'visao_geral' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span>🎯</span> Visão Geral
+          <span>🏠</span> Visão Geral
+        </a>
+        <a href="/planejamento" class="shrink-0 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition {% if active_tab == 'planejamento' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <span>🎯</span> Planejamento
         </a>
         <a href="/lancamentos" class="shrink-0 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition {% if active_tab == 'lancamentos' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span>📋</span> Lançamentos

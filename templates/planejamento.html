@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos • Planejamento & Análise Financeira{% endblock %}
+
+{% block content %}
+<div class="space-y-5 pb-8 animate-fade-in">
+
+  <!-- CABEÇALHO & SELETOR MENSAL -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🎯</span>
+        <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Planejamento & Análise</h1>
+        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          Budget vs Realizado
+        </span>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+        Monitoramento de saúde financeira, metas de poupança e controle de tetos por categoria.
+      </p>
+    </div>
+
+    <!-- SELETOR NAVEGÁVEL DE MÊS (IDÊNTICO AOS LANÇAMENTOS) -->
+    <div class="flex items-center gap-1.5 self-start md:self-auto bg-slate-50 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+      <!-- Botão Anterior [ ‹ ] -->
+      <a href="/planejamento?mes={{ mes_ant }}&ano={{ ano_ant }}" 
+         title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
+         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+        ‹
+      </a>
+
+      <!-- Dropdown Mês/Ano -->
+      <div class="relative inline-flex items-center">
+        <select onchange="window.location.href='/planejamento?periodo='+this.value" 
+                title="Saltar para outro mês"
+                class="appearance-none touch-target bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
+          {% for op in opcoes_periodo %}
+          <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
+            {{ op.label }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="pointer-events-none absolute right-3 text-[10px] text-slate-500 dark:text-slate-400">▼</span>
+      </div>
+
+      <!-- Botão Próximo [ › ] -->
+      <a href="/planejamento?mes={{ mes_prox }}&ano={{ ano_prox }}" 
+         title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
+         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+        ›
+      </a>
+
+      <!-- Botão Voltar ao Mês Atual -->
+      {% if not eh_mes_atual %}
+      <a href="/planejamento" 
+         title="Voltar ao Mês Atual"
+         class="touch-target inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
+        <span>📅</span> <span class="hidden sm:inline">Mês Atual</span>
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SEÇÃO 1: INDICADOR DE SAÚDE FINANCEIRA (SCORE & TERMÔMETRO) -->
+  <div class="bg-gradient-to-br from-white via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      
+      <!-- Lado Esquerdo: Score e Diagnóstico -->
+      <div class="flex items-start sm:items-center gap-4 sm:gap-6">
+        <!-- Mostrador Circular do Score -->
+        <div class="relative flex items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 
+                    {% if cor_saude == 'emerald' %}bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400
+                    {% elif cor_saude == 'amber' %}bg-amber-500/10 border-2 border-amber-500/40 text-amber-600 dark:text-amber-400
+                    {% elif cor_saude == 'orange' %}bg-orange-500/10 border-2 border-orange-500/40 text-orange-600 dark:text-orange-400
+                    {% else %}bg-rose-500/10 border-2 border-rose-500/40 text-rose-600 dark:text-rose-400{% endif %}">
+          <div class="text-center">
+            <span class="text-3xl sm:text-4xl font-black tracking-tight leading-none">{{ score_saude }}</span>
+            <span class="block text-[10px] uppercase font-bold text-slate-400 mt-1">de 100</span>
+          </div>
+        </div>
+
+        <!-- Textos e Diagnóstico -->
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs uppercase font-bold tracking-wider text-slate-400">Termômetro de Saúde Financeira</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider
+                        {% if cor_saude == 'emerald' %}bg-emerald-500 text-white
+                        {% elif cor_saude == 'amber' %}bg-amber-500 text-slate-950
+                        {% elif cor_saude == 'orange' %}bg-orange-500 text-white
+                        {% else %}bg-rose-500 text-white{% endif %}">
+              {{ status_saude }}
+            </span>
+          </div>
+          <h2 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+            {% if cor_saude == 'emerald' %}Gestão Financeira Saudável e Blindada 🛡️
+            {% elif cor_saude == 'amber' %}Orçamento sob Controle com Atenção ⚖️
+            {% elif cor_saude == 'orange' %}Atenção aos Gastos Variáveis ⚠️
+            {% else %}Pressão no Fluxo de Caixa Requer Ação Imediata 🚨{% endif %}
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-2xl">
+            {{ msg_saude }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Lado Direito: Pilares da Pontuação -->
+      <div class="grid grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto shrink-0 bg-slate-100/70 dark:bg-slate-950/70 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+        <div class="text-center">
+          <span class="block text-[10px] uppercase font-semibold text-slate-500 dark:text-slate-400">Poupança</span>
+          <span class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">{{ pts_poupanca }}/40</span>
+          <span class="block text-[9px] text-slate-400 mt-0.5">Superávit Mês</span>
+        </div>
+        <div class="text-center border-x border-slate-200 dark:border-slate-800 px-2">
+          <span class="block text-[10px] uppercase font-semibold text-slate-500 dark:text-slate-400">Dívidas</span>
+          <span class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">{{ pts_dividas }}/30</span>
+          <span class="block text-[9px] text-slate-400 mt-0.5">Sem Atrasos</span>
+        </div>
+        <div class="text-center">
+          <span class="block text-[10px] uppercase font-semibold text-slate-500 dark:text-slate-400">Caixa Livre</span>
+          <span class="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">{{ pts_caixa }}/30</span>
+          <span class="block text-[9px] text-slate-400 mt-0.5">Liquidez Real</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Barra Visual do Termômetro Geral -->
+    <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+      <div class="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+        <span>Nível do Termômetro Financeiro</span>
+        <span>{{ score_saude }}%</span>
+      </div>
+      <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+        <div class="h-full rounded-full transition-all duration-700 
+                    {% if cor_saude == 'emerald' %}bg-emerald-500
+                    {% elif cor_saude == 'amber' %}bg-amber-500
+                    {% elif cor_saude == 'orange' %}bg-orange-500
+                    {% else %}bg-rose-500{% endif %}" 
+             style="width: {{ score_saude }}%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 2: CARDS DE RESUMO DO MÊS SELECIONADO -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <!-- Receitas Pagas -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">
+        <span>Receitas Pagas</span>
+        <span class="text-emerald-500">💰</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+        {{ receitas_pagas | moeda }}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-1">Total Previsto: {{ total_receitas | moeda }}</p>
+    </div>
+
+    <!-- Despesas Pagas -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">
+        <span>Despesas Pagas</span>
+        <span class="text-rose-500">💸</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
+        {{ despesas_pagas | moeda }}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-1">Total Previsto: {{ total_despesas | moeda }}</p>
+    </div>
+
+    <!-- Superávit / Resultado Operacional -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">
+        <span>Resultado Mês</span>
+        <span class="text-blue-500">⚖️</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-black {% if resultado_operacional >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} whitespace-nowrap">
+        {{ resultado_operacional | moeda }}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-1">{% if resultado_operacional >= 0 %}Superávit operacional{% else %}Déficit operacional{% endif %}</p>
+    </div>
+
+    <!-- Saldo Livre em Caixa -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1">
+        <span>Caixa Livre Consolidado</span>
+        <span class="text-amber-500">🏦</span>
+      </div>
+      <div class="text-lg sm:text-2xl font-black text-amber-600 dark:text-amber-400 whitespace-nowrap">
+        {{ saldo_caixa | moeda }}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-1">Carteira + Mercado Pago + 99Pay</p>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 3: ORÇAMENTO POR CATEGORIA (BUDGET VS REALIZADO) -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📊</span>
+          <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white">Orçamento por Categoria (Budget vs Realizado)</h2>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          Acompanhamento de gastos reais frente ao teto orçado para <strong class="text-slate-800 dark:text-slate-200">{{ mes_nome }} de {{ ano }}</strong>.
+        </p>
+      </div>
+
+      <!-- Resumo Consolidado do Orçamento -->
+      <div class="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+        <div>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Gasto Total</span>
+          <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_gasto_geral | moeda }}</strong>
+        </div>
+        <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Teto Orçado</span>
+          <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_orcado_geral | moeda }}</strong>
+        </div>
+        <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Comprometimento</span>
+          <strong class="{% if pct_geral_orcamento < 80 %}text-emerald-600 dark:text-emerald-400{% elif pct_geral_orcamento <= 100 %}text-amber-500{% else %}text-rose-500{% endif %} font-black">
+            {{ pct_geral_orcamento }}%
+          </strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de Categorias com Barras Visuais -->
+    <div class="space-y-4 pt-1">
+      {% for c in orcamento_categorias %}
+      <div class="bg-slate-50/70 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-3.5 transition hover:border-slate-300 dark:hover:border-slate-700">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+          
+          <!-- Identificação da Categoria -->
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">{{ c.icone }}</span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-sm text-slate-900 dark:text-white">{{ c.categoria }}</h3>
+                <span class="text-[10px] font-semibold text-slate-400">({{ c.qtd_transacoes }} lançamentos)</span>
+              </div>
+              <span class="text-[10px] font-bold uppercase tracking-wider
+                          {% if c.status_cor == 'emerald' %}text-emerald-600 dark:text-emerald-400
+                          {% elif c.status_cor == 'amber' %}text-amber-600 dark:text-amber-400
+                          {% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                ● {{ c.status_texto }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Valores: Real / Orçado / Botão Ajustar -->
+          <div class="flex items-center justify-between sm:justify-end gap-3 self-end sm:self-auto w-full sm:w-auto">
+            <div class="text-right">
+              <div class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                {{ c.gasto_real | moeda }} <span class="text-slate-400 font-normal">/ {{ c.orcado | moeda }}</span>
+              </div>
+              <div class="text-[10px] font-medium text-slate-400">
+                {% if c.diferenca >= 0 %}
+                Sobra: <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ c.diferenca | moeda }}</span>
+                {% else %}
+                Excesso: <span class="text-rose-600 dark:text-rose-400 font-semibold">{{ (c.diferenca * -1) | moeda }}</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Botão Editar Teto da Categoria -->
+            <button onclick="abrirModalLimite('{{ c.categoria }}', '{{ c.orcado }}')" 
+                    title="Ajustar teto orçado"
+                    class="touch-target p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold transition active:scale-95 shadow-2xs cursor-pointer">
+              ✏️
+            </button>
+          </div>
+        </div>
+
+        <!-- Barra de Progresso Visual Colorida -->
+        <div class="space-y-1">
+          <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-500
+                        {% if c.status_cor == 'emerald' %}bg-emerald-500
+                        {% elif c.status_cor == 'amber' %}bg-amber-500
+                        {% else %}bg-rose-500{% endif %}" 
+                 style="width: {{ c.percentual_barra }}%;"></div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+            <span>0%</span>
+            <span class="font-bold {% if c.status_cor == 'emerald' %}text-emerald-600 dark:text-emerald-400{% elif c.status_cor == 'amber' %}text-amber-500{% else %}text-rose-500 font-black{% endif %}">
+              {{ c.percentual }}% utilizado
+            </span>
+            <span>100% (Teto)</span>
+          </div>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL: AJUSTAR LIMITE ORÇADO DA CATEGORIA -->
+<div id="modal-limite" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🎯</span>
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white" id="modal-limite-titulo">Ajustar Teto Orçado</h3>
+      </div>
+      <button onclick="fecharModalLimite()" class="text-slate-400 hover:text-slate-600 text-sm font-black p-1 cursor-pointer">✕</button>
+    </div>
+
+    <form id="form-limite" onsubmit="salvarLimite(event)" class="space-y-3.5">
+      <input type="hidden" id="input-limite-categoria" name="categoria">
+
+      <div>
+        <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
+        <input type="text" id="display-categoria" disabled 
+               class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
+      </div>
+
+      <div>
+        <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Teto Mensal Orçado (R$)</label>
+        <input type="text" inputmode="decimal" id="input-limite-valor" name="limite" placeholder="0,00" required 
+               class="w-full px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalLimite()" 
+                class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-limite"
+                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm cursor-pointer">
+          Salvar Limite
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function abrirModalLimite(cat, valor) {
+    document.getElementById('input-limite-categoria').value = cat;
+    document.getElementById('display-categoria').value = cat;
+    document.getElementById('input-limite-valor').value = parseFloat(valor || 0).toFixed(2);
+    document.getElementById('modal-limite').classList.remove('hidden');
+    document.getElementById('input-limite-valor').focus();
+  }
+
+  function fecharModalLimite() {
+    document.getElementById('modal-limite').classList.add('hidden');
+  }
+
+  async function salvarLimite(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-limite');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const form = event.target;
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/api/planejamento/limite', {
+        method: 'POST',
+        body: fd
+      });
+      const data = await res.json();
+      if (data.status === 'sucesso' || data.sucesso) {
+        showToast('Orçamento Atualizado!', data.mensagem || 'Teto salvo com sucesso!');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast('Erro ao Salvar', data.erro || 'Falha ao gravar orçamento', true);
+        btn.disabled = false;
+        btn.textContent = 'Salvar Limite';
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      btn.disabled = false;
+      btn.textContent = 'Salvar Limite';
+    }
+  }
+</script>
+{% endblock %}
+

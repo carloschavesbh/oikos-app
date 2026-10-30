@@ -1,183 +1,192 @@
 {% extends "base.html" %}
 
-{% block title %}Oikos | Finanças & Operação{% endblock %}
+{% block title %}Oikos | Cartões de Crédito & Faturas{% endblock %}
 
 {% block content %}
 <div class="space-y-5">
 
   <!-- CABEÇALHO -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
     <div>
       <div class="flex items-center gap-2">
         <h1 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
           <span>💳</span> Cartões de Crédito & Faturas
         </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-          Crédito Exclusivo
+        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20">
+          Cartões Reais
         </span>
       </div>
-      <p class="text-xs text-slate-400 mt-0.5">Gestão das faturas dos cartões da família (compras parceladas, limites e vencimentos).</p>
+      <p class="text-xs text-slate-400 mt-0.5">Controle de limites, fechamento e faturas reais dos cartões cadastrados.</p>
     </div>
 
-    <!-- Seletor Rápido de Cartões -->
-    <div class="flex items-center gap-1.5 bg-slate-900 border border-slate-800 p-1 rounded-2xl">
-      <button onclick="selecionarCartao(1)" id="tab-card-1" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo.id == 1 %}bg-indigo-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
-        <span>💳</span> Mercado Pago
-      </button>
-      <button onclick="selecionarCartao(40)" id="tab-card-40" 
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo.id != 1 %}bg-orange-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
-        <span>🟧</span> Inter Aparecida
+    <!-- Ações do Topo: Seletor de Cartões + Botão Novo Cartão -->
+    <div class="flex flex-wrap items-center gap-2">
+      {% if cartoes | length > 1 %}
+      <div class="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
+        {% for crd in cartoes %}
+        <button type="button"
+                onclick="selecionarCartao({{ crd.id }})"
+                id="tab-card-{{ crd.id }}"
+                class="tab-btn-cartao px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo and crd.id == cartao_ativo.id %}bg-orange-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
+          <span>💳</span> {{ crd.nome }}
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <button type="button"
+              onclick="abrirModalNovoCartao()"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/50 transition flex items-center gap-1.5 cursor-pointer">
+        <span>+</span> Novo Cartão
       </button>
     </div>
   </div>
 
-  <!-- CONTEÚDO DO CARTÃO ATIVO -->
+  {% if not cartoes %}
+  <!-- ESTADO VAZIO -->
+  <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+    <div class="text-3xl">💳</div>
+    <h2 class="text-base font-bold text-white">Nenhum cartão de crédito cadastrado</h2>
+    <p class="text-xs text-slate-400 max-w-md mx-auto">Cadastre seus cartões de crédito reais para acompanhar limites, datas de fechamento e faturas.</p>
+    <button type="button"
+            onclick="abrirModalNovoCartao()"
+            class="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition">
+      <span>+</span> Cadastrar Cartão
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- CONTEÚDO DOS CARTÕES -->
   {% for crd in cartoes %}
-  <div class="secao-cartao space-y-5 {% if crd.id != cartao_ativo.id %}hidden{% endif %}" id="cartao-bloco-{{ crd.id }}">
+  <div class="secao-cartao space-y-4 {% if cartao_ativo and crd.id != cartao_ativo.id %}hidden{% endif %}" id="cartao-bloco-{{ crd.id }}">
 
-    <!-- GRID CARTÃO MOCKUP + MÉTRICAS -->
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-      
-      <!-- CARD DIGITAL MOCKUP (Col 5) -->
-      <div class="credit-card-mockup md:col-span-5 rounded-3xl p-5 shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[220px] 
-                  {% if crd.id == 1 %}
-                    bg-gradient-to-br from-slate-900 via-indigo-950/90 to-slate-950 border border-indigo-800/40
-                  {% else %}
-                    bg-gradient-to-br from-slate-900 via-orange-950/80 to-slate-950 border border-orange-800/40
-                  {% endif %}">
-        
-        <!-- Efeitos de iluminação de fundo -->
-        <div class="absolute -right-10 -top-10 w-32 h-32 {% if crd.id == 1 %}bg-indigo-500/10{% else %}bg-orange-500/10{% endif %} rounded-full blur-2xl pointer-events-none"></div>
+    <!-- FAIXA SUPERIOR COMPACTA: MOCKUP HORIZONTAL + BARRA DE RESUMO DE LIMITES -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
 
-        <!-- Topo do Cartão -->
-        <div class="flex items-center justify-between relative z-10">
-          <div class="flex items-center gap-2">
-            <span class="text-base">💳</span>
-            <span class="font-extrabold text-sm text-white tracking-wide">{{ crd.nome }}</span>
+      <!-- MOCKUP COMPACTO HORIZONTAL DO CARTÃO (Col 4) -->
+      <div class="lg:col-span-4 rounded-2xl p-4 shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[145px] border border-white/10"
+           style="background: linear-gradient(135deg, {{ crd.cor or '#ea580c' }}dd 0%, #0f172a 90%);">
+
+        <div class="absolute -right-8 -top-8 w-24 h-24 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+
+        <!-- Linha 1: Nome do Cartão + Bandeira -->
+        <div class="flex items-center justify-between gap-2 relative z-10">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-7 h-5 rounded bg-gradient-to-tr from-amber-400 to-amber-200 border border-amber-300/60 shadow-inner flex items-center justify-center shrink-0">
+              <div class="w-4 h-2.5 border border-amber-700/30 rounded-xs"></div>
+            </div>
+            <span class="font-extrabold text-sm text-white tracking-tight truncate">{{ crd.nome }}</span>
           </div>
-          <div class="px-2.5 py-0.5 rounded-md text-[10px] font-black text-white tracking-widest uppercase 
-                      {% if crd.bandeira == 'Visa' %}bg-blue-600{% else %}bg-amber-600{% endif %}">
+          <span class="px-2 py-0.5 rounded text-[10px] font-black text-white uppercase tracking-widest bg-black/30 border border-white/15 shrink-0">
             {{ crd.bandeira }}
-          </div>
+          </span>
         </div>
 
-        <!-- Chip & Contactless -->
-        <div class="flex items-center gap-3 my-4 relative z-10">
-          <div class="w-10 h-7 rounded-md bg-gradient-to-tr from-amber-400 to-amber-200 border border-amber-300/60 shadow-inner flex items-center justify-center">
-            <div class="w-6 h-4 border border-amber-600/30 rounded-xs"></div>
+        <!-- Linha 2: Número Mascarado Dinâmico -->
+        <div class="my-2 relative z-10 flex items-center justify-between">
+          <div class="font-mono text-sm sm:text-base text-white tracking-[0.2em] font-bold">
+            •••• •••• •••• {{ crd.ultimos_digitos or '0000' }}
           </div>
-          <svg class="w-5 h-5 {% if crd.id == 1 %}text-indigo-300/70{% else %}text-orange-300/70{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <svg class="w-4 h-4 text-white/70 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0" />
           </svg>
         </div>
 
-        <!-- Número Mascarado -->
-        <div class="font-mono text-base sm:text-lg text-slate-200 tracking-[0.25em] font-semibold my-1 relative z-10">
-          •••• •••• •••• {% if crd.id == 1 %}4028{% else %}7192{% endif %}
-        </div>
-
-        <!-- Rodapé do Cartão -->
-        <div class="flex items-end justify-between pt-3 border-t {% if crd.id == 1 %}border-indigo-500/20{% else %}border-orange-500/20{% endif %} text-xs relative z-10">
-          <div>
-            <p class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Titular</p>
-            <p class="font-bold text-white tracking-wide">
-              {% if crd.id == 1 %}CARLOS HENRIQUE{% else %}APARECIDA / CARLOS{% endif %}
-            </p>
+        <!-- Linha 3: Titular + Datas + Botões Discretos -->
+        <div class="flex items-end justify-between pt-2 border-t border-white/15 text-[11px] relative z-10">
+          <div class="min-w-0">
+            <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold">Titular</p>
+            <p class="font-bold text-white uppercase truncate">{{ crd.titular or 'Carlos' }}</p>
           </div>
-          <div class="text-right">
-            <p class="text-[9px] uppercase tracking-wider text-slate-400 font-bold">Vencimento</p>
-            <p class="font-bold text-white">Dia {{ crd.dia_vencimento }}</p>
+          <div class="text-right shrink-0">
+            <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold">Fech / Venc</p>
+            <p class="font-bold text-white">Dia {{ "%02d"|format(crd.dia_fechamento) }} • Dia {{ "%02d"|format(crd.dia_vencimento) }}</p>
           </div>
         </div>
       </div>
 
-      <!-- MÉTRICAS DE LIMITE & FATURA (Col 7) -->
-      <div class="md:col-span-7 bg-slate-900/80 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between shadow-sm space-y-4">
-        <div>
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <span>📊</span> Resumo da Fatura & Limites
+      <!-- RESUMO DE LIMITES E AÇÕES DO CARTÃO ATIVO (Col 8) -->
+      <div class="lg:col-span-8 bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-sm space-y-3">
+        <!-- Topo com título e botões discretos Editar / Excluir -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>📊</span> Resumo de Limites & Fatura
             </h2>
-            <span class="text-xs px-2.5 py-0.5 rounded-full font-bold 
-                        {% if crd.id == 1 %}bg-indigo-500/10 text-indigo-400 border border-indigo-500/20{% else %}bg-orange-500/10 text-orange-400 border border-orange-500/20{% endif %}">
-              {% if crd.id == 1 %}Ciclo Outubro/2026{% else %}Fatura Nov/2026 (Fech: 01/11 • Venc: 07/11){% endif %}
+            <span class="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+              Fechamento dia {{ "%02d"|format(crd.dia_fechamento) }} • Vencimento dia {{ "%02d"|format(crd.dia_vencimento) }}
             </span>
           </div>
 
-          <!-- Grid de Métricas -->
-          <div class="grid grid-cols-3 gap-2 sm:gap-3">
-            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
-              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">
-                {% if crd.id == 1 %}Limite Total{% else %}Fatura Fechada{% endif %}
-              </p>
-              <p class="text-sm sm:text-lg font-black text-white truncate">
-                {% if crd.id == 1 %}{{ crd.limite_total | moeda }}{% else %}R$ 1.935,12{% endif %}
-              </p>
-            </div>
-            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
-              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">Total da Fatura</p>
-              <p class="text-sm sm:text-lg font-black text-rose-400 truncate">
-                {{ crd.total_fatura | moeda }}
-              </p>
-            </div>
-            <div class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
-              <p class="text-[10px] text-slate-400 font-semibold mb-0.5">
-                {% if crd.id == 1 %}Limite Disponível{% else %}Status{% endif %}
-              </p>
-              <p class="text-sm sm:text-lg font-black {% if crd.id == 1 %}text-emerald-400{% else %}text-amber-400{% endif %} truncate">
-                {% if crd.id == 1 %}{{ crd.limite_disponivel | moeda }}{% else %}A Vencer{% endif %}
-              </p>
-            </div>
-          </div>
-
-          <!-- Barra de Progresso de Consumo / Cobertura -->
-          <div class="mt-4 pt-2">
-            <div class="flex items-center justify-between text-xs mb-1.5">
-              <span class="text-slate-400">
-                {% if crd.id == 1 %}Utilização do Limite: <strong class="text-white">{{ "%.1f"|format(crd.pct_uso) }}%</strong>
-                {% else %}Compromisso Familiar da Fatura: <strong class="text-white">100%</strong>{% endif %}
-              </span>
-              <span class="text-xs {% if crd.id == 1 %}text-emerald-400{% else %}text-orange-400{% endif %} font-bold">
-                {% if crd.id == 1 %}Operacional Ativo{% else %}Nov/2026 Confirmado{% endif %}
-              </span>
-            </div>
-            <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
-              <div class="h-full rounded-full transition-all duration-500 
-                          {% if crd.id == 1 %}bg-gradient-to-r from-emerald-500 to-teal-400
-                          {% else %}bg-gradient-to-r from-orange-500 to-amber-400{% endif %}"
-                   style="width: {% if crd.id == 1 %}{{ [crd.pct_uso, 100]|min }}%{% else %}100%{% endif %}"></div>
-            </div>
+          <!-- Botões discretos de Editar e Excluir -->
+          <div class="flex items-center gap-1.5">
+            <button type="button"
+                    onclick='abrirModalEditarCartao({{ crd.id }}, {{ crd.nome | tojson }}, {{ crd.bandeira | tojson }}, {{ crd.limite_total }}, {{ crd.dia_fechamento }}, {{ crd.dia_vencimento }}, {{ (crd.ultimos_digitos or "0000") | tojson }}, {{ (crd.titular or "Carlos") | tojson }}, {{ (crd.cor or "#ea580c") | tojson }})'
+                    class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 transition flex items-center gap-1 cursor-pointer"
+                    title="Editar Cartão">
+              <span>✏️</span> Editar
+            </button>
+            <button type="button"
+                    onclick='excluirCartao({{ crd.id }}, {{ crd.nome | tojson }})'
+                    class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-rose-400 hover:text-white bg-rose-950/30 hover:bg-rose-600 border border-rose-800/40 transition flex items-center gap-1 cursor-pointer"
+                    title="Excluir Cartão">
+              <span>🗑️</span> Excluir
+            </button>
           </div>
         </div>
 
-        <!-- Rodapé explicativo -->
-        <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60 text-xs text-slate-400 flex items-center justify-between">
-          <span class="flex items-center gap-1.5">
-            <span>📅</span> Fechamento: <strong>Dia {{ crd.dia_fechamento }}</strong> • Vencimento: <strong>Dia {{ crd.dia_vencimento }}</strong>
-          </span>
-          <span class="text-[11px] {% if crd.id == 1 %}text-indigo-400{% else %}text-orange-400{% endif %} font-bold">
-            {% if crd.id == 1 %}Titular: Carlos{% else %}Titular: Aparecida{% endif %}
-          </span>
+        <!-- 3 Cards de Limite -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-xl p-2.5">
+            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Limite Total</p>
+            <p class="text-sm sm:text-base font-black text-white mt-0.5 truncate">{{ crd.limite_total | moeda }}</p>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-xl p-2.5">
+            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Fatura Atual</p>
+            <p class="text-sm sm:text-base font-black text-rose-400 mt-0.5 truncate">{{ crd.total_fatura | moeda }}</p>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/90 rounded-xl p-2.5">
+            <p class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Limite Disponível</p>
+            <p class="text-sm sm:text-base font-black text-emerald-400 mt-0.5 truncate">{{ crd.limite_disponivel | moeda }}</p>
+          </div>
+        </div>
+
+        <!-- Barra de Resumo de Limite -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-slate-400">
+              Limite Utilizado: <strong class="text-white">{{ "%.1f"|format(crd.pct_uso) }}%</strong>
+            </span>
+            <span class="text-[11px] font-semibold text-slate-400">
+              Titular: <strong class="text-slate-200">{{ crd.titular or 'Carlos' }}</strong>
+            </span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
+            <div class="h-full rounded-full transition-all duration-500 {% if crd.pct_uso > 85 %}bg-gradient-to-r from-rose-500 to-orange-500{% elif crd.pct_uso > 50 %}bg-gradient-to-r from-amber-500 to-orange-400{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}"
+                 style="width: {{ [crd.pct_uso, 100]|min }}%"></div>
+          </div>
         </div>
       </div>
+
     </div>
 
-    <!-- SEÇÃO: COMPRAS NO CARTÃO (ESTRITAMENTE CRÉDITO) -->
-    <div class="space-y-3">
+    <!-- TABELA DE LANÇAMENTOS REAIS DA FATURA -->
+    <div class="space-y-2.5">
       <div class="flex items-center justify-between">
-        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-          <span>🛒</span> Itens da Fatura (Estritamente Cartão de Crédito)
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+          <span>🛒</span> Lançamentos da Fatura • {{ crd.nome }}
         </h2>
-        <span class="text-xs text-slate-400 font-medium">Total: <strong class="text-white">{{ crd.compras | length }}</strong> itens</span>
+        <span class="text-xs text-slate-400 font-medium">
+          Total: <strong class="text-white">{{ crd.compras | length }}</strong> lançamentos ({{ crd.total_fatura | moeda }})
+        </span>
       </div>
 
-      <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                <th class="py-3 px-3 sm:px-4">Vencimento</th>
+              <tr class="border-b border-slate-800 bg-slate-950/50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <th class="py-3 px-3 sm:px-4">Vencimento / Data</th>
                 <th class="py-3 px-3 sm:px-4">Descrição da Compra</th>
                 <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Categoria</th>
                 <th class="py-3 px-3 sm:px-4 text-center">Parcela</th>
@@ -185,9 +194,9 @@
                 <th class="py-3 px-3 sm:px-4 text-center">Status</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+            <tbody class="divide-y divide-slate-800/60 text-xs sm:text-sm">
               {% for item in crd.compras %}
-              <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+              <tr class="hover:bg-slate-800/30 transition">
                 <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-400 font-mono text-xs">
                   {{ item.data_formatada }}
                 </td>
@@ -197,7 +206,7 @@
                     <div>
                       <p class="font-semibold text-slate-200">{{ item.descricao }}</p>
                       {% if item.titular and item.titular != 'A Confirmar' %}
-                      <p class="text-[10px] text-slate-400">Titular: <strong class="text-slate-300">{{ item.titular }}</strong></p>
+                      <p class="text-[10px] text-slate-400">Responsável: <strong class="text-slate-300">{{ item.titular }}</strong></p>
                       {% endif %}
                     </div>
                   </div>
@@ -237,8 +246,8 @@
         </div>
 
         {% if not crd.compras %}
-        <div class="text-center py-10 text-slate-500 text-xs">
-          Nenhuma despesa de cartão de crédito registrada neste ciclo.
+        <div class="text-center py-8 text-slate-500 text-xs">
+          Nenhuma despesa registrada na fatura deste cartão.
         </div>
         {% endif %}
       </div>
@@ -247,6 +256,96 @@
   </div>
   {% endfor %}
 
+</div>
+
+<!-- MODAL CADASTRAR / EDITAR CARTÃO -->
+<div id="modal-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <h3 id="modal-cartao-titulo" class="text-base font-black text-white flex items-center gap-2">
+        <span>💳</span> Novo Cartão de Crédito
+      </h3>
+      <button type="button" onclick="fecharModalCartao()" class="text-slate-400 hover:text-white text-lg leading-none cursor-pointer">✕</button>
+    </div>
+
+    <form id="form-cartao" onsubmit="salvarCartao(event)" class="space-y-3">
+      <input type="hidden" id="cartao-id" name="id" value="">
+
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Nome do Cartão *</label>
+        <input type="text" id="cartao-nome" name="nome" required placeholder="Ex: Cartão Inter Aparecida"
+               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Bandeira</label>
+          <select id="cartao-bandeira" name="bandeira"
+                  class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+            <option value="Mastercard">Mastercard</option>
+            <option value="Visa">Visa</option>
+            <option value="Elo">Elo</option>
+            <option value="Amex">American Express</option>
+            <option value="Hipercard">Hipercard</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Limite Total (R$) *</label>
+          <input type="number" step="0.01" min="0" id="cartao-limite" name="limite" required placeholder="5000.00"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Dia Fechamento *</label>
+          <input type="number" min="1" max="31" id="cartao-fechamento" name="fechamento" required placeholder="1"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Dia Vencimento *</label>
+          <input type="number" min="1" max="31" id="cartao-vencimento" name="vencimento" required placeholder="7"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">4 Últimos Dígitos</label>
+          <input type="text" maxlength="4" pattern="\d{4}" id="cartao-digitos" name="ultimos_digitos" placeholder="7192"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs font-mono text-white focus:border-orange-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Titular</label>
+          <input type="text" id="cartao-titular" name="titular" placeholder="Ex: Aparecida / Carlos"
+                 class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Cor do Cartão</label>
+        <div class="flex items-center gap-2">
+          <input type="color" id="cartao-cor" name="cor" value="#ea580c"
+                 class="h-8 w-12 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer p-0.5">
+          <span class="text-[11px] text-slate-400">Escolha a cor de destaque do cartão físico compacto</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+        <button type="button" onclick="fecharModalCartao()"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-salvar-cartao"
+                class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-950/50 transition cursor-pointer">
+          Salvar Cartão
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
 
@@ -257,14 +356,110 @@
     const ativo = document.getElementById(`cartao-bloco-${id}`);
     if (ativo) ativo.classList.remove('hidden');
 
-    const tab1 = document.getElementById('tab-card-1');
-    const tab40 = document.getElementById('tab-card-40');
-    if (id === 1) {
-      tab1.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-indigo-600 text-white shadow';
-      tab40.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
-    } else {
-      tab1.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
-      tab40.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-orange-600 text-white shadow';
+    document.querySelectorAll('.tab-btn-cartao').forEach(btn => {
+      btn.className = 'tab-btn-cartao px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+    });
+    const tabAtiva = document.getElementById(`tab-card-${id}`);
+    if (tabAtiva) {
+      tabAtiva.className = 'tab-btn-cartao px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-orange-600 text-white shadow';
+    }
+  }
+
+  function abrirModalNovoCartao() {
+    document.getElementById('modal-cartao-titulo').innerHTML = '<span>💳</span> Novo Cartão de Crédito';
+    document.getElementById('cartao-id').value = '';
+    document.getElementById('cartao-nome').value = '';
+    document.getElementById('cartao-bandeira').value = 'Mastercard';
+    document.getElementById('cartao-limite').value = '';
+    document.getElementById('cartao-fechamento').value = '1';
+    document.getElementById('cartao-vencimento').value = '7';
+    document.getElementById('cartao-digitos').value = '';
+    document.getElementById('cartao-titular').value = 'Carlos';
+    document.getElementById('cartao-cor').value = '#ea580c';
+
+    const modal = document.getElementById('modal-cartao');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function abrirModalEditarCartao(id, nome, bandeira, limite, fechamento, vencimento, digitos, titular, cor) {
+    document.getElementById('modal-cartao-titulo').innerHTML = '<span>✏️</span> Editar Cartão de Crédito';
+    document.getElementById('cartao-id').value = id;
+    document.getElementById('cartao-nome').value = nome || '';
+    document.getElementById('cartao-bandeira').value = bandeira || 'Mastercard';
+    document.getElementById('cartao-limite').value = limite || 0;
+    document.getElementById('cartao-fechamento').value = fechamento || 1;
+    document.getElementById('cartao-vencimento').value = vencimento || 7;
+    document.getElementById('cartao-digitos').value = digitos || '0000';
+    document.getElementById('cartao-titular').value = titular || 'Carlos';
+    document.getElementById('cartao-cor').value = cor || '#ea580c';
+
+    const modal = document.getElementById('modal-cartao');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function fecharModalCartao() {
+    const modal = document.getElementById('modal-cartao');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  async function salvarCartao(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-cartao');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const payload = {
+      id: document.getElementById('cartao-id').value || null,
+      nome: document.getElementById('cartao-nome').value.trim(),
+      bandeira: document.getElementById('cartao-bandeira').value,
+      limite: parseFloat(document.getElementById('cartao-limite').value || '0'),
+      fechamento: parseInt(document.getElementById('cartao-fechamento').value || '1', 10),
+      vencimento: parseInt(document.getElementById('cartao-vencimento').value || '7', 10),
+      ultimos_digitos: (document.getElementById('cartao-digitos').value || '0000').trim(),
+      titular: (document.getElementById('cartao-titular').value || 'Carlos').trim(),
+      cor: document.getElementById('cartao-cor').value || '#ea580c'
+    };
+
+    try {
+      const resp = await fetch('/api/cartoes/salvar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      if (resp.ok && res.sucesso) {
+        window.location.href = `/cartoes?c=${res.cartao_id || ''}`;
+      } else {
+        alert(res.erro || 'Não foi possível salvar o cartão.');
+        btn.disabled = false;
+        btn.textContent = 'Salvar Cartão';
+      }
+    } catch (err) {
+      alert('Erro de comunicação ao salvar cartão.');
+      btn.disabled = false;
+      btn.textContent = 'Salvar Cartão';
+    }
+  }
+
+  async function excluirCartao(id, nome) {
+    if (!confirm(`Deseja realmente excluir o cartão "${nome}"?\n\nAs transações financeiras registradas serão mantidas no histórico.`)) {
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/cartoes/${id}/excluir`, {
+        method: 'POST'
+      });
+      const res = await resp.json();
+      if (resp.ok && res.sucesso) {
+        window.location.href = '/cartoes';
+      } else {
+        alert(res.erro || 'Erro ao excluir cartão.');
+      }
+    } catch (err) {
+      alert('Erro de comunicação ao excluir cartão.');
     }
   }
 </script>
