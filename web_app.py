@@ -69,11 +69,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
+IMAGEM_DIR = os.path.join(BASE_DIR, "Imagem")
 
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
+os.makedirs(IMAGEM_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/imagem", StaticFiles(directory=IMAGEM_DIR), name="imagem")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
@@ -151,6 +154,92 @@ def obter_icone_categoria(cat: str) -> str:
 
 
 templates.env.filters["icone_cat"] = obter_icone_categoria
+
+
+BANCOS_DISPONIVEIS = [
+    {"codigo": "mercadopago.svg", "nome": "Mercado Pago"},
+    {"codigo": "99pay.svg", "nome": "99Pay"},
+    {"codigo": "carteira.svg", "nome": "Dinheiro / Carteira"},
+    {"codigo": "nubank.svg", "nome": "Nubank"},
+    {"codigo": "inter.svg", "nome": "Banco Inter"},
+    {"codigo": "caixa.svg", "nome": "Caixa Econômica"},
+    {"codigo": "itau.svg", "nome": "Itaú"},
+    {"codigo": "bradesco.svg", "nome": "Bradesco"},
+    {"codigo": "santander.svg", "nome": "Santander"},
+    {"codigo": "bb.svg", "nome": "Banco do Brasil"},
+    {"codigo": "c6.svg", "nome": "C6 Bank"},
+    {"codigo": "picpay.svg", "nome": "PicPay"},
+    {"codigo": "pagbank.svg", "nome": "PagBank"},
+    {"codigo": "stone.svg", "nome": "Stone"},
+    {"codigo": "sicoob.svg", "nome": "Sicoob"},
+    {"codigo": "sicredi.svg", "nome": "Sicredi"},
+    {"codigo": "cora.svg", "nome": "Cora"},
+    {"codigo": "btg.svg", "nome": "BTG Pactual"},
+    {"codigo": "xp.svg", "nome": "XP Investimentos"},
+    {"codigo": "safra.svg", "nome": "Safra"},
+    {"codigo": "bmg.svg", "nome": "BMG"},
+    {"codigo": "original.svg", "nome": "Banco Original"},
+    {"codigo": "cofrinho.svg", "nome": "Cofrinho / Reserva"}
+]
+
+
+def resolver_icone_banco(nome_ou_icone: str) -> str:
+    """Mapeia nome de conta, cartão ou texto para o nome do arquivo SVG correspondente em static/img/bancos/."""
+    if not nome_ou_icone:
+        return "carteira.svg"
+    s = str(nome_ou_icone).strip().lower()
+    if s.endswith(".svg"):
+        return s
+    if "mercado" in s:
+        return "mercadopago.svg"
+    if "99" in s:
+        return "99pay.svg"
+    if "carteira" in s or "dinheiro" in s or "espécie" in s:
+        return "carteira.svg"
+    if "nu" in s:
+        return "nubank.svg"
+    if "inter" in s:
+        return "inter.svg"
+    if "caixa" in s or "cef" in s:
+        return "caixa.svg"
+    if "itau" in s or "itaú" in s:
+        return "itau.svg"
+    if "bradesco" in s:
+        return "bradesco.svg"
+    if "santander" in s:
+        return "santander.svg"
+    if "brasil" in s or " bb" in s or s == "bb":
+        return "bb.svg"
+    if "c6" in s:
+        return "c6.svg"
+    if "picpay" in s:
+        return "picpay.svg"
+    if "pagbank" in s or "pagseguro" in s:
+        return "pagbank.svg"
+    if "stone" in s:
+        return "stone.svg"
+    if "sicoob" in s:
+        return "sicoob.svg"
+    if "sicredi" in s:
+        return "sicredi.svg"
+    if "cora" in s:
+        return "cora.svg"
+    if "btg" in s:
+        return "btg.svg"
+    if "xp" in s:
+        return "xp.svg"
+    if "safra" in s:
+        return "safra.svg"
+    if "bmg" in s:
+        return "bmg.svg"
+    if "original" in s:
+        return "original.svg"
+    if "cofrinho" in s or "reserva" in s:
+        return "cofrinho.svg"
+    return "carteira.svg"
+
+
+templates.env.filters["icone_banco"] = resolver_icone_banco
 
 
 def coletar_dados_dashboard() -> Dict[str, Any]:
@@ -476,7 +565,8 @@ async def pagina_lancamentos(
         conn.commit()
 
     cur.execute("""
-        SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
+        SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
+               COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
         FROM transacoes
         WHERE (data >= ? AND data <= ?) OR (pago = 1 AND data_liquidacao >= ? AND data_liquidacao <= ?)
         ORDER BY COALESCE(data_liquidacao, data) DESC, id DESC
@@ -549,6 +639,9 @@ async def pagina_lancamentos(
             "grupo_parcelamento": r["grupo_parcelamento"],
             "numero_parcela": r["numero_parcela"],
             "total_parcelas_compra": r["total_parcelas_compra"],
+            "juros": float(r["juros"] or 0.0),
+            "desconto": float(r["desconto"] or 0.0),
+            "motivo_ajuste": r["motivo_ajuste"] or "",
             "eh_passada": False,
             "is_atrasada": is_atrasada,
             "economia_badge": abast_map.get(r["id"], "")
@@ -556,7 +649,8 @@ async def pagina_lancamentos(
 
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
-        SELECT id, data, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra
+        SELECT id, data, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
+               COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
         ORDER BY data ASC, id ASC
@@ -590,6 +684,9 @@ async def pagina_lancamentos(
             "grupo_parcelamento": r["grupo_parcelamento"],
             "numero_parcela": r["numero_parcela"],
             "total_parcelas_compra": r["total_parcelas_compra"],
+            "juros": float(r["juros"] or 0.0),
+            "desconto": float(r["desconto"] or 0.0),
+            "motivo_ajuste": r["motivo_ajuste"] or "",
             "eh_passada": True,
             "is_atrasada": True
         })
@@ -719,12 +816,19 @@ async def api_criar_lancamento(
     subcategoria: Optional[str] = Form(""),
     conta: str = Form(...),
     pago: Optional[int] = Form(0),
-    id: Optional[int] = Form(None)
+    id: Optional[int] = Form(None),
+    juros: Optional[Any] = Form(0.0),
+    desconto: Optional[Any] = Form(0.0),
+    motivo_ajuste: Optional[str] = Form("")
 ):
-    """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria e Subcategoria."""
+    """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria, Subcategoria, Juros, Desconto e Motivo."""
     valor_num = converter_valor_monetario(valor)
     if valor_num <= 0:
         return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
+
+    juros_num = round(converter_valor_monetario(juros), 2) if juros is not None else 0.0
+    desconto_num = round(converter_valor_monetario(desconto), 2) if desconto is not None else 0.0
+    motivo_ajuste_str = (motivo_ajuste or "").strip()
 
     conn = conectar_db()
     try:
@@ -733,6 +837,15 @@ async def api_criar_lancamento(
         cols_tr = [c["name"] for c in cur.fetchall()]
         if "subcategoria" not in cols_tr:
             cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
+            conn.commit()
+        if "juros" not in cols_tr:
+            cur.execute("ALTER TABLE transacoes ADD COLUMN juros REAL DEFAULT 0")
+            conn.commit()
+        if "desconto" not in cols_tr:
+            cur.execute("ALTER TABLE transacoes ADD COLUMN desconto REAL DEFAULT 0")
+            conn.commit()
+        if "motivo_ajuste" not in cols_tr:
+            cur.execute("ALTER TABLE transacoes ADD COLUMN motivo_ajuste TEXT")
             conn.commit()
 
         conta_input = str(conta).strip()
@@ -763,9 +876,9 @@ async def api_criar_lancamento(
         if id and int(id) > 0:
             cur.execute("""
                 UPDATE transacoes
-                SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?
+                SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?, juros = ?, desconto = ?, motivo_ajuste = ?
                 WHERE id = ?
-            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, int(id)))
+            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, int(id)))
             
             # Sincroniza veiculo_abastecimentos caso haja vínculo
             try:
@@ -790,9 +903,9 @@ async def api_criar_lancamento(
             }
 
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, juros, desconto, motivo_ajuste)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str))
         conn.commit()
 
         res_saldo = saldo_service.calcular_saldo_consolidado(conn)
@@ -819,7 +932,10 @@ async def api_editar_lancamento(
     categoria: str = Form(...),
     subcategoria: Optional[str] = Form(""),
     conta: str = Form("Mercado Pago"),
-    pago: Optional[int] = Form(0)
+    pago: Optional[int] = Form(0),
+    juros: Optional[Any] = Form(0.0),
+    desconto: Optional[Any] = Form(0.0),
+    motivo_ajuste: Optional[str] = Form("")
 ):
     if not id:
         raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
@@ -832,7 +948,10 @@ async def api_editar_lancamento(
         subcategoria=subcategoria,
         conta=conta,
         pago=pago,
-        id=int(id)
+        id=int(id),
+        juros=juros,
+        desconto=desconto,
+        motivo_ajuste=motivo_ajuste
     )
 
 
@@ -847,7 +966,10 @@ async def api_editar_lancamento_por_id(
     categoria: str = Form(...),
     subcategoria: Optional[str] = Form(""),
     conta: str = Form("Mercado Pago"),
-    pago: Optional[int] = Form(0)
+    pago: Optional[int] = Form(0),
+    juros: Optional[Any] = Form(0.0),
+    desconto: Optional[Any] = Form(0.0),
+    motivo_ajuste: Optional[str] = Form("")
 ):
     tid = id if (id and str(id).strip()) else (transacao_id if transacao_id != "editar" else None)
     if not tid:
@@ -861,7 +983,10 @@ async def api_editar_lancamento_por_id(
         subcategoria=subcategoria,
         conta=conta,
         pago=pago,
-        id=int(tid)
+        id=int(tid),
+        juros=juros,
+        desconto=desconto,
+        motivo_ajuste=motivo_ajuste
     )
 
 
@@ -916,6 +1041,7 @@ async def pagina_contas(request: Request):
             "total_reservas": total_cofrinhos,
             "saldo_total_geral": saldo_livre + total_cofrinhos,
             "cofrinhos": cofrinhos,
+            "bancos_disponiveis": BANCOS_DISPONIVEIS,
             "active_tab": "contas"
         }
     )
@@ -1175,6 +1301,8 @@ def garantir_schema_cartoes(conn: sqlite3.Connection) -> None:
         cur.execute("ALTER TABLE cartoes ADD COLUMN ultimos_digitos TEXT DEFAULT '0000'")
     if "titular" not in cols:
         cur.execute("ALTER TABLE cartoes ADD COLUMN titular TEXT DEFAULT 'Carlos'")
+    if "icone" not in cols:
+        cur.execute("ALTER TABLE cartoes ADD COLUMN icone TEXT DEFAULT ''")
     # Garante exclusão do cartão fictício Mercado Pago Card
     cur.execute("DELETE FROM cartoes WHERE nome = 'Mercado Pago Card'")
     conn.commit()
@@ -1193,7 +1321,8 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
     cur.execute("""
         SELECT id, nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor,
                COALESCE(ultimos_digitos, '0000') AS ultimos_digitos,
-               COALESCE(titular, 'Carlos') AS titular
+               COALESCE(titular, 'Carlos') AS titular,
+               COALESCE(icone, '') AS icone
         FROM cartoes
         ORDER BY id ASC
     """)
@@ -1213,6 +1342,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
         digitos_raw = str(r["ultimos_digitos"] or "0000").strip()
         ultimos_digitos = digitos_raw[-4:].zfill(4) if digitos_raw else "0000"
         titular_cartao = (r["titular"] or "Carlos").strip()
+        icone_cartao = (r["icone"] or "").strip() or resolver_icone_banco(nome)
 
         # Compras estritamente vinculadas a este cartão de crédito
         if "inter" in nome.lower() or "aparecida" in nome.lower():
@@ -1283,6 +1413,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
             "cor": cor,
             "ultimos_digitos": ultimos_digitos,
             "titular": titular_cartao,
+            "icone": icone_cartao,
             "compras": compras
         }
         cartoes_dados.append(c_info)
@@ -1302,6 +1433,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
             "cartoes": cartoes_dados,
             "cartao_ativo": cartao_ativo,
             "mes_atual": f"{mes:02d}",
+            "bancos_disponiveis": BANCOS_DISPONIVEIS,
             "active_tab": "cartoes"
         }
     )
@@ -1344,6 +1476,7 @@ async def api_salvar_cartao(request: Request):
 
         titular = str(data.get("titular") or "Carlos").strip() or "Carlos"
         cor = str(data.get("cor") or "#ea580c").strip() or "#ea580c"
+        icone = str(data.get("icone") or "").strip() or resolver_icone_banco(nome)
 
         cur = conn.cursor()
         if cartao_id:
@@ -1354,9 +1487,9 @@ async def api_salvar_cartao(request: Request):
             cur.execute("""
                 UPDATE cartoes
                 SET nome = ?, bandeira = ?, limite_total = ?, dia_fechamento = ?,
-                    dia_vencimento = ?, cor = ?, ultimos_digitos = ?, titular = ?
+                    dia_vencimento = ?, cor = ?, ultimos_digitos = ?, titular = ?, icone = ?
                 WHERE id = ?
-            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular, cartao_id))
+            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular, icone, cartao_id))
 
             if nome_antigo and nome_antigo != nome:
                 cur.execute("UPDATE transacoes SET conta = ? WHERE conta = ? OR conta_id = ?", (nome, nome_antigo, cartao_id))
@@ -1370,9 +1503,9 @@ async def api_salvar_cartao(request: Request):
             })
         else:
             cur.execute("""
-                INSERT INTO cartoes (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular))
+                INSERT INTO cartoes (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular, icone)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (nome, bandeira, limite_total, dia_fechamento, dia_vencimento, cor, ultimos_digitos, titular, icone))
             novo_id = cur.lastrowid
             conn.commit()
             return JSONResponse({
@@ -1548,7 +1681,8 @@ async def pagina_pagaleve(request: Request):
                     "data_formatada": dt_curta,
                     "valor": float(it["valor"]),
                     "nome": nome,
-                    "id": it["id"]
+                    "id": it["id"],
+                    "titular": titular
                 })
 
         contratos.append({
@@ -1572,8 +1706,19 @@ async def pagina_pagaleve(request: Request):
     proximas_parcelas.sort(key=lambda x: x["data"])
     prox_venc = proximas_parcelas[0] if proximas_parcelas else None
 
+    proximas_carlos = [p for p in proximas_parcelas if "fernanda" not in p["titular"].lower()]
+    proximas_fernanda = [p for p in proximas_parcelas if "fernanda" in p["titular"].lower()]
+    prox_venc_carlos = proximas_carlos[0] if proximas_carlos else None
+    prox_venc_fernanda = proximas_fernanda[0] if proximas_fernanda else None
+
     contratos_ativos = [c for c in contratos if c["status"] == "Ativa"]
     contratos_quitados = [c for c in contratos if c["status"] == "Quitada"]
+
+    contratos_carlos_ativos = [c for c in contratos_ativos if "fernanda" not in c["titular"].lower()]
+    contratos_fernanda_ativos = [c for c in contratos_ativos if "fernanda" in c["titular"].lower()]
+
+    contratos_carlos_quitados = [c for c in contratos_quitados if "fernanda" not in c["titular"].lower()]
+    contratos_fernanda_quitados = [c for c in contratos_quitados if "fernanda" in c["titular"].lower()]
 
     hoje_iso = date.today().strftime("%Y-%m-%d")
 
@@ -1584,6 +1729,10 @@ async def pagina_pagaleve(request: Request):
             "contratos": contratos,
             "contratos_ativos": contratos_ativos,
             "contratos_quitados": contratos_quitados,
+            "contratos_carlos_ativos": contratos_carlos_ativos,
+            "contratos_fernanda_ativos": contratos_fernanda_ativos,
+            "contratos_carlos_quitados": contratos_carlos_quitados,
+            "contratos_fernanda_quitados": contratos_fernanda_quitados,
             "total_aberto_geral": tot_aberto_geral,
             "total_pago_geral": tot_pago_geral,
             "aberto_carlos": aberto_carlos,
@@ -1591,6 +1740,8 @@ async def pagina_pagaleve(request: Request):
             "limite_carlos": 300.0,
             "disponivel_carlos": round(300.0 - aberto_carlos, 2),
             "proximo_vencimento": prox_venc,
+            "prox_venc_carlos": prox_venc_carlos,
+            "prox_venc_fernanda": prox_venc_fernanda,
             "contas_bancarias": contas_bancarias,
             "hoje_iso": hoje_iso,
             "active_tab": "pagaleve"
@@ -1635,6 +1786,16 @@ async def api_pagaleve_nova_compra(request: Request):
         if valor_total <= 0:
             return JSONResponse(status_code=400, content={"sucesso": False, "erro": "O valor total deve ser maior que zero."})
 
+        # Processa Juros, Desconto e Motivo de Ajuste
+        juros = round(converter_valor_monetario(data.get("juros") or 0.0), 2)
+        desconto = round(converter_valor_monetario(data.get("desconto") or 0.0), 2)
+        motivo_ajuste = str(data.get("motivo_ajuste") or "").strip()
+
+        # O valor final é a base real para geração e divisão das parcelas
+        valor_final = round(valor_total + juros - desconto, 2)
+        if valor_final <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "O valor final após juros e descontos deve ser maior que zero."})
+
         data_entrada = str(data.get("data_entrada") or date.today().strftime("%Y-%m-%d"))[:10]
         try:
             dt_base = datetime.datetime.strptime(data_entrada, "%Y-%m-%d").date()
@@ -1657,10 +1818,10 @@ async def api_pagaleve_nova_compra(request: Request):
             conta_id = mapa_nome.get(str(conta_req).strip().lower(), 1)
         conta_nome = mapa_id.get(conta_id, "Mercado Pago")
 
-        # Gera ou lê as 4 parcelas enviadas pelo formulário
+        # Gera ou lê as 4 parcelas enviadas pelo formulário calculadas em cima do valor final
         parcelas_req = data.get("parcelas")
-        val_base = round(valor_total / 4.0, 2)
-        val_p1_padrao = round(valor_total - (val_base * 3), 2)
+        val_base = round(valor_final / 4.0, 2)
+        val_p1_padrao = round(valor_final - (val_base * 3), 2)
 
         parcelas_final = []
         if isinstance(parcelas_req, list) and len(parcelas_req) == 4:
@@ -1693,15 +1854,32 @@ async def api_pagaleve_nova_compra(request: Request):
         slug = re.sub(r"[^a-z0-9]+", "_", descricao.lower()).strip("_")[:20] or "compra"
         grp_id = f"pagaleve_{slug}_{int(datetime.datetime.now().timestamp())}"
 
+        # Garante colunas em pagaleve_compras
+        cur.execute("PRAGMA table_info(pagaleve_compras)")
+        cols_plc = [c["name"] for c in cur.fetchall()]
+        if "juros" not in cols_plc:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN juros REAL DEFAULT 0")
+        if "desconto" not in cols_plc:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN desconto REAL DEFAULT 0")
+        if "motivo_ajuste" not in cols_plc:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN motivo_ajuste TEXT")
+        conn.commit()
+
         # 1. Registra contrato em pagaleve_compras
         cur.execute("""
             INSERT INTO pagaleve_compras (
                 grupo_parcelamento, descricao, titular, valor_original,
-                total_parcelas, valor_parcela, valor_financiado_total, data_compra, status
-            ) VALUES (?, ?, ?, ?, 4, ?, ?, ?, 'ativa')
-        """, (grp_id, descricao, titular, soma_parcelas, val_base, soma_parcelas, data_entrada))
+                total_parcelas, valor_parcela, valor_financiado_total, data_compra, status,
+                juros, desconto, motivo_ajuste
+            ) VALUES (?, ?, ?, ?, 4, ?, ?, ?, 'ativa', ?, ?, ?)
+        """, (grp_id, descricao, titular, valor_total, val_base, soma_parcelas, data_entrada, juros, desconto, motivo_ajuste))
 
-        # 2. Insere as 4 parcelas em transacoes
+        # 2. Insere as 4 parcelas em transacoes com divisão proporcional de juros/desconto
+        j_base = round(juros / 4.0, 2)
+        j_p1 = round(juros - (j_base * 3), 2)
+        d_base = round(desconto / 4.0, 2)
+        d_p1 = round(desconto - (d_base * 3), 2)
+
         ids_inseridos = []
         for p in parcelas_final:
             num = p["numero"]
@@ -1709,13 +1887,16 @@ async def api_pagaleve_nova_compra(request: Request):
             val_p = p["valor"]
             eh_paga = (num == 1)
             desc_parc = f"{descricao} - Paga Leve {num}/4"
+            parc_juros = j_p1 if num == 1 else j_base
+            parc_desconto = d_p1 if num == 1 else d_base
 
             cur.execute("""
                 INSERT INTO transacoes (
                     data, data_liquidacao, descricao, valor, tipo, categoria, subcategoria,
                     conta, conta_id, pago, status_pagamento, grupo_parcelamento,
-                    numero_parcela, total_parcelas_compra, titular, afeta_saldo_bancario
-                ) VALUES (?, ?, ?, ?, 'despesa', ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?)
+                    numero_parcela, total_parcelas_compra, titular, afeta_saldo_bancario,
+                    juros, desconto, motivo_ajuste
+                ) VALUES (?, ?, ?, ?, 'despesa', ?, ?, ?, ?, ?, ?, ?, ?, 4, ?, ?, ?, ?, ?)
             """, (
                 dt_p,
                 dt_p if eh_paga else None,
@@ -1730,7 +1911,10 @@ async def api_pagaleve_nova_compra(request: Request):
                 grp_id,
                 num,
                 titular,
-                1 if eh_paga else 0
+                1 if eh_paga else 0,
+                parc_juros,
+                parc_desconto,
+                motivo_ajuste
             ))
             tid = cur.lastrowid
             ids_inseridos.append(tid)
@@ -2227,6 +2411,46 @@ async def pagina_planejamento(
     orcamento_categorias.sort(key=lambda x: x["gasto_real"], reverse=True)
     pct_geral_orcamento = round((total_gasto_geral / total_orcado_geral) * 100, 1) if total_orcado_geral > 0 else 0.0
 
+    # 6. JUROS E DESCONTOS NO MÊS SELECIONADO
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN juros > 0 THEN juros ELSE 0 END), 0) as total_juros_mes,
+            COALESCE(SUM(CASE WHEN desconto > 0 THEN desconto ELSE 0 END), 0) as total_descontos_mes
+        FROM transacoes
+        WHERE data BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    row_jd = cur.fetchone()
+    total_juros_mes = round(float(row_jd[0]), 2) if row_jd else 0.0
+    total_descontos_mes = round(float(row_jd[1]), 2) if row_jd else 0.0
+
+    cur.execute("""
+        SELECT id, data, descricao, categoria, valor, juros, desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste, pago, conta
+        FROM transacoes
+        WHERE (juros > 0 OR desconto > 0) AND data BETWEEN ? AND ?
+        ORDER BY data DESC, id DESC
+    """, (inicio_mes, fim_mes))
+    rows_aj = cur.fetchall()
+    lancamentos_ajustes = []
+    for r in rows_aj:
+        dt_str = str(r[1])[:10]
+        try:
+            dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
+        except Exception:
+            dt_fmt = dt_str
+        lancamentos_ajustes.append({
+            "id": r[0],
+            "data": dt_str,
+            "data_formatada": dt_fmt,
+            "descricao": r[2] or "Sem descrição",
+            "categoria": r[3] or "Geral",
+            "valor": float(r[4] or 0.0),
+            "juros": float(r[5] or 0.0),
+            "desconto": float(r[6] or 0.0),
+            "motivo_ajuste": r[7] or "",
+            "pago": int(r[8] or 0),
+            "conta": r[9] or "Mercado Pago"
+        })
+
     conn.close()
 
     return templates.TemplateResponse(
@@ -2262,6 +2486,9 @@ async def pagina_planejamento(
             "total_orcado_geral": total_orcado_geral,
             "total_gasto_geral": total_gasto_geral,
             "pct_geral_orcamento": pct_geral_orcamento,
+            "total_juros_mes": total_juros_mes,
+            "total_descontos_mes": total_descontos_mes,
+            "lancamentos_ajustes": lancamentos_ajustes,
             "active_tab": "planejamento"
         }
     )

@@ -47,16 +47,12 @@
       <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm relative overflow-hidden transition hover:border-slate-300 dark:hover:border-slate-700">
         <div class="flex items-center justify-between mb-2">
           <div class="flex items-center gap-2.5">
-            <!-- Círculo com Logo Oficial SVG (Estilo Organizze) -->
+            <!-- Círculo com Logo Oficial SVG -->
             <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center p-1 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/70 shrink-0 shadow-sm overflow-hidden">
-              {% if '.svg' in c.icone or '/' in c.icone %}
-              <img src="https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/{{ c.icone.split('/')[-1] }}" 
-                   onerror="this.onerror=null; this.src='/static/icons/banks/{{ c.icone.split('/')[-1] }}';" 
+              <img src="/static/img/bancos/{{ c.icone or (c.nome | icone_banco) }}" 
+                   onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" 
                    alt="{{ c.nome }}" 
                    class="w-full h-full object-contain rounded-full">
-              {% else %}
-              <span class="text-base sm:text-lg">{{ c.icone }}</span>
-              {% endif %}
             </div>
             <div>
               <h3 class="font-extrabold text-slate-900 dark:text-white text-sm">{{ c.nome }}</h3>
@@ -278,8 +274,8 @@
     <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
       <div class="flex items-center gap-3">
         <div id="modal-conta-preview-container" class="w-12 h-12 rounded-full flex items-center justify-center p-1.5 bg-white dark:bg-slate-800 border-2 shadow-sm shrink-0 overflow-hidden transition-all duration-300" style="border-color: #009ee3;">
-          <img id="modal-conta-preview-img" src="https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/mercadopago.svg" 
-               onerror="this.onerror=null; this.src='/static/icons/banks/mercadopago.svg';" 
+          <img id="modal-conta-preview-img" src="/static/img/bancos/mercadopago.svg" 
+               onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" 
                alt="Banco" class="w-full h-full object-contain">
         </div>
         <div>
@@ -509,33 +505,38 @@
 
   const BANCOS_CATALOGO = [
     { id: 'mercadopago', nome: 'Mercado Pago', slug: 'mercadopago.svg', cor: '#009ee3', tipo: 'digital' },
+    { id: '99pay', nome: '99Pay', slug: '99pay.svg', cor: '#fab612', tipo: 'digital' },
+    { id: 'carteira', nome: 'Dinheiro / Carteira', slug: 'carteira.svg', cor: '#10b981', tipo: 'dinheiro' },
     { id: 'nubank', nome: 'Nubank', slug: 'nubank.svg', cor: '#820ad1', tipo: 'digital' },
     { id: 'inter', nome: 'Banco Inter', slug: 'inter.svg', cor: '#ff7a00', tipo: 'digital' },
     { id: 'itau', nome: 'Itaú', slug: 'itau.svg', cor: '#ec7000', tipo: 'corrente' },
     { id: 'bradesco', nome: 'Bradesco', slug: 'bradesco.svg', cor: '#cc092f', tipo: 'corrente' },
-    { id: 'bb', nome: 'Banco do Brasil', slug: 'bb.svg', cor: '#003882', tipo: 'corrente' },
     { id: 'caixa', nome: 'Caixa Econômica', slug: 'caixa.svg', cor: '#005ca9', tipo: 'corrente' },
-    { id: 'picpay', nome: 'PicPay', slug: 'picpay.svg', cor: '#11c76f', tipo: 'digital' },
+    { id: 'bb', nome: 'Banco do Brasil', slug: 'bb.svg', cor: '#003882', tipo: 'corrente' },
+    { id: 'santander', nome: 'Santander', slug: 'santander.svg', cor: '#cc0000', tipo: 'corrente' },
     { id: 'c6', nome: 'C6 Bank', slug: 'c6.svg', cor: '#242424', tipo: 'digital' },
+    { id: 'picpay', nome: 'PicPay', slug: 'picpay.svg', cor: '#11c76f', tipo: 'digital' },
+    { id: 'pagbank', nome: 'PagBank', slug: 'pagbank.svg', cor: '#00a868', tipo: 'digital' },
+    { id: 'stone', nome: 'Stone', slug: 'stone.svg', cor: '#00a868', tipo: 'digital' },
     { id: 'sicoob', nome: 'Sicoob', slug: 'sicoob.svg', cor: '#003641', tipo: 'corrente' },
-    { id: 'bv', nome: 'Banco BV', slug: 'bv.svg', cor: '#004990', tipo: 'corrente' },
-    { id: '99pay', nome: '99Pay', slug: '99pay.svg', cor: '#fab612', tipo: 'digital' },
-    { id: 'carteira', nome: 'Dinheiro / Carteira', slug: 'carteira.svg', cor: '#10b981', tipo: 'dinheiro' }
+    { id: 'sicredi', nome: 'Sicredi', slug: 'sicredi.svg', cor: '#005a2b', tipo: 'corrente' },
+    { id: 'cora', nome: 'Cora', slug: 'cora.svg', cor: '#fe3e6d', tipo: 'digital' },
+    { id: 'btg', nome: 'BTG Pactual', slug: 'btg.svg', cor: '#001e38', tipo: 'investimento' },
+    { id: 'xp', nome: 'XP Investimentos', slug: 'xp.svg', cor: '#000000', tipo: 'investimento' },
+    { id: 'safra', nome: 'Safra', slug: 'safra.svg', cor: '#0f1f38', tipo: 'corrente' },
+    { id: 'bmg', nome: 'BMG', slug: 'bmg.svg', cor: '#ff5a00', tipo: 'digital' },
+    { id: 'original', nome: 'Banco Original', slug: 'original.svg', cor: '#00a859', tipo: 'digital' },
+    { id: 'cofrinho', nome: 'Cofrinho / Reserva', slug: 'cofrinho.svg', cor: '#f59e0b', tipo: 'poupanca' }
   ];
 
-  const CDN_BASE_URL = 'https://cdn.jsdelivr.net/gh/matheusmcuba/icones-bancos-brasileiros@main/SVG/';
-  const LOCAL_BASE_URL = '/static/icons/banks/';
-
   function getBankIconUrl(slug) {
-    if (!slug) return '';
+    if (!slug) return '/static/img/bancos/carteira.svg';
     const clean = slug.split('/').pop();
-    return `${CDN_BASE_URL}${clean}`;
+    return `/static/img/bancos/${clean}`;
   }
 
   function getFallbackBankIconUrl(slug) {
-    if (!slug) return '';
-    const clean = slug.split('/').pop();
-    return `${LOCAL_BASE_URL}${clean}`;
+    return '/static/img/bancos/carteira.svg';
   }
 
   function renderizarGridBancos(slugSelecionado = 'mercadopago.svg') {

@@ -28,7 +28,8 @@
                 onclick="selecionarCartao({{ crd.id }})"
                 id="tab-card-{{ crd.id }}"
                 class="tab-btn-cartao px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if cartao_ativo and crd.id == cartao_ativo.id %}bg-orange-600 text-white shadow{% else %}text-slate-400 hover:text-white{% endif %}">
-          <span>💳</span> {{ crd.nome }}
+          <img src="/static/img/bancos/{{ crd.icone or (crd.nome | icone_banco) }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-4 h-4 rounded-xs inline-block object-contain" alt="">
+          <span>{{ crd.nome }}</span>
         </button>
         {% endfor %}
       </div>
@@ -71,9 +72,12 @@
 
         <!-- Linha 1: Nome do Cartão + Bandeira -->
         <div class="flex items-center justify-between gap-2 relative z-10">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="w-7 h-5 rounded bg-gradient-to-tr from-amber-400 to-amber-200 border border-amber-300/60 shadow-inner flex items-center justify-center shrink-0">
-              <div class="w-4 h-2.5 border border-amber-700/30 rounded-xs"></div>
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-lg bg-white/20 p-1 backdrop-blur-xs border border-white/20 flex items-center justify-center shrink-0">
+              <img src="/static/img/bancos/{{ crd.icone or (crd.nome | icone_banco) }}" 
+                   onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" 
+                   alt="{{ crd.nome }}" 
+                   class="w-full h-full object-contain">
             </div>
             <span class="font-extrabold text-sm text-white tracking-tight truncate">{{ crd.nome }}</span>
           </div>
@@ -121,7 +125,7 @@
           <!-- Botões discretos de Editar e Excluir -->
           <div class="flex items-center gap-1.5">
             <button type="button"
-                    onclick='abrirModalEditarCartao({{ crd.id }}, {{ crd.nome | tojson }}, {{ crd.bandeira | tojson }}, {{ crd.limite_total }}, {{ crd.dia_fechamento }}, {{ crd.dia_vencimento }}, {{ (crd.ultimos_digitos or "0000") | tojson }}, {{ (crd.titular or "Carlos") | tojson }}, {{ (crd.cor or "#ea580c") | tojson }})'
+                    onclick='abrirModalEditarCartao({{ crd.id }}, {{ crd.nome | tojson }}, {{ crd.bandeira | tojson }}, {{ crd.limite_total }}, {{ crd.dia_fechamento }}, {{ crd.dia_vencimento }}, {{ (crd.ultimos_digitos or "0000") | tojson }}, {{ (crd.titular or "Carlos") | tojson }}, {{ (crd.cor or "#ea580c") | tojson }}, {{ (crd.icone or (crd.nome | icone_banco)) | tojson }})'
                     class="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 transition flex items-center gap-1 cursor-pointer"
                     title="Editar Cartão">
               <span>✏️</span> Editar
@@ -259,17 +263,38 @@
 </div>
 
 <!-- MODAL CADASTRAR / EDITAR CARTÃO -->
-<div id="modal-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+<div id="modal-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 my-auto">
     <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-      <h3 id="modal-cartao-titulo" class="text-base font-black text-white flex items-center gap-2">
-        <span>💳</span> Novo Cartão de Crédito
-      </h3>
+      <div class="flex items-center gap-3">
+        <div id="cartao-preview-container" class="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 p-1.5 flex items-center justify-center shrink-0">
+          <img id="cartao-preview-img" src="/static/img/bancos/inter.svg" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" alt="Banco" class="w-full h-full object-contain">
+        </div>
+        <div>
+          <h3 id="modal-cartao-titulo" class="text-base font-black text-white flex items-center gap-2">
+            <span>💳</span> Novo Cartão de Crédito
+          </h3>
+          <p class="text-xs text-slate-400">Personalize a instituição, limite e datas da fatura</p>
+        </div>
+      </div>
       <button type="button" onclick="fecharModalCartao()" class="text-slate-400 hover:text-white text-lg leading-none cursor-pointer">✕</button>
     </div>
 
     <form id="form-cartao" onsubmit="salvarCartao(event)" class="space-y-3">
       <input type="hidden" id="cartao-id" name="id" value="">
+      <input type="hidden" id="cartao-icone" name="icone" value="inter.svg">
+
+      <!-- SELETOR VISUAL DE BANCO / EMISSOR -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+          Instituição / Banco Emissor
+        </label>
+        <div class="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800">
+          <div id="grid-bancos-cartao" class="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-36 overflow-y-auto pr-1">
+            <!-- Gerado via JavaScript -->
+          </div>
+        </div>
+      </div>
 
       <div>
         <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Nome do Cartão *</label>
@@ -351,6 +376,77 @@
 
 {% block scripts %}
 <script>
+  const BANCOS_CARTOES_CATALOGO = [
+    { id: 'inter', nome: 'Banco Inter', slug: 'inter.svg', cor: '#ff7a00' },
+    { id: 'nubank', nome: 'Nubank', slug: 'nubank.svg', cor: '#820ad1' },
+    { id: 'mercadopago', nome: 'Mercado Pago', slug: 'mercadopago.svg', cor: '#009ee3' },
+    { id: 'itau', nome: 'Itaú', slug: 'itau.svg', cor: '#ec7000' },
+    { id: 'bradesco', nome: 'Bradesco', slug: 'bradesco.svg', cor: '#cc092f' },
+    { id: 'caixa', nome: 'Caixa Econômica', slug: 'caixa.svg', cor: '#005ca9' },
+    { id: 'bb', nome: 'Banco do Brasil', slug: 'bb.svg', cor: '#003882' },
+    { id: 'santander', nome: 'Santander', slug: 'santander.svg', cor: '#cc0000' },
+    { id: 'c6', nome: 'C6 Bank', slug: 'c6.svg', cor: '#242424' },
+    { id: 'picpay', nome: 'PicPay', slug: 'picpay.svg', cor: '#11c76f' },
+    { id: 'pagbank', nome: 'PagBank', slug: 'pagbank.svg', cor: '#00a868' },
+    { id: 'stone', nome: 'Stone', slug: 'stone.svg', cor: '#00a868' },
+    { id: 'sicoob', nome: 'Sicoob', slug: 'sicoob.svg', cor: '#003641' },
+    { id: 'sicredi', nome: 'Sicredi', slug: 'sicredi.svg', cor: '#005a2b' },
+    { id: 'btg', nome: 'BTG Pactual', slug: 'btg.svg', cor: '#001e38' },
+    { id: 'xp', nome: 'XP Investimentos', slug: 'xp.svg', cor: '#000000' },
+    { id: 'safra', nome: 'Safra', slug: 'safra.svg', cor: '#0f1f38' },
+    { id: 'bmg', nome: 'BMG', slug: 'bmg.svg', cor: '#ff5a00' },
+    { id: 'original', nome: 'Banco Original', slug: 'original.svg', cor: '#00a859' },
+    { id: '99pay', nome: '99Pay', slug: '99pay.svg', cor: '#fab612' },
+    { id: 'carteira', nome: 'Outro / Cartão', slug: 'carteira.svg', cor: '#ea580c' }
+  ];
+
+  function renderizarGridBancosCartao(slugSelecionado = 'inter.svg') {
+    const container = document.getElementById('grid-bancos-cartao');
+    if (!container) return;
+    container.innerHTML = '';
+
+    BANCOS_CARTOES_CATALOGO.forEach(b => {
+      const isSelected = (b.slug === slugSelecionado || b.slug === (slugSelecionado || '').split('/').pop());
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `flex flex-col items-center justify-center p-1.5 rounded-xl border transition-all duration-150 cursor-pointer text-center group ${
+        isSelected 
+          ? 'bg-orange-500/20 border-orange-500 shadow-sm ring-2 ring-orange-500/50' 
+          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+      }`;
+      btn.onclick = () => selecionarBancoCartao(b);
+
+      btn.innerHTML = `
+        <div class="w-7 h-7 rounded-lg flex items-center justify-center p-1 bg-white/10 border border-slate-700 shrink-0 overflow-hidden">
+          <img src="/static/img/bancos/${b.slug}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" alt="${b.nome}" class="w-full h-full object-contain">
+        </div>
+        <span class="text-[9px] font-bold text-slate-300 group-hover:text-white mt-1 line-clamp-1 leading-tight">${b.nome.replace('Banco ', '')}</span>
+      `;
+      container.appendChild(btn);
+    });
+  }
+
+  function selecionarBancoCartao(b, atualizarCorENome = true) {
+    document.getElementById('cartao-icone').value = b.slug;
+    const previewImg = document.getElementById('cartao-preview-img');
+    if (previewImg) {
+      previewImg.src = `/static/img/bancos/${b.slug}`;
+    }
+
+    if (atualizarCorENome) {
+      const inputCor = document.getElementById('cartao-cor');
+      if (inputCor && b.cor) {
+        inputCor.value = b.cor;
+      }
+      const inputNome = document.getElementById('cartao-nome');
+      if (inputNome && !inputNome.value.trim()) {
+        inputNome.value = `Cartão ${b.nome.replace('Banco ', '')}`;
+      }
+    }
+
+    renderizarGridBancosCartao(b.slug);
+  }
+
   function selecionarCartao(id) {
     document.querySelectorAll('.secao-cartao').forEach(el => el.classList.add('hidden'));
     const ativo = document.getElementById(`cartao-bloco-${id}`);
@@ -376,13 +472,16 @@
     document.getElementById('cartao-digitos').value = '';
     document.getElementById('cartao-titular').value = 'Carlos';
     document.getElementById('cartao-cor').value = '#ea580c';
+    document.getElementById('cartao-icone').value = 'inter.svg';
+
+    selecionarBancoCartao(BANCOS_CARTOES_CATALOGO[0], false);
 
     const modal = document.getElementById('modal-cartao');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
   }
 
-  function abrirModalEditarCartao(id, nome, bandeira, limite, fechamento, vencimento, digitos, titular, cor) {
+  function abrirModalEditarCartao(id, nome, bandeira, limite, fechamento, vencimento, digitos, titular, cor, icone) {
     document.getElementById('modal-cartao-titulo').innerHTML = '<span>✏️</span> Editar Cartão de Crédito';
     document.getElementById('cartao-id').value = id;
     document.getElementById('cartao-nome').value = nome || '';
@@ -393,6 +492,12 @@
     document.getElementById('cartao-digitos').value = digitos || '0000';
     document.getElementById('cartao-titular').value = titular || 'Carlos';
     document.getElementById('cartao-cor').value = cor || '#ea580c';
+
+    const slugIcone = (icone || '').split('/').pop() || 'inter.svg';
+    document.getElementById('cartao-icone').value = slugIcone;
+
+    const bancoEncontrado = BANCOS_CARTOES_CATALOGO.find(b => b.slug.toLowerCase() === slugIcone.toLowerCase()) || { slug: slugIcone, nome: nome || 'Cartão', cor: cor || '#ea580c' };
+    selecionarBancoCartao(bancoEncontrado, false);
 
     const modal = document.getElementById('modal-cartao');
     modal.classList.remove('hidden');
@@ -420,7 +525,8 @@
       vencimento: parseInt(document.getElementById('cartao-vencimento').value || '7', 10),
       ultimos_digitos: (document.getElementById('cartao-digitos').value || '0000').trim(),
       titular: (document.getElementById('cartao-titular').value || 'Carlos').trim(),
-      cor: document.getElementById('cartao-cor').value || '#ea580c'
+      cor: document.getElementById('cartao-cor').value || '#ea580c',
+      icone: document.getElementById('cartao-icone').value || 'inter.svg'
     };
 
     try {

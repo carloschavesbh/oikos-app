@@ -192,6 +192,45 @@
     </div>
   </div>
 
+  <!-- SEÇÃO 2.1: CARDS DE JUROS E DESCONTOS (CUSTO VS ECONOMIA) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+    <!-- Total de Juros Pagos no Mês (Destaque de Atenção) -->
+    <div class="bg-white dark:bg-slate-900 border {% if total_juros_mes > 0 %}border-rose-500/40 bg-rose-500/5 dark:bg-rose-950/20{% else %}border-slate-200 dark:border-slate-800{% endif %} rounded-2xl p-4 shadow-sm transition">
+      <div class="flex items-center justify-between text-xs font-semibold mb-1">
+        <span class="{% if total_juros_mes > 0 %}text-rose-600 dark:text-rose-400 font-bold{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+          ⚠️ Total de Juros / Acréscimos
+        </span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-bold {% if total_juros_mes > 0 %}bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400{% endif %}">
+          {% if total_juros_mes > 0 %}Atenção{% else %}Sem Juros{% endif %}
+        </span>
+      </div>
+      <div class="text-xl sm:text-2xl font-black {% if total_juros_mes > 0 %}text-rose-600 dark:text-rose-400{% else %}text-slate-700 dark:text-slate-300{% endif %} whitespace-nowrap">
+        {{ total_juros_mes | moeda }}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-1">
+        {% if total_juros_mes > 0 %}Custo adicional com atrasos, taxas de parcelamento ou multas{% else %}Nenhum juro pago em {{ mes_nome }} de {{ ano }}{% endif %}
+      </p>
+    </div>
+
+    <!-- Total de Descontos Obtidos (Destaque Positivo) -->
+    <div class="bg-white dark:bg-slate-900 border {% if total_descontos_mes > 0 %}border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20{% else %}border-slate-200 dark:border-slate-800{% endif %} rounded-2xl p-4 shadow-sm transition">
+      <div class="flex items-center justify-between text-xs font-semibold mb-1">
+        <span class="{% if total_descontos_mes > 0 %}text-emerald-600 dark:text-emerald-400 font-bold{% else %}text-slate-500 dark:text-slate-400{% endif %}">
+          🏷️ Total de Descontos Obtidos
+        </span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-bold {% if total_descontos_mes > 0 %}bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400{% endif %}">
+          Economia
+        </span>
+      </div>
+      <div class="text-xl sm:text-2xl font-black {% if total_descontos_mes > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-slate-700 dark:text-slate-300{% endif %} whitespace-nowrap">
+        {{ total_descontos_mes | moeda }}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-1">
+        Economia aproveitada em abastecimentos, cupons ou pontualidade
+      </p>
+    </div>
+  </div>
+
   <!-- SEÇÃO 3: ORÇAMENTO POR CATEGORIA (BUDGET VS REALIZADO) -->
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -292,6 +331,82 @@
       </div>
       {% endfor %}
     </div>
+  </div>
+
+  <!-- SEÇÃO 4: CONTROLE VISUAL DE LANÇAMENTOS COM JUROS E AJUSTES -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🔍</span>
+        <div>
+          <h3 class="text-base font-black text-slate-900 dark:text-white">Lançamentos com Juros & Ajustes Financeiros</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Controle visual e motivos de acréscimos ou descontos em <strong class="text-slate-800 dark:text-slate-200">{{ mes_nome }} de {{ ano }}</strong></p>
+        </div>
+      </div>
+      <span class="self-start sm:self-center text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+        {{ lancamentos_ajustes | length }} registro(s)
+      </span>
+    </div>
+
+    {% if lancamentos_ajustes %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] font-bold tracking-wider">
+          <tr>
+            <th class="py-2.5 px-3">Data</th>
+            <th class="py-2.5 px-3">Descrição</th>
+            <th class="py-2.5 px-3">Conta</th>
+            <th class="py-2.5 px-3 text-right">Valor Final</th>
+            <th class="py-2.5 px-3 text-center">Juros / Acréscimo</th>
+            <th class="py-2.5 px-3 text-center">Desconto</th>
+            <th class="py-2.5 px-3">Motivo Informado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+          {% for a in lancamentos_ajustes %}
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+            <td class="py-2.5 px-3 font-mono text-slate-500 whitespace-nowrap">{{ a.data_formatada }}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">{{ a.descricao }}</td>
+            <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">{{ a.conta }}</td>
+            <td class="py-2.5 px-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">{{ a.valor | moeda }}</td>
+            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+              {% if a.juros > 0 %}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                +{{ a.juros | moeda }}
+              </span>
+              {% else %}
+              <span class="text-slate-400">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2.5 px-3 text-center whitespace-nowrap">
+              {% if a.desconto > 0 %}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                -{{ a.desconto | moeda }}
+              </span>
+              {% else %}
+              <span class="text-slate-400">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+              {% if a.motivo_ajuste %}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                💬 {{ a.motivo_ajuste }}
+              </span>
+              {% else %}
+              <span class="text-slate-400 italic">Sem motivo</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-6 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+      <span class="text-2xl block mb-1">🎉</span>
+      Nenhum juro ou acréscimo registrado em <strong class="text-slate-700 dark:text-slate-300">{{ mes_nome }} de {{ ano }}</strong>. Excelente controle financeiro!
+    </div>
+    {% endif %}
   </div>
 
 </div>

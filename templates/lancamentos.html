@@ -190,12 +190,24 @@
                   <p class="font-semibold text-slate-900 dark:text-slate-200 group-hover:text-amber-500 transition leading-tight">
                     {{ t.descricao }}
                   </p>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
-                    {{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} • {{ t.conta }}
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden flex items-center gap-1 mt-0.5">
+                    <span>{{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} •</span>
+                    <img src="/static/img/bancos/{{ t.conta | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-3.5 h-3.5 rounded-xs inline-block object-contain" alt="">
+                    <span>{{ t.conta }}</span>
                   </p>
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                     Mês Anterior
                   </span>
+                  {% if t.juros > 0 %}
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" title="Juros: {{ t.juros | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
+                    +{{ t.juros | moeda }} Juros
+                  </span>
+                  {% endif %}
+                  {% if t.desconto > 0 %}
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Desconto: {{ t.desconto | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
+                    -{{ t.desconto | moeda }} Desc.
+                  </span>
+                  {% endif %}
                 </div>
               </div>
             </td>
@@ -209,8 +221,11 @@
             </td>
 
             <!-- Conta (Desktop) -->
-            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs">
-              {{ t.conta }}
+            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
+              <div class="inline-flex items-center gap-1.5">
+                <img src="/static/img/bancos/{{ t.conta | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-4 h-4 rounded-md object-contain shrink-0" alt="">
+                <span>{{ t.conta }}</span>
+              </div>
             </td>
 
             <!-- Valor -->
@@ -245,6 +260,9 @@
                         data-subcategoria="{{ t.subcategoria or '' }}"
                         data-conta="{{ t.conta }}"
                         data-pago="{{ t.pago }}"
+                        data-juros="{{ t.juros }}"
+                        data-desconto="{{ t.desconto }}"
+                        data-motivo="{{ t.motivo_ajuste }}"
                         title="Editar lançamento"
                         class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
                   ✏️
@@ -280,8 +298,10 @@
                   <p class="font-semibold text-slate-900 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-white transition leading-tight">
                     {{ t.descricao }}
                   </p>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden">
-                    {{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} • {{ t.conta }}
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 sm:hidden flex items-center gap-1 mt-0.5">
+                    <span>{{ t.categoria }}{% if t.subcategoria %} › {{ t.subcategoria }}{% endif %} •</span>
+                    <img src="/static/img/bancos/{{ t.conta | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-3.5 h-3.5 rounded-xs inline-block object-contain" alt="">
+                    <span>{{ t.conta }}</span>
                   </p>
                   {% if t.economia_badge %}
                   <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
@@ -299,6 +319,16 @@
                     </span>
                     {% endif %}
                   {% endif %}
+                  {% if t.juros > 0 %}
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" title="Juros: {{ t.juros | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
+                    +{{ t.juros | moeda }} Juros
+                  </span>
+                  {% endif %}
+                  {% if t.desconto > 0 %}
+                  <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Desconto: {{ t.desconto | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
+                    -{{ t.desconto | moeda }} Desc.
+                  </span>
+                  {% endif %}
                 </div>
               </div>
             </td>
@@ -312,8 +342,11 @@
             </td>
 
             <!-- Conta (Desktop) -->
-            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs">
-              {{ t.conta }}
+            <td class="py-3 px-3 sm:px-4 hidden md:table-cell text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
+              <div class="inline-flex items-center gap-1.5">
+                <img src="/static/img/bancos/{{ t.conta | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-4 h-4 rounded-md object-contain shrink-0" alt="">
+                <span>{{ t.conta }}</span>
+              </div>
             </td>
 
             <!-- Valor -->
@@ -360,6 +393,9 @@
                         data-subcategoria="{{ t.subcategoria or '' }}"
                         data-conta="{{ t.conta }}"
                         data-pago="{{ t.pago }}"
+                        data-juros="{{ t.juros }}"
+                        data-desconto="{{ t.desconto }}"
+                        data-motivo="{{ t.motivo_ajuste }}"
                         title="Editar lançamento"
                         class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
                   ✏️
@@ -416,9 +452,43 @@
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor (R$)</label>
-          <input type="text" inputmode="decimal" name="valor" id="input-valor" placeholder="0,00" required 
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Original (R$)</label>
+          <input type="text" inputmode="decimal" name="valor_original" id="input-valor" placeholder="0,00" required oninput="calcularValorFinalLancamento()"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Ajustes Opcionais: Juros, Desconto e Motivo -->
+      <div class="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5">
+        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <span>Acréscimos / Deduções (Opcional)</span>
+          <span id="badge-valor-final" class="text-xs font-black text-slate-800 dark:text-white">Total Final: R$ 0,00</span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">+ Juros / Acréscimo (R$)</label>
+            <input type="text" inputmode="decimal" name="juros" id="input-juros" placeholder="0,00" oninput="calcularValorFinalLancamento()"
+                   class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-rose-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">- Desconto (R$)</label>
+            <input type="text" inputmode="decimal" name="desconto" id="input-desconto" placeholder="0,00" oninput="calcularValorFinalLancamento()"
+                   class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Motivo do Juro / Desconto</label>
+          <input type="text" name="motivo_ajuste" id="input-motivo-ajuste" list="lista-motivos-ajuste" placeholder="Ex: Sem saldo no momento, Taxa parcelamento, Atraso..."
+                 class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+          <datalist id="lista-motivos-ajuste">
+            <option value="Sem saldo no momento">
+            <option value="Taxa parcelamento">
+            <option value="Atraso">
+            <option value="Desconto cupom/posto">
+            <option value="Outro">
+          </datalist>
         </div>
       </div>
 
@@ -669,6 +739,24 @@
   }
 
   // Modais
+  function calcularValorFinalLancamento() {
+    const valOriginal = parseValorMonetario(document.getElementById('input-valor')?.value);
+    const juros = parseValorMonetario(document.getElementById('input-juros')?.value);
+    const desconto = parseValorMonetario(document.getElementById('input-desconto')?.value);
+    const valFinal = Math.max(0, valOriginal + juros - desconto);
+    
+    const badge = document.getElementById('badge-valor-final');
+    if (badge) {
+      const fmtFinal = valFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (juros > 0 || desconto > 0) {
+        badge.innerHTML = `<span class="text-emerald-500 font-extrabold">Final: R$ ${fmtFinal}</span>`;
+      } else {
+        badge.textContent = `Total Final: R$ ${fmtFinal}`;
+      }
+    }
+    return valFinal;
+  }
+
   function abrirModalLancamento() {
     document.getElementById('input-id').value = '';
     document.getElementById('modal-lancamento-titulo').textContent = 'Novo Lançamento';
@@ -677,11 +765,15 @@
     document.getElementById('radio-tipo-despesa').checked = true;
     document.getElementById('input-data').value = '{{ hoje_str }}';
     document.getElementById('input-valor').value = '';
+    document.getElementById('input-juros').value = '';
+    document.getElementById('input-desconto').value = '';
+    document.getElementById('input-motivo-ajuste').value = '';
     document.getElementById('input-descricao').value = '';
     document.getElementById('input-categoria').value = 'Alimentação';
     atualizarSubcategorias();
     document.getElementById('input-conta').value = 'Mercado Pago';
     document.getElementById('input-pago').checked = true;
+    calcularValorFinalLancamento();
     document.getElementById('modal-lancamento').classList.remove('hidden');
     document.getElementById('input-descricao').focus();
   }
@@ -690,7 +782,10 @@
     const id = btn.getAttribute('data-id') || '';
     const data = btn.getAttribute('data-data') || '{{ hoje_str }}';
     const tipo = btn.getAttribute('data-tipo') || 'despesa';
-    const valor = btn.getAttribute('data-valor') || '';
+    const valor = parseFloat(btn.getAttribute('data-valor') || '0');
+    const juros = parseFloat(btn.getAttribute('data-juros') || '0');
+    const desconto = parseFloat(btn.getAttribute('data-desconto') || '0');
+    const motivo = btn.getAttribute('data-motivo') || '';
     const descricao = btn.getAttribute('data-descricao') || '';
     let categoria = btn.getAttribute('data-categoria') || 'Alimentação';
     const subcategoria = btn.getAttribute('data-subcategoria') || '';
@@ -709,7 +804,13 @@
     }
 
     document.getElementById('input-data').value = data;
-    document.getElementById('input-valor').value = parseFloat(valor || 0).toFixed(2);
+    
+    // Valor base original = valor_final - juros + desconto
+    const valBase = (valor - juros + desconto > 0) ? (valor - juros + desconto) : valor;
+    document.getElementById('input-valor').value = valBase.toFixed(2);
+    document.getElementById('input-juros').value = juros > 0 ? juros.toFixed(2) : '';
+    document.getElementById('input-desconto').value = desconto > 0 ? desconto.toFixed(2) : '';
+    document.getElementById('input-motivo-ajuste').value = motivo;
     document.getElementById('input-descricao').value = descricao;
 
     const selCat = document.getElementById('input-categoria');
@@ -728,6 +829,7 @@
     }
     document.getElementById('input-pago').checked = pago;
 
+    calcularValorFinalLancamento();
     document.getElementById('modal-lancamento').classList.remove('hidden');
     document.getElementById('input-descricao').focus();
   }
@@ -763,10 +865,17 @@
     const form = document.getElementById('form-novo-lancamento');
     const formData = new FormData(form);
 
-    // Garante que o valor enviado esteja normalizado com ponto decimal
-    const rawVal = document.getElementById('input-valor').value;
-    const valNumerico = parseValorMonetario(rawVal);
-    formData.set('valor', valNumerico.toFixed(2));
+    // Garante que o valor enviado seja o Valor Final (Original + Juros - Desconto)
+    const valOriginal = parseValorMonetario(document.getElementById('input-valor').value);
+    const juros = parseValorMonetario(document.getElementById('input-juros').value);
+    const desconto = parseValorMonetario(document.getElementById('input-desconto').value);
+    const motivoAjuste = document.getElementById('input-motivo-ajuste').value.trim();
+    const valFinal = Math.max(0, valOriginal + juros - desconto);
+
+    formData.set('valor', valFinal.toFixed(2));
+    formData.set('juros', juros.toFixed(2));
+    formData.set('desconto', desconto.toFixed(2));
+    formData.set('motivo_ajuste', motivoAjuste);
 
     const url = idEdicao ? '/api/lancamentos/editar' : '/api/lancamentos';
 

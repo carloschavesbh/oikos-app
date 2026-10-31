@@ -96,6 +96,26 @@ def migrar_esquema(conn: sqlite3.Connection) -> None:
     if "renegociacao_origem_id" not in cols_transacoes:
         cur.execute("ALTER TABLE transacoes ADD COLUMN renegociacao_origem_id INTEGER REFERENCES transacoes(id)")
 
+    if "juros" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN juros REAL DEFAULT 0")
+
+    if "desconto" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN desconto REAL DEFAULT 0")
+
+    if "motivo_ajuste" not in cols_transacoes:
+        cur.execute("ALTER TABLE transacoes ADD COLUMN motivo_ajuste TEXT")
+
+    # Verifica pagaleve_compras
+    cur.execute("PRAGMA table_info(pagaleve_compras)")
+    cols_pl = [col[1] for col in cur.fetchall()]
+    if cols_pl:
+        if "juros" not in cols_pl:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN juros REAL DEFAULT 0")
+        if "desconto" not in cols_pl:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN desconto REAL DEFAULT 0")
+        if "motivo_ajuste" not in cols_pl:
+            cur.execute("ALTER TABLE pagaleve_compras ADD COLUMN motivo_ajuste TEXT")
+
     # 3. Associação segura de conta_id baseada no nome textual existente
     cur.execute("""
     UPDATE transacoes 
