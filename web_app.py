@@ -2754,6 +2754,7 @@ async def pagina_motorista(
 
         turno_ativo["hora_inicio_completa"] = h_ini_c
         turno_ativo["timestamp_inicio_iso"] = f"{turno_ativo.get('data')}T{h_ini_c}"
+        turno_ativo["data_hora_inicio"] = f"{turno_ativo.get('data')}T{h_ini_c}"
 
     turno_ativo_json = json.dumps(turno_ativo, default=str) if turno_ativo else "null"
 

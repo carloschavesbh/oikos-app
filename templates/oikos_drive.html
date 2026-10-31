@@ -76,7 +76,7 @@
   <!-- ========================================================================= -->
   <!-- BANNER FIXO / DESTAQUE: TURNO EM ANDAMENTO COM CRONÔMETRO DINÂMICO & PAUSA -->
   <!-- ========================================================================= -->
-  <div id="card-turno-ativo" class="rounded-2xl border p-4 sm:p-5 shadow-lg relative overflow-hidden transition-all duration-300 {% if turno_ativo.status_turno == 'PAUSADO' %}bg-amber-500/10 border-amber-500/50 dark:bg-amber-950/25{% else %}bg-blue-600/10 border-blue-500/40 dark:bg-blue-950/25{% endif %}">
+  <div id="card-turno-ativo" data-inicio="{{ turno_ativo.data_hora_inicio }}" class="rounded-2xl border p-4 sm:p-5 shadow-lg relative overflow-hidden transition-all duration-300 {% if turno_ativo.status_turno == 'PAUSADO' %}bg-amber-500/10 border-amber-500/50 dark:bg-amber-950/25{% else %}bg-blue-600/10 border-blue-500/40 dark:bg-blue-950/25{% endif %}">
     
     <!-- Banner de Alarme Esgotado (oculto por padrão) -->
     <div id="banner-alarme-pausa" class="hidden mb-3 p-3 rounded-xl bg-rose-600 text-white font-black text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-bounce shadow-lg">
@@ -120,7 +120,7 @@
         <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
           {% if turno_ativo.status_turno == 'PAUSADO' %}Pausa: <span id="motivo-pausa-txt">{{ turno_ativo.pausa_ativa.motivo if turno_ativo.pausa_ativa else 'Descanso' }}</span>{% else %}Tempo em Pista{% endif %}
         </span>
-        <div id="tempo-em-pista" data-alias="cronometro-ativo-txt" class="text-3xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight {% if turno_ativo.status_turno == 'PAUSADO' %}text-amber-600 dark:text-amber-400{% else %}text-blue-600 dark:text-blue-400{% endif %}">
+        <div id="tempo-pista-cronometro" data-inicio="{{ turno_ativo.data_hora_inicio }}" data-alias="tempo-em-pista" class="text-3xl sm:text-4xl lg:text-5xl font-black font-mono tracking-tight {% if turno_ativo.status_turno == 'PAUSADO' %}text-amber-600 dark:text-amber-400{% else %}text-blue-600 dark:text-blue-400{% endif %}">
           00:00:00
         </div>
         <span id="cronometro-sub-txt" class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
@@ -2098,6 +2098,31 @@
       btn.textContent = 'Salvar Manutenção';
     }
   }
+</script>
+
+<script>
+(function() {
+  const el = document.getElementById('tempo-pista-cronometro');
+  const container = document.querySelector('[data-inicio]');
+  if (!el || !container) return;
+
+  const inicioStr = container.getAttribute('data-inicio');
+  const inicioDate = new Date(inicioStr);
+
+  function atualizar() {
+    const agora = new Date();
+    let diffSegundos = Math.floor((agora - inicioDate) / 1000);
+    if (isNaN(diffSegundos) || diffSegundos < 0) diffSegundos = 0;
+
+    const h = String(Math.floor(diffSegundos / 3600)).padStart(2, '0');
+    const m = String(Math.floor((diffSegundos % 3600) / 60)).padStart(2, '0');
+    const s = String(diffSegundos % 60).padStart(2, '0');
+    el.textContent = `${h}:${m}:${s}`;
+  }
+
+  atualizar();
+  setInterval(atualizar, 1000);
+})();
 </script>
 {% endblock %}
 
