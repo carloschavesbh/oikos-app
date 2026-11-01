@@ -242,6 +242,52 @@ def resolver_icone_banco(nome_ou_icone: str) -> str:
 templates.env.filters["icone_banco"] = resolver_icone_banco
 
 
+def obter_foco_hoje(conn: sqlite3.Connection, hoje_str: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Retorna os dados unificados e oficiais do 'Foco de Hoje' (meta diária e turnos realizados).
+    Fórmula: horas_planejadas * R$ 35,00/h (ganho médio de referência da 99).
+    Utilizado de forma consistente tanto na Visão Geral quanto no Oikos Drive.
+    """
+    if hoje_str is None:
+        hoje_str = date.today().strftime("%Y-%m-%d")
+    cur = conn.cursor()
+    cur.execute("SELECT valor FROM config_dashboard WHERE chave = 'horas_hoje_planejadas'")
+    row_h_cfg = cur.fetchone()
+    horas_hoje_meta = float(row_h_cfg[0]) if row_h_cfg and row_h_cfg[0] else 5.0
+    taxa_hora_mercado = 35.0
+    meta_bruta_hoje = round(horas_hoje_meta * taxa_hora_mercado, 2)
+
+    cur.execute("""
+        SELECT COALESCE(SUM(ganho_bruto), 0), COALESCE(SUM(horas), 0), COUNT(*), COALESCE(SUM(combustivel), 0)
+        FROM turnos
+        WHERE data = ?
+    """, (hoje_str,))
+    row_t_hoje = cur.fetchone()
+    bruto_hoje = round(float(row_t_hoje[0] or 0.0), 2)
+    horas_hoje_real = round(float(row_t_hoje[1] or 0.0), 2)
+    qtd_turnos_hoje = int(row_t_hoje[2] or 0)
+    comb_hoje = round(float(row_t_hoje[3] or 0.0), 2)
+    liquido_hoje = round(bruto_hoje - comb_hoje, 2)
+
+    pct_meta_hoje = min(100.0, round((bruto_hoje / meta_bruta_hoje * 100.0), 1)) if meta_bruta_hoje > 0 else 0.0
+    restante_meta_hoje = max(0.0, round(meta_bruta_hoje - bruto_hoje, 2))
+    horas_restantes = round(restante_meta_hoje / taxa_hora_mercado, 1) if restante_meta_hoje > 0 else 0.0
+
+    return {
+        "horas_hoje_meta": horas_hoje_meta,
+        "taxa_hora_mercado": taxa_hora_mercado,
+        "meta_bruta_hoje": meta_bruta_hoje,
+        "bruto_hoje": bruto_hoje,
+        "horas_hoje_real": horas_hoje_real,
+        "qtd_turnos_hoje": qtd_turnos_hoje,
+        "comb_hoje": comb_hoje,
+        "liquido_hoje": liquido_hoje,
+        "pct_meta_hoje": pct_meta_hoje,
+        "restante_meta_hoje": restante_meta_hoje,
+        "horas_restantes": horas_restantes
+    }
+
+
 def coletar_dados_dashboard() -> Dict[str, Any]:
     """Coleta e calcula todos os dados essenciais da Visão Geral de forma centralizada e performática."""
     conn = conectar_db()
@@ -311,27 +357,17 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     despesas_pendentes_mes = float(cur.fetchone()[0] or 0.0)
     despesa_mensal_total = despesas_pagas_mes + despesas_pendentes_mes
 
-    # 4. Meta do Dia e Produção de Hoje
-    cur.execute("SELECT valor FROM config_dashboard WHERE chave = 'horas_hoje_planejadas'")
-    row_h_cfg = cur.fetchone()
-    horas_hoje_meta = float(row_h_cfg[0]) if row_h_cfg and row_h_cfg[0] else 5.0
-    taxa_hora_mercado = 35.0
-    meta_bruta_hoje = horas_hoje_meta * taxa_hora_mercado
-
-    cur.execute("""
-        SELECT COALESCE(SUM(ganho_bruto), 0), COALESCE(SUM(horas), 0), COUNT(*), COALESCE(SUM(combustivel), 0)
-        FROM turnos
-        WHERE data = ?
-    """, (hoje_str,))
-    row_t_hoje = cur.fetchone()
-    bruto_hoje = float(row_t_hoje[0] or 0.0)
-    horas_hoje_real = float(row_t_hoje[1] or 0.0)
-    qtd_turnos_hoje = int(row_t_hoje[2] or 0)
-    comb_hoje = float(row_t_hoje[3] or 0.0)
-    liquido_hoje = bruto_hoje - comb_hoje
-
-    pct_meta_hoje = min(100.0, (bruto_hoje / meta_bruta_hoje * 100.0)) if meta_bruta_hoje > 0 else 0.0
-    restante_meta_hoje = max(0.0, meta_bruta_hoje - bruto_hoje)
+    # 4. Meta do Dia e Produção de Hoje (via fonte unificada)
+    foco_hoje = obter_foco_hoje(conn, hoje_str)
+    horas_hoje_meta = foco_hoje["horas_hoje_meta"]
+    meta_bruta_hoje = foco_hoje["meta_bruta_hoje"]
+    bruto_hoje = foco_hoje["bruto_hoje"]
+    horas_hoje_real = foco_hoje["horas_hoje_real"]
+    qtd_turnos_hoje = foco_hoje["qtd_turnos_hoje"]
+    comb_hoje = foco_hoje["comb_hoje"]
+    liquido_hoje = foco_hoje["liquido_hoje"]
+    pct_meta_hoje = foco_hoje["pct_meta_hoje"]
+    restante_meta_hoje = foco_hoje["restante_meta_hoje"]
 
     # 5. Contas Atrasadas (Vencidas)
     cur.execute("""
@@ -725,7 +761,7 @@ async def pagina_lancamentos(
     )
 
 
-# Estrutura hierárquica Categoria -> Subcategoria (Estilo Organizze)
+# Estrutura hierárquica Categoria -> Subcategoria (Categorias e subcategorias)
 CATEGORIAS_SUBCATEGORIAS: Dict[str, List[str]] = {
     "Alimentação": [
         "Supermercado",
@@ -2592,6 +2628,7 @@ async def api_salvar_limite_categoria(
 
 @app.get("/drive", response_class=HTMLResponse)
 @app.get("/motorista", response_class=HTMLResponse)
+@app.get("/oikos-drive", response_class=HTMLResponse)
 async def pagina_motorista(
     request: Request,
     filtro: Optional[str] = "semana",
@@ -3024,6 +3061,9 @@ async def pagina_motorista(
     filtro_ativo = filtro if filtro in periodos_dados else "semana"
     metricas_ativas = periodos_dados[filtro_ativo]
 
+    # Foco de Hoje unificado para o Oikos Drive
+    foco_hoje = obter_foco_hoje(conn, hoje_str)
+
     conn.close()
 
     tpl_drive = "oikos_drive.html" if os.path.exists("templates/oikos_drive.html") else "motorista.html"
@@ -3036,6 +3076,7 @@ async def pagina_motorista(
             "metricas": metricas_ativas,
             "periodos_dados": periodos_dados,
             "periodos_json": json.dumps(periodos_dados),
+            "foco_hoje": foco_hoje,
             "inicio_semana": inicio_semana,
             "fim_semana": fim_semana,
             "inicio_mes": inicio_mes,
@@ -4135,16 +4176,50 @@ async def api_excluir_conta(request: Request):
 
 
 @app.post("/api/meta-horas")
-async def api_salvar_meta_horas(horas: float = Form(...)):
-    """Atualiza as horas de meta de hoje."""
-    if horas < 0.5 or horas > 16.0:
+async def api_salvar_meta_horas(request: Request, horas: Optional[float] = Form(None)):
+    """
+    Atualiza as horas de meta de hoje e retorna todos os indicadores dependentes recalculados
+    (meta em reais a R$ 35/h, faturamento, restante, cobertura e horas restantes).
+    Suporta Content-Type application/json e multipart/form-data.
+    """
+    valor_horas = horas
+    if valor_horas is None:
+        try:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                payload = await request.json()
+                valor_horas = float(payload.get("horas", 0.0))
+            else:
+                form = await request.form()
+                valor_horas = float(form.get("horas", 0.0))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Formato de requisição inválido.")
+
+    if valor_horas is None or valor_horas < 0.5 or valor_horas > 16.0:
         raise HTTPException(status_code=400, detail="Horas inválidas (permitido entre 0.5h e 16h).")
+
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        cur.execute("INSERT OR REPLACE INTO config_dashboard (chave, valor) VALUES (?, ?)", ("horas_hoje_planejadas", str(horas)))
+        cur.execute("INSERT OR REPLACE INTO config_dashboard (chave, valor) VALUES (?, ?)", ("horas_hoje_planejadas", str(valor_horas)))
         conn.commit()
-        return {"sucesso": True, "horas": horas, "nova_meta": formatar_moeda_br(horas * 35.0)}
+
+        foco = obter_foco_hoje(conn)
+        return {
+            "sucesso": True,
+            "horas": valor_horas,
+            "nova_meta": formatar_moeda_br(foco["meta_bruta_hoje"]),
+            "meta_bruta_hoje": foco["meta_bruta_hoje"],
+            "meta_bruta_formatada": formatar_moeda_br(foco["meta_bruta_hoje"]),
+            "bruto_hoje": foco["bruto_hoje"],
+            "bruto_formatado": formatar_moeda_br(foco["bruto_hoje"]),
+            "restante_meta_hoje": foco["restante_meta_hoje"],
+            "restante_formatado": formatar_moeda_br(foco["restante_meta_hoje"]),
+            "pct_meta_hoje": foco["pct_meta_hoje"],
+            "horas_restantes": foco["horas_restantes"],
+            "qtd_turnos": foco["qtd_turnos_hoje"],
+            "horas_real": foco["horas_hoje_real"]
+        }
     finally:
         conn.close()
 

@@ -1,0 +1,16 @@
+# Materiais externos e de referência confidencial
+/Organizze/
+
+# Python & Ambientes Virtuais
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Bancos de dados temporários e backups
+*.db-journal
+*.db-wal
+*.db-shm
+

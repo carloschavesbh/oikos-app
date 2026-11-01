@@ -160,6 +160,90 @@
   </div>
   {% endif %}
 
+  <!-- ===================================================================== -->
+  <!-- [ FOCO DE HOJE (META DIÁRIA OPERACIONAL 99) ]                         -->
+  <!-- ===================================================================== -->
+  <section class="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm w-full">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-200 dark:border-slate-800">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🎯</span>
+          <h2 class="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-wider">Foco de Hoje</h2>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            Meta 99 Diária
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Produção planejada e turnos executados nesta data</p>
+      </div>
+
+      <!-- Controles de Meta Rápida de Horas -->
+      <div class="flex items-center gap-2">
+        <div class="flex items-center bg-slate-50 dark:bg-slate-800/80 rounded-xl px-3 py-1.5 border border-slate-200 dark:border-slate-700/60 text-xs sm:text-sm text-slate-700 dark:text-slate-300 shadow-xs">
+          <span class="text-slate-500 dark:text-slate-400 mr-1.5 font-bold">Meta:</span>
+          <input type="number" id="drive-input-horas-meta" value="{{ foco_hoje.horas_hoje_meta }}" step="0.5" min="0.5" max="16" 
+                 title="Horas planejadas para hoje"
+                 class="w-12 bg-transparent text-slate-900 dark:text-white font-black text-center focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded">
+          <span class="text-slate-500 dark:text-slate-400 ml-1 font-semibold">h</span>
+          <button type="button" onclick="salvarMetaHorasDrive()" title="Salvar meta de horas" 
+                  class="ml-2.5 text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-bold px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition active:scale-95 cursor-pointer">
+            💾
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid dos 4 Cards de Métricas do Dia -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 pt-3.5">
+      
+      <!-- Card 1: Meta Alvo Hoje -->
+      <div class="bg-slate-50/70 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        <span class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Meta Alvo Hoje</span>
+        <div id="drive-meta-valor-display" class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+          {{ foco_hoje.meta_bruta_hoje | moeda }}
+        </div>
+        <span class="text-[11px] text-slate-400 mt-0.5 block">@ R$ 35,00/h de referência</span>
+      </div>
+
+      <!-- Card 2: Faturado Hoje -->
+      <div class="bg-slate-50/70 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        <span class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Faturado Hoje</span>
+        <div id="drive-faturado-valor-display" class="text-xl sm:text-2xl font-black {% if foco_hoje.bruto_hoje >= foco_hoje.meta_bruta_hoje and foco_hoje.meta_bruta_hoje > 0 %}text-emerald-600 dark:text-emerald-400{% elif foco_hoje.bruto_hoje > 0 %}text-amber-600 dark:text-amber-400{% else %}text-slate-400{% endif %} mt-1">
+          {{ foco_hoje.bruto_hoje | moeda }}
+        </div>
+        <span id="drive-faturado-sub-display" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block font-medium">
+          {{ foco_hoje.qtd_turnos_hoje }} turno(s) • {{ foco_hoje.horas_hoje_real }}h realizadas
+        </span>
+      </div>
+
+      <!-- Card 3: Restante -->
+      <div class="bg-slate-50/70 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        <span class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Restante</span>
+        <div id="drive-restante-valor-display" class="text-xl sm:text-2xl font-black {% if foco_hoje.restante_meta_hoje == 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %} mt-1">
+          {{ foco_hoje.restante_meta_hoje | moeda }}
+        </div>
+        <span id="drive-restante-sub-display" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block font-medium">
+          {% if foco_hoje.restante_meta_hoje > 0 %}{{ foco_hoje.horas_restantes }}h restantes{% else %}Meta Batida! 🎉{% endif %}
+        </span>
+      </div>
+
+      <!-- Card 4: Cobertura / Progresso -->
+      <div class="bg-slate-50/70 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800/50">
+        <div class="flex items-center justify-between">
+          <span class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold">Cobertura</span>
+          <span id="drive-pct-display" class="text-sm font-black text-emerald-600 dark:text-emerald-400">
+            {{ foco_hoje.pct_meta_hoje }}%
+          </span>
+        </div>
+        <!-- Barra de Progresso Visual -->
+        <div class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2.5 mt-2.5 overflow-hidden">
+          <div id="drive-barra-progresso" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: {{ foco_hoje.pct_meta_hoje }}%"></div>
+        </div>
+        <span class="text-[10px] text-slate-400 mt-1.5 block">Progresso em relação ao faturamento bruto</span>
+      </div>
+
+    </div>
+  </section>
+
   <!-- FILTROS DE PERÍODO RÁPIDO & SELETOR DE MÊS NAVEGÁVEL -->
   <div class="flex items-center justify-between flex-wrap gap-2.5">
     <div class="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs flex-wrap">
@@ -2255,6 +2339,83 @@
       btn.textContent = 'Salvar Manutenção';
     }
   }
+  // --- Gravação e Atualização Dinâmica da Meta de Horas (Foco de Hoje) ---
+  async function salvarMetaHorasDrive() {
+    const input = document.getElementById('drive-input-horas-meta');
+    const val = parseFloat(input?.value);
+    if (isNaN(val) || val < 0.5 || val > 16) {
+      if (typeof showToast === 'function') {
+        showToast('Valor Inválido', 'Informe entre 0.5h e 16h.', true);
+      } else {
+        alert('Informe entre 0.5h e 16h.');
+      }
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('horas', val);
+
+    try {
+      const response = await fetch('/api/meta-horas', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (data.sucesso) {
+        if (typeof showToast === 'function') {
+          showToast('Meta Atualizada!', `Meta de hoje ajustada para ${data.horas}h (${data.nova_meta})`);
+        }
+
+        // 1. Meta Alvo Hoje
+        const elMeta = document.getElementById('drive-meta-valor-display');
+        if (elMeta) elMeta.textContent = data.nova_meta;
+
+        // 2. Faturado Hoje (mantém valor atualizado)
+        const elFat = document.getElementById('drive-faturado-valor-display');
+        if (elFat) {
+          elFat.textContent = data.bruto_formatado;
+          if (data.bruto_hoje >= data.meta_bruta_hoje && data.meta_bruta_hoje > 0) {
+            elFat.className = 'text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1';
+          } else if (data.bruto_hoje > 0) {
+            elFat.className = 'text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-1';
+          } else {
+            elFat.className = 'text-xl sm:text-2xl font-black text-slate-400 mt-1';
+          }
+        }
+
+        // 3. Restante
+        const elRest = document.getElementById('drive-restante-valor-display');
+        if (elRest) {
+          elRest.textContent = data.restante_formatado;
+          elRest.className = data.restante_meta_hoje === 0 
+            ? 'text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1' 
+            : 'text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-1';
+        }
+
+        const elRestSub = document.getElementById('drive-restante-sub-display');
+        if (elRestSub) {
+          elRestSub.textContent = data.restante_meta_hoje > 0 ? `${data.horas_restantes}h restantes` : 'Meta Batida! 🎉';
+        }
+
+        // 4. Cobertura / Progresso
+        const elPct = document.getElementById('drive-pct-display');
+        if (elPct) elPct.textContent = `${data.pct_meta_hoje}%`;
+
+        const elBarra = document.getElementById('drive-barra-progresso');
+        if (elBarra) elBarra.style.width = `${data.pct_meta_hoje}%`;
+      } else {
+        if (typeof showToast === 'function') {
+          showToast('Erro', data.detail || 'Não foi possível salvar.', true);
+        } else {
+          alert(data.detail || 'Erro ao salvar meta.');
+        }
+      }
+    } catch (err) {
+      if (typeof showToast === 'function') {
+        showToast('Erro de Conexão', err.message, true);
+      } else {
+        alert('Erro: ' + err.message);
+      }
+    }
+  }
+
   // --- Fechar todos os modais ---
   function fecharModais() {
     const ids = ['modal-turno', 'modal-abastecer', 'modal-pausa', 'modal-transferir-99', 'modal-transferir-mp', 'modal-manutencao'];
@@ -2293,6 +2454,8 @@
   window.abrirModalManutencao = abrirModalManutencao;
   window.fecharModalManutencao = fecharModalManutencao;
   window.fecharModais = fecharModais;
+  window.salvarMetaHorasDrive = salvarMetaHorasDrive;
+  window.salvarMetaHoras = salvarMetaHorasDrive;
 </script>
 
 <script>

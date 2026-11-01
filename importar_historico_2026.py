@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Script de saneamento e importação rigorosa do histórico de 2026 (Janeiro a Outubro)
-processando EXCLUSIVAMENTE os PDFs oficiais do Organizze (Organizze jan a out)
-no banco de dados SQLite 'financas_casa.db' (Oikos).
+Script de saneamento e importação do histórico de 2026 (Janeiro a Outubro)
+processando extratos externos no banco de dados SQLite 'financas_casa.db' (Oikos).
+
+NOTA DE USO E DADOS EXTERNOS:
+Este script de importação foi projetado para execução administrativa pontual.
+Os arquivos de entrada (extratos / relatórios em PDF ou XLS) DEVEM ser fornecidos
+externamente através da variável configurável ORGANIZZE_DIR (ou parâmetro de linha
+de comando), fora da árvore de código do projeto, garantindo a privacidade dos dados.
 """
 
 import os
