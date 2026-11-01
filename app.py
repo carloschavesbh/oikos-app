@@ -25,7 +25,7 @@ import planejamento_service
 # =============================================================================
 # 1. CONFIGURAÇÕES GERAIS E PALETA DE CORES
 # =============================================================================
-DB_NAME = "financas_casa.db"
+DB_NAME = os.environ.get("OIKOS_DB_PATH", "financas_remodelacao.db")
 APP_TITLE = "Central Financeira"
 APP_SUBTITLE = "Gestão Pessoal & Motorista"
 

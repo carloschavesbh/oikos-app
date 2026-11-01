@@ -9,8 +9,15 @@ __pycache__/
 venv/
 ENV/
 
-# Bancos de dados temporários e backups
+# Bancos de dados temporários, backups e isolados da remodelação
 *.db-journal
 *.db-wal
 *.db-shm
+financas_remodelacao.db
+temp_*.db
+
+# Documentos e extratos confidenciais
+*.pdf
+*.xls
+*.xlsx
 

@@ -37,3 +37,4 @@ for filename, path in telas:
     print(f"[SNAPSHOT SALVO] {filename} ({sz_kb:.1f} KB) - HTTP {resp.status_code}")
 
 print("\nTodos os snapshots HTML renderizados com dados reais preservados com sucesso!")
+

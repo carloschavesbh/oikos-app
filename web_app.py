@@ -30,7 +30,11 @@ from google.genai import types
 
 client = genai.Client(api_key="AQ.Ab8RN6LEqt1vtNMt6G4zuvVHh5m5fZEj6szuYf7hQUnz4zUQsg")
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "financas_casa.db"))
+# Banco de dados isolado da branch de remodelação
+DB_PATH = os.environ.get(
+    "OIKOS_DB_PATH",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "financas_remodelacao.db"))
+)
 
 app = FastAPI(
     title="Oikos - Gestão Financeira Familiar",
@@ -78,6 +82,8 @@ os.makedirs(IMAGEM_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.mount("/imagem", StaticFiles(directory=IMAGEM_DIR), name="imagem")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+OIKOS_EDICAO_NOME = os.environ.get("OIKOS_EDICAO_NOME", "Pessoal")
+templates.env.globals["OIKOS_EDICAO_NOME"] = OIKOS_EDICAO_NOME
 
 
 @app.get("/manifest.json", include_in_schema=False)

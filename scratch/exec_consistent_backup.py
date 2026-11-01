@@ -51,3 +51,4 @@ if res == "ok":
 else:
     print(f"VERIFICAÇÃO DE INTEGRIDADE: FALHA ({res})")
     sys.exit(1)
+

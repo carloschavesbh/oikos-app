@@ -97,3 +97,4 @@ if os.path.exists(TEMP_DB):
     os.remove(TEMP_DB)
 
 print(f"Todas as capturas foram salvas em: {SHOTS_DIR}")
+
