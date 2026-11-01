@@ -13,8 +13,9 @@ ENV/
 *.db-journal
 *.db-wal
 *.db-shm
-financas_remodelacao.db
+financas_remodelacao*.db
 temp_*.db
+*.db.bak
 
 # Documentos e extratos confidenciais
 *.pdf

@@ -148,8 +148,10 @@ def criar_bem(conn: sqlite3.Connection, dados: Dict[str, Any]) -> int:
     dt_aq_raw = dados.get("data_aquisicao")
     data_aquisicao = str(dt_aq_raw).strip() if (dt_aq_raw and str(dt_aq_raw).strip() != "") else None
 
-    # Valor atual estimado
-    val_est_raw = dados.get("valor_atual_estimado", 0.0)
+    # Valor atual estimado (aceita 'valor_atual_estimado' ou 'valor_atual')
+    val_est_raw = dados.get("valor_atual_estimado")
+    if val_est_raw is None or str(val_est_raw).strip() == "":
+        val_est_raw = dados.get("valor_atual", 0.0)
     valor_atual_estimado = float(val_est_raw or 0.0)
 
     # Data da avaliação
@@ -338,86 +340,171 @@ def listar_historico_avaliacoes(conn: sqlite3.Connection, bem_id: int) -> List[D
 
 def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
     """
-    Consolida a visão patrimonial completa:
-    1. Total em Bens Ativos (agrupados por tipo e por proprietário)
-    2. Saldos Financeiros Consolidado (sem dupla contagem de cofrinhos ou limite de cartão)
-    3. Passivos / Dívidas (saldo devedor das dívidas cadastradas)
-    4. Patrimônio Líquido = Bens + Caixa - Dívidas
+    Consolida a visão patrimonial analítica e transparente:
+    1. ATIVOS:
+       - Bens Físicos Ativos (Veículos, Imóveis, Equipamentos, etc.)
+       - Caixa & Saldos Bancários Reais (sem contar cofrinhos em duplicidade)
+       - Reservas e Cofrinhos (detalhamento informativo; já contidos no saldo da conta-pai)
+    2. PASSIVOS (sem qualquer sobreposição ou dupla contagem):
+       - Dívidas & Acordos Formais (dividas_gerenciamento)
+       - Obrigações de Cartões de Crédito (faturas/compras pendentes em transações)
+       - Obrigações do Paga Leve (parcelas pendentes em transações)
+       - Outros Parcelamentos Futuros (transações pendentes)
+    3. PATRIMÔNIO LÍQUIDO = Total de Ativos (-) Total de Passivos
     """
     import saldo_service
     
     inicializar_tabelas_patrimonio(conn)
     cur = conn.cursor()
 
-    # 1. Total de bens ativos
+    # 1. ATIVOS: BENS FÍSICOS
     bens_ativos = listar_bens(conn, incluir_arquivados=False)
     total_bens = sum(b["valor_atual_estimado"] for b in bens_ativos)
 
-    # Agrupamentos por tipo
     por_tipo = {}
     for b in bens_ativos:
         t = b["tipo"]
         por_tipo[t] = por_tipo.get(t, 0.0) + b["valor_atual_estimado"]
 
-    # Agrupamentos por proprietário
     por_proprietario = {}
     for b in bens_ativos:
         p = b["proprietario"]
         por_proprietario[p] = por_proprietario.get(p, 0.0) + b["valor_atual_estimado"]
 
-    # 2. Saldos Financeiros Reais (via serviço centralizado, sem cofrinhos)
+    # 2. ATIVOS: SALDOS BANCÁRIOS & CAIXA CONSOLIDADO
     res_saldo = saldo_service.calcular_saldo_consolidado(conn)
     saldo_caixa = float(res_saldo.get("saldo_consolidado", 0.0))
-    contas_ativas = [c for c in res_saldo.get("contas", []) if c.get("tipo") != "cofrinho"]
+    contas_ativas = [
+        {
+            "id": c.get("conta_id") or c.get("id"),
+            "nome": c.get("conta_nome") or c.get("nome"),
+            "saldo": float(c.get("saldo_atual", 0.0)),
+            "icone": c.get("icone", "🏦"),
+            "cor": c.get("cor", "#009ee3")
+        }
+        for c in res_saldo.get("contas", [])
+        if c.get("tipo") != "cofrinho"
+    ]
 
-    # 3. Dívidas & Financiamentos
-    # Consulta dívidas de dividas_gerenciamento
+    # Cofrinhos (detalhe informativo sem somar ao saldo_caixa para evitar duplicidade)
+    cur.execute("SELECT id, nome, saldo_confirmado, meta_valor, objetivo FROM cofrinhos")
+    cofrinhos_reserva = [
+        {
+            "id": r[0],
+            "nome": r[1],
+            "saldo": float(r[2] or 0.0),
+            "meta": float(r[3] or 0.0),
+            "objetivo": r[4] or ""
+        }
+        for r in cur.fetchall()
+    ]
+    total_reservas_cofrinhos = sum(c["saldo"] for c in cofrinhos_reserva)
+
+    total_ativos = round(total_bens + saldo_caixa, 2)
+
+    # 3. PASSIVOS COM GARANTIA ANTI-DUPLICIDADE
+    # A. Nomes dos cartões cadastrados
+    cur.execute("SELECT id, nome FROM cartoes")
+    cartoes_nomes = [r[1] for r in cur.fetchall()]
+
+    # B. Obrigações de Cartões de Crédito (transações pendentes)
+    ids_processados = set()
+    transacoes_cartao = []
+    total_cartao = 0.0
+    if cartoes_nomes:
+        placeholders = ",".join("?" for _ in cartoes_nomes)
+        cur.execute(f"""
+            SELECT id, descricao, valor, data, conta
+            FROM transacoes
+            WHERE conta IN ({placeholders}) AND (pago = 0 OR pago IS NULL)
+            ORDER BY data ASC
+        """, cartoes_nomes)
+        for r in cur.fetchall():
+            ids_processados.add(r[0])
+            val = float(r[2])
+            total_cartao += val
+            transacoes_cartao.append({
+                "id": r[0],
+                "descricao": r[1],
+                "valor": val,
+                "data": str(r[3]),
+                "cartao": r[4]
+            })
+
+    # C. Obrigações do Paga Leve (transações pendentes - dedup com cartões)
+    transacoes_pagaleve = []
+    total_pagaleve = 0.0
+    cur.execute("""
+        SELECT id, descricao, valor, data, grupo_parcelamento
+        FROM transacoes
+        WHERE grupo_parcelamento LIKE 'pagaleve_%' AND (pago = 0 OR pago IS NULL)
+        ORDER BY data ASC
+    """)
+    for r in cur.fetchall():
+        if r[0] not in ids_processados:
+            ids_processados.add(r[0])
+            val = float(r[2])
+            total_pagaleve += val
+            transacoes_pagaleve.append({
+                "id": r[0],
+                "descricao": r[1],
+                "valor": val,
+                "data": str(r[3]),
+                "grupo": r[4]
+            })
+
+    # D. Outros Parcelamentos Futuros (transações pendentes - dedup com cartões e Paga Leve)
+    transacoes_outros_parc = []
+    total_outros_parc = 0.0
+    cur.execute("""
+        SELECT id, descricao, valor, data, grupo_parcelamento
+        FROM transacoes
+        WHERE grupo_parcelamento IS NOT NULL AND (pago = 0 OR pago IS NULL)
+        ORDER BY data ASC
+    """)
+    for r in cur.fetchall():
+        if r[0] not in ids_processados:
+            ids_processados.add(r[0])
+            val = float(r[2])
+            total_outros_parc += val
+            transacoes_outros_parc.append({
+                "id": r[0],
+                "descricao": r[1],
+                "valor": val,
+                "data": str(r[3]),
+                "grupo": r[4]
+            })
+
+    # E. Dívidas & Acordos Formais cadastrados (dividas_gerenciamento)
     cur.execute("""
         SELECT id, credor, descricao, saldo_atual, valor_original, bem_id, status
         FROM dividas_gerenciamento
         WHERE status = 'ativa'
     """)
-    rows_div = cur.fetchall()
-    
-    dividas = []
-    total_dividas = 0.0
-    for rd in rows_div:
+    dividas_formais = []
+    total_dividas_formais = 0.0
+    for rd in cur.fetchall():
         s_atual = float(rd[3] or 0.0)
-        total_dividas += s_atual
-        dividas.append({
+        total_dividas_formais += s_atual
+        dividas_formais.append({
             "id": rd[0],
             "credor": rd[1],
             "descricao": rd[2],
             "saldo_atual": s_atual,
             "valor_original": float(rd[4] or 0.0),
-            "bem_id": rd[5],
-            "status": rd[6]
+            "bem_id": rd[5]
         })
 
-    # Parcelamentos pendentes em transações (para transparência de passivos)
-    cur.execute("""
-        SELECT COALESCE(SUM(valor), 0), COUNT(DISTINCT grupo_parcelamento)
-        FROM transacoes
-        WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND grupo_parcelamento IS NOT NULL
-    """)
-    row_parc = cur.fetchone()
-    total_parcelas_futuras = float(row_parc[0] or 0.0)
-    qtd_grupos_parcelas = int(row_parc[1] or 0)
+    # Total de Passivos Consolidado (sem sobreposições)
+    total_passivos = round(total_dividas_formais + total_cartao + total_pagaleve + total_outros_parc, 2)
 
-    # Se não houver dívidas formais em dividas_gerenciamento, mas houver parcelas futuras
-    passivo_total = total_dividas if total_dividas > 0 else total_parcelas_futuras
-    passivo_tipo_aviso = "saldo_devedor_apurado" if total_dividas > 0 else (
-        "soma_parcelas_futuras" if total_parcelas_futuras > 0 else "sem_dividas"
-    )
+    # 4. PATRIMÔNIO LÍQUIDO CONSOLIDADO
+    patrimonio_liquido = round(total_ativos - total_passivos, 2)
 
-    # 4. Patrimônio Líquido
-    patrimonio_liquido = round(total_bens + saldo_caixa - passivo_total, 2)
-
-    # 5. Dados do Veículo da Operação Drive (se cadastrado)
+    # 5. DADOS DO VEÍCULO DRIVE (SE CADASTRADO)
     veiculo_drive = next((b for b in bens_ativos if b["is_veiculo_drive"]), None)
     metricas_veiculo_drive = None
     if veiculo_drive:
-        # Puxar dados operacionais acumulados (abastecimento, manutenção, km)
         cur.execute("SELECT COALESCE(SUM(km), 0) FROM turnos")
         km_tot = float(cur.fetchone()[0] or 0.0)
         
@@ -443,18 +530,31 @@ def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
         }
 
     return {
+        # Totais Principais
+        "total_ativos": total_ativos,
+        "total_passivos": total_passivos,
+        "patrimonio_liquido": patrimonio_liquido,
+        # Composição Ativos
         "total_bens": round(total_bens, 2),
         "total_bens_count": len(bens_ativos),
         "saldo_caixa": round(saldo_caixa, 2),
         "contas_ativas": contas_ativas,
-        "total_dividas": round(passivo_total, 2),
-        "passivo_tipo_aviso": passivo_tipo_aviso,
-        "total_parcelas_futuras": round(total_parcelas_futuras, 2),
-        "qtd_grupos_parcelas": qtd_grupos_parcelas,
-        "patrimonio_liquido": patrimonio_liquido,
+        "cofrinhos_reserva": cofrinhos_reserva,
+        "total_reservas_cofrinhos": round(total_reservas_cofrinhos, 2),
         "por_tipo": por_tipo,
         "por_proprietario": por_proprietario,
+        "bens": bens_ativos,
+        # Composição Passivos
+        "total_dividas_formais": round(total_dividas_formais, 2),
+        "dividas_formais": dividas_formais,
+        "total_cartao": round(total_cartao, 2),
+        "transacoes_cartao": transacoes_cartao,
+        "total_pagaleve": round(total_pagaleve, 2),
+        "transacoes_pagaleve": transacoes_pagaleve,
+        "total_outros_parc": round(total_outros_parc, 2),
+        "transacoes_outros_parc": transacoes_outros_parc,
+        # Veículo Drive
         "veiculo_drive": veiculo_drive,
-        "metricas_veiculo_drive": metricas_veiculo_drive,
-        "bens": bens_ativos
+        "metricas_veiculo_drive": metricas_veiculo_drive
     }
+

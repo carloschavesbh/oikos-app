@@ -4660,7 +4660,24 @@ import patrimonio_service
 
 
 @app.get("/patrimonio", response_class=HTMLResponse)
-async def pagina_patrimonio(request: Request, arquivados: Optional[int] = 0):
+async def pagina_patrimonio(request: Request):
+    conn = conectar_db()
+    try:
+        resumo = patrimonio_service.obter_resumo_patrimonial(conn)
+        return templates.TemplateResponse(
+            request=request,
+            name="patrimonio.html",
+            context={
+                "active_tab": "patrimonio",
+                "resumo": resumo,
+            },
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/bens", response_class=HTMLResponse)
+async def pagina_bens(request: Request, arquivados: Optional[int] = 0):
     conn = conectar_db()
     try:
         incluir_arq = bool(arquivados == 1)
@@ -4668,12 +4685,15 @@ async def pagina_patrimonio(request: Request, arquivados: Optional[int] = 0):
         bens = patrimonio_service.listar_bens(conn, incluir_arquivados=incluir_arq)
         return templates.TemplateResponse(
             request=request,
-            name="patrimonio.html",
+            name="bens.html",
             context={
-                "active_tab": "patrimonio",
-                "resumo": resumo,
+                "active_tab": "bens",
                 "bens": bens,
                 "incluir_arquivados": incluir_arq,
+                "total_bens": resumo["total_bens"],
+                "por_tipo": resumo["por_tipo"],
+                "por_proprietario": resumo["por_proprietario"],
+                "metricas_veiculo_drive": resumo["metricas_veiculo_drive"],
             },
         )
     finally:

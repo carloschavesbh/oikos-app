@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Meus Bens{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- ===================================================================== -->
+  <!-- [ CABEÇALHO DO MÓDULO DE BENS ]                                       -->
+  <!-- ===================================================================== -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xl shrink-0">
+        📦
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">Meus Bens</h1>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            {{ bens | length }} ativo(s)
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400">Cadastro, reavaliações, histórico de valor e integração com o Drive</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <a href="/patrimonio" class="touch-target inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 transition">
+        <span>💎</span> <span>Ver Meu Patrimônio</span>
+      </a>
+      <button type="button" onclick="abrirModalNovoBem()"
+              class="touch-target inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition cursor-pointer">
+        <span>+</span> <span>Novo Bem</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ CARDS DE RESUMO RÁPIDO DOS BENS ]                                   -->
+  <!-- ===================================================================== -->
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold block mb-1">Total em Bens Ativos</span>
+      <div class="text-2xl font-black text-slate-900 dark:text-white">
+        {{ total_bens | moeda }}
+      </div>
+      <span class="text-[10px] text-slate-400 mt-1 block">Alimenta automaticamente o Patrimônio Líquido</span>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold block mb-1">Categorias de Ativos</span>
+      <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+        {{ por_tipo.keys() | length }} tipo(s)
+      </div>
+      <div class="flex flex-wrap gap-1 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+        {% for t, v in por_tipo.items() %}
+        <span class="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{{ t }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+      <span class="text-xs text-slate-500 dark:text-slate-400 font-semibold block mb-1">Distribuição por Dono</span>
+      <div class="space-y-1 mt-1 text-xs">
+        {% for prop, val in por_proprietario.items() %}
+        <div class="flex justify-between">
+          <span class="text-slate-600 dark:text-slate-400">{{ prop }}:</span>
+          <strong class="text-slate-900 dark:text-white">{{ val | moeda }}</strong>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ DESTAQUE DO VEÍCULO DA OPERAÇÃO DRIVE ]                             -->
+  <!-- ===================================================================== -->
+  {% if metricas_veiculo_drive %}
+  {% set vd = metricas_veiculo_drive %}
+  <section class="bg-white dark:bg-slate-900/80 border border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-sm">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl shrink-0">
+          🚗
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">{{ vd.nome }}</h2>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 uppercase tracking-wider">
+              Veículo Oikos Drive
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Ativo operacional integrado aos turnos, abastecimentos e manutenções reais</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="/motorista" class="touch-target inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 transition">
+          <span>Abrir Drive</span>
+          <span>→</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3.5">
+      <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Valor Estimado</span>
+        <span class="text-sm sm:text-base font-black text-slate-900 dark:text-white">{{ vd.valor_estimado | moeda }}</span>
+      </div>
+      <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">KM Total Rodado</span>
+        <span class="text-sm sm:text-base font-black text-slate-900 dark:text-white">{{ vd.km_total_rodado | numero_br(1) }} km</span>
+      </div>
+      <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Total Combustível</span>
+        <span class="text-sm sm:text-base font-black text-slate-900 dark:text-white">{{ vd.total_gasto_combustivel | moeda }}</span>
+      </div>
+      <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
+        <span class="text-[10px] uppercase font-bold text-slate-400 block">Manutenções</span>
+        <span class="text-sm sm:text-base font-black text-slate-900 dark:text-white">{{ vd.total_gasto_manutencao | moeda }} ({{ vd.qtd_manutencoes }})</span>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- ===================================================================== -->
+  <!-- [ LISTA DE BENS CADASTRADOS ]                                         -->
+  <!-- ===================================================================== -->
+  <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+    
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-base">📋</span>
+        <h2 class="text-sm sm:text-base font-bold text-slate-900 dark:text-white">Inventário de Bens</h2>
+        <span class="text-xs text-slate-400">({{ bens | length }})</span>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <a href="/bens{% if incluir_arquivados %}?arquivados=0{% else %}?arquivados=1{% endif %}" 
+           class="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          {% if incluir_arquivados %}Mostrar Apenas Ativos{% else %}Incluir Arquivados{% endif %}
+        </a>
+      </div>
+    </div>
+
+    {% if not bens %}
+    <div class="p-8 text-center rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-800">
+      <span class="text-3xl block mb-2">📦</span>
+      <p class="text-sm font-bold text-slate-800 dark:text-slate-200">Nenhum bem cadastrado ainda</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Cadastre seus veículos, imóveis, eletrônicos ou equipamentos.</p>
+      <button type="button" onclick="abrirModalNovoBem()" class="mt-3 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition">
+        Cadastrar Primeiro Bem
+      </button>
+    </div>
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+      {% for b in bens %}
+      <div class="p-4 rounded-xl bg-slate-50/70 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 transition flex flex-col justify-between group {% if b.status == 'arquivado' %}opacity-60 border-dashed{% endif %}">
+        
+        <div>
+          <!-- Topo do Card do Bem -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="text-xl">
+                {% if b.tipo == 'Veículo' %}🚗
+                {% elif b.tipo == 'Imóvel' %}🏠
+                {% elif b.tipo == 'Eletrônico' %}💻
+                {% elif b.tipo == 'Equipamento' %}⚙️
+                {% else %}📦{% endif %}
+              </span>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white leading-snug">{{ b.nome }}</h3>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">{{ b.tipo }}</span>
+                  <span class="text-slate-300 dark:text-slate-700">•</span>
+                  <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Dono: {{ b.proprietario }}</span>
+                  {% if b.is_veiculo_drive %}
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30">
+                    Drive
+                  </span>
+                  {% endif %}
+                  {% if b.status == 'arquivado' %}
+                  <span class="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                    Arquivado
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Ações -->
+            <div class="flex items-center gap-1">
+              <button type="button" onclick="abrirModalNovaAvaliacao({{ b.id }}, '{{ b.nome | replace("'", "\\'") }}', {{ b.valor_atual_estimado }})" 
+                      title="Registrar Reavaliação de Mercado"
+                      class="touch-target p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <span class="text-sm">📈</span>
+              </button>
+              <button type="button" onclick="abrirModalEditarBem({{ b.id }})" 
+                      title="Editar Bem"
+                      class="touch-target p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <span class="text-sm">✏️</span>
+              </button>
+              <button type="button" onclick="alternarStatusBem({{ b.id }}, '{{ 'arquivado' if b.status == 'ativo' else 'ativo' }}')" 
+                      title="{% if b.status == 'ativo' %}Arquivar Bem{% else %}Reativar Bem{% endif %}"
+                      class="touch-target p-1.5 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                <span class="text-sm">{% if b.status == 'ativo' %}📦{% else %}♻️{% endif %}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Valores e Variação -->
+          <div class="mt-3.5 grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-200/60 dark:border-slate-700/40">
+            <div>
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Valor Atual Estimado</span>
+              <span class="text-base font-black text-emerald-600 dark:text-emerald-400">{{ b.valor_atual_estimado | moeda }}</span>
+              <span class="text-[10px] text-slate-400 block">Avaliado em {{ b.data_avaliacao }}</span>
+            </div>
+
+            <div>
+              <span class="text-[10px] uppercase font-bold text-slate-400 block">Aquisição / Compra</span>
+              {% if b.valor_aquisicao %}
+              <span class="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 block">{{ b.valor_aquisicao | moeda }}</span>
+              <span class="text-[10px] font-semibold {% if b.variacao_aquisicao >= 0 %}text-emerald-500{% else %}text-rose-500{% endif %}">
+                {% if b.variacao_aquisicao >= 0 %}+{% endif %}{{ b.variacao_aquisicao | moeda }} ({{ b.variacao_aquisicao_pct }}%)
+              </span>
+              {% else %}
+              <span class="text-xs text-slate-400 italic block">Valor não informado</span>
+              <span class="text-[10px] text-slate-400">Bem antigo / sem recibo</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if b.observacoes %}
+          <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 italic line-clamp-2">
+            "{{ b.observacoes }}"
+          </p>
+          {% endif %}
+        </div>
+
+        <div class="mt-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/40 flex items-center justify-between text-[10px] text-slate-400">
+          <span>Cadastrado em {{ b.created_at[:10] }}</span>
+          <button type="button" onclick="abrirModalHistoricoAvaliacoes({{ b.id }})" class="text-blue-500 hover:underline font-semibold cursor-pointer">
+            Ver Histórico de Reavaliações ➔
+          </button>
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+  </div>
+
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL NOVO / EDITAR BEM ]                                           -->
+<!-- ===================================================================== -->
+<div id="modal-bem" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <h3 id="modal-bem-titulo" class="font-bold text-base text-slate-900 dark:text-white">Cadastrar Novo Bem</h3>
+      <button type="button" onclick="fecharModalBem()" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm">✕</button>
+    </div>
+
+    <form id="form-bem" onsubmit="salvarBem(event)" class="space-y-3 text-xs">
+      <input type="hidden" id="bem-id" value="">
+
+      <!-- Nome do Bem -->
+      <div>
+        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Nome do Bem *</label>
+        <input type="text" id="bem-nome" required placeholder="Ex: Hyundai HB20, Notebook Dell..." 
+               class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Tipo -->
+        <div>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Tipo de Ativo</label>
+          <select id="bem-tipo" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+            <option value="Veículo">Veículo 🚗</option>
+            <option value="Imóvel">Imóvel 🏠</option>
+            <option value="Eletrônico">Eletrônico 💻</option>
+            <option value="Equipamento">Equipamento / Ferramenta ⚙️</option>
+            <option value="Móvel">Móvel / Eletrodoméstico 🛋️</option>
+            <option value="Outro">Outro 📦</option>
+          </select>
+        </div>
+
+        <!-- Proprietário -->
+        <div>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Proprietário</label>
+          <select id="bem-proprietario" class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+            <option value="Carlos">Carlos</option>
+            <option value="Fernanda">Fernanda</option>
+            <option value="Casal">Casal / Família</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Valor Atual Estimado & Data Avaliação -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Valor Atual Estimado *</label>
+          <input type="number" id="bem-valor-estimado" step="0.01" required placeholder="R$ 0,00"
+                 class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Data da Avaliação</label>
+          <input type="date" id="bem-data-avaliacao"
+                 class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+        </div>
+      </div>
+
+      <!-- Dados de Aquisição (Opcionais) -->
+      <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-700/40 space-y-2">
+        <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">Histórico de Compra (Opcional - deixe vazio se não souber)</span>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] text-slate-400 mb-0.5">Preço Pago (R$)</label>
+            <input type="number" id="bem-valor-aquisicao" step="0.01" placeholder="Opcional"
+                   class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+          </div>
+          <div>
+            <label class="block text-[10px] text-slate-400 mb-0.5">Data da Compra</label>
+            <input type="date" id="bem-data-aquisicao"
+                   class="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+          </div>
+        </div>
+      </div>
+
+      <!-- Vínculo com Veículo do Drive -->
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" id="bem-is-drive" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+        <label for="bem-is-drive" class="text-xs text-slate-700 dark:text-slate-300 select-none cursor-pointer">
+          Vincular como o <strong>veículo da operação Oikos Drive</strong> (integra turnos e KM)
+        </label>
+      </div>
+
+      <!-- Observações -->
+      <div>
+        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Observações</label>
+        <textarea id="bem-observacoes" rows="2" placeholder="Detalhes, estado de conservação..."
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs"></textarea>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalBem()" 
+                class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" 
+                class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95">
+          Salvar Bem
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL NOVA REAVALIAÇÃO DE MERCADO ]                                 -->
+<!-- ===================================================================== -->
+<div id="modal-reavaliacao" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <div>
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white">Nova Reavaliação</h3>
+        <p id="reaval-bem-nome" class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold"></p>
+      </div>
+      <button type="button" onclick="fecharModalReavaliacao()" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm">✕</button>
+    </div>
+
+    <form onsubmit="salvarReavaliacao(event)" class="space-y-3 text-xs">
+      <input type="hidden" id="reaval-bem-id" value="">
+
+      <div>
+        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Novo Valor Estimado (R$) *</label>
+        <input type="number" id="reaval-valor" step="0.01" required placeholder="Ex: 50000"
+               class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold">
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Data da Nova Avaliação</label>
+        <input type="date" id="reaval-data" required
+               class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+      </div>
+
+      <div>
+        <label class="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Motivo / Fonte da Reavaliação</label>
+        <input type="text" id="reaval-obs" placeholder="Ex: Cotação Tabela FIPE do mês, vistoria..."
+               class="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs">
+      </div>
+
+      <p class="text-[10px] text-slate-400 italic">
+        Nota: Reavaliar o bem não altera saldos bancários nem gera movimentações de caixa.
+      </p>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalReavaliacao()" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+          Cancelar
+        </button>
+        <button type="submit" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95">
+          Gravar Nova Avaliação
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL HISTÓRICO DE AVALIAÇÕES ]                                     -->
+<!-- ===================================================================== -->
+<div id="modal-historico" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-2xl p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col justify-between">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
+      <div>
+        <h3 class="font-bold text-sm text-slate-900 dark:text-white">Evolução de Valor do Ativo</h3>
+        <p id="hist-bem-nome" class="text-xs text-slate-500 dark:text-slate-400 font-semibold"></p>
+      </div>
+      <button type="button" onclick="fecharModalHistorico()" class="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm">✕</button>
+    </div>
+
+    <div id="hist-lista-conteudo" class="space-y-2 overflow-y-auto custom-scroll pr-1 flex-1 py-1 text-xs">
+      <!-- Injetado via JS -->
+    </div>
+
+    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 text-right shrink-0">
+      <button type="button" onclick="fecharModalHistorico()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+        Fechar
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const hojeIso = new Date().toISOString().split('T')[0];
+
+  function abrirModalNovoBem() {
+    document.getElementById('modal-bem-titulo').textContent = 'Cadastrar Novo Bem';
+    document.getElementById('bem-id').value = '';
+    document.getElementById('bem-nome').value = '';
+    document.getElementById('bem-tipo').value = 'Veículo';
+    document.getElementById('bem-proprietario').value = 'Carlos';
+    document.getElementById('bem-valor-estimado').value = '';
+    document.getElementById('bem-data-avaliacao').value = hojeIso;
+    document.getElementById('bem-valor-aquisicao').value = '';
+    document.getElementById('bem-data-aquisicao').value = '';
+    document.getElementById('bem-is-drive').checked = false;
+    document.getElementById('bem-observacoes').value = '';
+    document.getElementById('modal-bem').classList.remove('hidden');
+  }
+
+  function fecharModalBem() {
+    document.getElementById('modal-bem').classList.add('hidden');
+  }
+
+  async function abrirModalEditarBem(bemId) {
+    try {
+      const resp = await fetch(`/api/patrimonio/bens/${bemId}`);
+      const data = await resp.json();
+      if (!data || !data.id) {
+        showToast('Erro', 'Não foi possível carregar os dados do bem.', true);
+        return;
+      }
+      document.getElementById('modal-bem-titulo').textContent = 'Editar Bem';
+      document.getElementById('bem-id').value = data.id;
+      document.getElementById('bem-nome').value = data.nome || '';
+      document.getElementById('bem-tipo').value = data.tipo || 'Outro';
+      document.getElementById('bem-proprietario').value = data.proprietario || 'Carlos';
+      document.getElementById('bem-valor-estimado').value = data.valor_atual_estimado || '';
+      document.getElementById('bem-data-avaliacao').value = data.data_avaliacao || hojeIso;
+      document.getElementById('bem-valor-aquisicao').value = data.valor_aquisicao || '';
+      document.getElementById('bem-data-aquisicao').value = data.data_aquisicao || '';
+      document.getElementById('bem-is-drive').checked = Boolean(data.is_veiculo_drive);
+      document.getElementById('bem-observacoes').value = data.observacoes || '';
+      document.getElementById('modal-bem').classList.remove('hidden');
+    } catch (e) {
+      showToast('Erro', 'Falha ao buscar detalhes do bem.', true);
+    }
+  }
+
+  async function salvarBem(e) {
+    e.preventDefault();
+    const id = document.getElementById('bem-id').value;
+    const payload = {
+      nome: document.getElementById('bem-nome').value,
+      tipo: document.getElementById('bem-tipo').value,
+      proprietario: document.getElementById('bem-proprietario').value,
+      valor_atual_estimado: parseFloat(document.getElementById('bem-valor-estimado').value) || 0,
+      data_avaliacao: document.getElementById('bem-data-avaliacao').value || hojeIso,
+      valor_aquisicao: document.getElementById('bem-valor-aquisicao').value ? parseFloat(document.getElementById('bem-valor-aquisicao').value) : null,
+      data_aquisicao: document.getElementById('bem-data-aquisicao').value || null,
+      is_veiculo_drive: document.getElementById('bem-is-drive').checked,
+      observacoes: document.getElementById('bem-observacoes').value
+    };
+
+    const url = id ? `/api/patrimonio/bens/${id}/editar` : '/api/patrimonio/bens';
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      if (res.sucesso) {
+        showToast('Sucesso!', 'Bem registrado com sucesso.');
+        fecharModalBem();
+        setTimeout(() => location.reload(), 300);
+      } else {
+        showToast('Erro', res.erro || 'Falha ao salvar.', true);
+      }
+    } catch (err) {
+      showToast('Erro', err.message, true);
+    }
+  }
+
+  function abrirModalNovaAvaliacao(bemId, nomeBem, valorAtual) {
+    document.getElementById('reaval-bem-id').value = bemId;
+    document.getElementById('reaval-bem-nome').textContent = nomeBem;
+    document.getElementById('reaval-valor').value = valorAtual || '';
+    document.getElementById('reaval-data').value = hojeIso;
+    document.getElementById('reaval-obs').value = 'Reavaliação de mercado';
+    document.getElementById('modal-reavaliacao').classList.remove('hidden');
+  }
+
+  function fecharModalReavaliacao() {
+    document.getElementById('modal-reavaliacao').classList.add('hidden');
+  }
+
+  async function salvarReavaliacao(e) {
+    e.preventDefault();
+    const bemId = document.getElementById('reaval-bem-id').value;
+    const payload = {
+      valor_estimado: parseFloat(document.getElementById('reaval-valor').value),
+      data_avaliacao: document.getElementById('reaval-data').value,
+      observacoes: document.getElementById('reaval-obs').value
+    };
+
+    try {
+      const resp = await fetch(`/api/patrimonio/bens/${bemId}/avaliacoes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      if (res.sucesso) {
+        showToast('Avaliação Gravada!', 'Nova avaliação de mercado adicionada ao histórico.');
+        fecharModalReavaliacao();
+        setTimeout(() => location.reload(), 300);
+      } else {
+        showToast('Erro', res.erro || 'Falha ao registrar.', true);
+      }
+    } catch (err) {
+      showToast('Erro', err.message, true);
+    }
+  }
+
+  async function alternarStatusBem(bemId, novoStatus) {
+    const acao = novoStatus === 'arquivado' ? 'arquivar' : 'reativar';
+    if (!confirm(`Deseja realmente ${acao} este bem?`)) return;
+
+    try {
+      const resp = await fetch(`/api/patrimonio/bens/${bemId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: novoStatus })
+      });
+      const res = await resp.json();
+      if (res.sucesso) {
+        showToast('Status Atualizado', `Bem ${novoStatus} com sucesso.`);
+        setTimeout(() => location.reload(), 300);
+      } else {
+        showToast('Erro', res.erro || 'Falha ao atualizar status.', true);
+      }
+    } catch (err) {
+      showToast('Erro', err.message, true);
+    }
+  }
+
+  async function abrirModalHistoricoAvaliacoes(bemId) {
+    try {
+      const resp = await fetch(`/api/patrimonio/bens/${bemId}`);
+      const data = await resp.json();
+      if (!data || !data.avaliacoes) return;
+
+      document.getElementById('hist-bem-nome').textContent = data.nome;
+      const cont = document.getElementById('hist-lista-conteudo');
+      cont.innerHTML = '';
+
+      if (data.avaliacoes.length === 0) {
+        cont.innerHTML = '<p class="text-slate-400 italic">Nenhuma avaliação encontrada.</p>';
+      } else {
+        data.avaliacoes.slice().reverse().forEach(av => {
+          const card = document.createElement('div');
+          card.className = 'p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 flex items-center justify-between';
+          card.innerHTML = `
+            <div>
+              <p class="font-bold text-slate-900 dark:text-white">R$ ${av.valor_estimado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p class="text-[10px] text-slate-500 dark:text-slate-400">${av.data_avaliacao} • ${av.observacoes || 'Avaliação'}</p>
+            </div>
+            <div class="text-right">
+              ${av.variacao !== 0 ? `
+                <span class="text-[11px] font-bold ${av.variacao > 0 ? 'text-emerald-500' : 'text-rose-500'}">
+                  ${av.variacao > 0 ? '+' : ''}R$ ${av.variacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${av.variacao_pct}%)
+                </span>
+              ` : '<span class="text-[10px] text-slate-400 font-semibold">Base inicial</span>'}
+            </div>
+          `;
+          cont.appendChild(card);
+        });
+      }
+
+      document.getElementById('modal-historico').classList.remove('hidden');
+    } catch (e) {
+      showToast('Erro', 'Falha ao carregar histórico.', true);
+    }
+  }
+
+  function fecharModalHistorico() {
+    document.getElementById('modal-historico').classList.add('hidden');
+  }
+</script>
+{% endblock %}
