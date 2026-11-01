@@ -511,6 +511,13 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
             "dia_vencimento": row_crd["dia_vencimento"]
         }
 
+    # 10. Resumo Patrimonial
+    try:
+        import patrimonio_service
+        resumo_patrimonio = patrimonio_service.obter_resumo_patrimonial(conn)
+    except Exception:
+        resumo_patrimonio = None
+
     conn.close()
 
     dias_semana_pt = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
@@ -552,7 +559,8 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         "tot_prox7": tot_prox7,
         # Extras
         "missao": missao,
-        "cartao": cartao_info
+        "cartao": cartao_info,
+        "resumo_patrimonio": resumo_patrimonio
     }
 
 
@@ -3113,6 +3121,18 @@ async def pagina_motorista(
     # Foco de Hoje unificado para o Oikos Drive
     foco_hoje = obter_foco_hoje(conn, hoje_str)
 
+    # Veículo associado ao Drive em Bens & Patrimônio
+    try:
+        cur.execute("SELECT id, nome, valor_atual_estimado FROM bens WHERE is_veiculo_drive = 1 LIMIT 1")
+        row_vb = cur.fetchone()
+        veiculo_drive_bem = {
+            "id": row_vb[0],
+            "nome": row_vb[1],
+            "valor_atual_estimado": float(row_vb[2] or 0.0)
+        } if row_vb else None
+    except Exception:
+        veiculo_drive_bem = None
+
     conn.close()
 
     tpl_drive = "oikos_drive.html" if os.path.exists("templates/oikos_drive.html") else "motorista.html"
@@ -3126,6 +3146,7 @@ async def pagina_motorista(
             "periodos_dados": periodos_dados,
             "periodos_json": json.dumps(periodos_dados),
             "foco_hoje": foco_hoje,
+            "veiculo_drive_bem": veiculo_drive_bem,
             "inicio_semana": inicio_semana,
             "fim_semana": fim_semana,
             "inicio_mes": inicio_mes,
@@ -4628,6 +4649,103 @@ Status do Turno de Hoje (Oikos Drive):
             return JSONResponse({"sucesso": True, "resposta": fallback_resp})
         except Exception:
             return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e), "resposta": "Desculpe, ocorreu uma instabilidade momentânea. Tente novamente."})
+    finally:
+        conn.close()
+
+
+# ============================================================================
+# ROTAS DO MÓDULO DE PATRIMÔNIO & BENS
+# ============================================================================
+import patrimonio_service
+
+
+@app.get("/patrimonio", response_class=HTMLResponse)
+async def pagina_patrimonio(request: Request, arquivados: Optional[int] = 0):
+    conn = conectar_db()
+    try:
+        incluir_arq = bool(arquivados == 1)
+        resumo = patrimonio_service.obter_resumo_patrimonial(conn)
+        bens = patrimonio_service.listar_bens(conn, incluir_arquivados=incluir_arq)
+        return templates.TemplateResponse(
+            request=request,
+            name="patrimonio.html",
+            context={
+                "active_tab": "patrimonio",
+                "resumo": resumo,
+                "bens": bens,
+                "incluir_arquivados": incluir_arq,
+            },
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/api/patrimonio/bens/{bem_id}")
+async def api_obter_bem(bem_id: int):
+    conn = conectar_db()
+    try:
+        bem = patrimonio_service.obter_bem(conn, bem_id)
+        if not bem:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Bem não encontrado"})
+        return JSONResponse(bem)
+    finally:
+        conn.close()
+
+
+@app.post("/api/patrimonio/bens")
+async def api_criar_bem(request: Request):
+    dados = await request.json()
+    conn = conectar_db()
+    try:
+        bem_id = patrimonio_service.criar_bem(conn, dados)
+        return JSONResponse({"sucesso": True, "id": bem_id})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/patrimonio/bens/{bem_id}/editar")
+async def api_editar_bem(bem_id: int, request: Request):
+    dados = await request.json()
+    conn = conectar_db()
+    try:
+        ok = patrimonio_service.atualizar_bem(conn, bem_id, dados)
+        if not ok:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Bem não encontrado"})
+        return JSONResponse({"sucesso": True})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/patrimonio/bens/{bem_id}/status")
+async def api_status_bem(bem_id: int, request: Request):
+    dados = await request.json()
+    novo_status = dados.get("status", "ativo")
+    conn = conectar_db()
+    try:
+        ok = patrimonio_service.alterar_status_bem(conn, bem_id, novo_status)
+        return JSONResponse({"sucesso": ok})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/patrimonio/bens/{bem_id}/avaliacoes")
+async def api_nova_avaliacao_bem(bem_id: int, request: Request):
+    dados = await request.json()
+    valor = float(dados.get("valor_estimado", 0))
+    data_av = dados.get("data_avaliacao")
+    obs = dados.get("observacoes")
+    conn = conectar_db()
+    try:
+        ok = patrimonio_service.registrar_nova_avaliacao(conn, bem_id, valor, data_av, obs)
+        return JSONResponse({"sucesso": ok})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
     finally:
         conn.close()
 

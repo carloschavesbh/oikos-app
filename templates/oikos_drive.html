@@ -16,6 +16,15 @@
           <span class="text-slate-600 dark:text-slate-300 font-semibold">Saldo 99Pay:</span>
           <strong class="font-black text-amber-600 dark:text-amber-400">{{ saldo_99_app | moeda }}</strong>
         </div>
+        {% if veiculo_drive_bem %}
+        <a href="/patrimonio" title="Ver ativo no módulo Patrimônio & Bens"
+           class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/15 border border-blue-500/25 text-xs text-blue-700 dark:text-blue-300 transition">
+          <span>🚗</span>
+          <span class="font-semibold">{{ veiculo_drive_bem.nome }}</span>
+          <span class="text-slate-400">•</span>
+          <strong class="font-bold">{{ veiculo_drive_bem.valor_atual_estimado | moeda }}</strong>
+        </a>
+        {% endif %}
         <button type="button" onclick="abrirModalTransferir99()" 
                 title="Transferir saldo da 99Pay para o Mercado Pago"
                 class="touch-target inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/30 text-xs font-bold transition active:scale-95 cursor-pointer">
