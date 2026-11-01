@@ -453,7 +453,7 @@
         </div>
         <div>
           <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Original (R$)</label>
-          <input type="text" inputmode="decimal" name="valor_original" id="input-valor" placeholder="0,00" required oninput="calcularValorFinalLancamento()"
+          <input type="text" inputmode="numeric" name="valor_original" id="input-valor" placeholder="R$ 0,00" required oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
         </div>
       </div>
@@ -468,12 +468,12 @@
         <div class="grid grid-cols-2 gap-2.5">
           <div>
             <label class="block text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">+ Juros / Acréscimo (R$)</label>
-            <input type="text" inputmode="decimal" name="juros" id="input-juros" placeholder="0,00" oninput="calcularValorFinalLancamento()"
+            <input type="text" inputmode="numeric" name="juros" id="input-juros" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
                    class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-rose-500">
           </div>
           <div>
             <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">- Desconto (R$)</label>
-            <input type="text" inputmode="decimal" name="desconto" id="input-desconto" placeholder="0,00" oninput="calcularValorFinalLancamento()"
+            <input type="text" inputmode="numeric" name="desconto" id="input-desconto" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
                    class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
           </div>
         </div>
@@ -807,9 +807,9 @@
     
     // Valor base original = valor_final - juros + desconto
     const valBase = (valor - juros + desconto > 0) ? (valor - juros + desconto) : valor;
-    document.getElementById('input-valor').value = valBase.toFixed(2);
-    document.getElementById('input-juros').value = juros > 0 ? juros.toFixed(2) : '';
-    document.getElementById('input-desconto').value = desconto > 0 ? desconto.toFixed(2) : '';
+    document.getElementById('input-valor').value = valBase > 0 ? formatarValorMoeda(valBase) : '';
+    document.getElementById('input-juros').value = juros > 0 ? formatarValorMoeda(juros) : '';
+    document.getElementById('input-desconto').value = desconto > 0 ? formatarValorMoeda(desconto) : '';
     document.getElementById('input-motivo-ajuste').value = motivo;
     document.getElementById('input-descricao').value = descricao;
 
@@ -842,17 +842,33 @@
     // Dinâmico caso necessário
   }
 
-  function parseValorMonetario(val) {
-    if (!val) return 0.0;
-    if (typeof val === 'number') return val;
-    let str = String(val).trim().replace(/R\$\s*/g, '');
-    if (str.includes('.') && str.includes(',')) {
-      str = str.replace(/\./g, '').replace(',', '.');
-    } else if (str.includes(',')) {
-      str = str.replace(',', '.');
+  function formatarValorMoeda(num) {
+    return Number(num || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function aplicarMascaraMoeda(input) {
+    if (!input) return 0.0;
+    const digitos = String(input.value || '').replace(/\D/g, '');
+    if (!digitos) {
+      input.value = '';
+      return 0.0;
     }
-    const num = parseFloat(str);
-    return isNaN(num) ? 0.0 : num;
+    const val = parseInt(digitos, 10) / 100;
+    input.value = formatarValorMoeda(val);
+    return val;
+  }
+
+  function parseValorMonetario(val) {
+    if (val === null || val === undefined || val === '') return 0.0;
+    if (typeof val === 'number') return isNaN(val) ? 0.0 : val;
+    const str = String(val).trim();
+    const digitos = str.replace(/\D/g, '');
+    if (!digitos) return 0.0;
+    if (!str.includes('R$') && str.includes('.') && !str.includes(',')) {
+      const flt = parseFloat(str);
+      if (!isNaN(flt)) return flt;
+    }
+    return parseInt(digitos, 10) / 100;
   }
 
   async function salvarLancamento(event) {

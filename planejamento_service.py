@@ -1315,3 +1315,47 @@ def calcular_viabilidade_metas_trabalho(
         "modo_estimativa": True,
         "aviso_metodologico": "Projeção preliminar baseada em estimativas operacionais. Condições reais de trânsito e demanda podem variar."
     }
+
+
+def obter_resumo_juros_e_descontos(
+    conn: sqlite3.Connection,
+    inicio_mes: str,
+    fim_mes: str
+) -> Dict[str, Any]:
+    """
+    Calcula o total de juros e o total consolidado de descontos obtidos no mês:
+    - Juros de despesas pagas com acréscimo (tabela transacoes)
+    - Descontos de despesas gerais (tabela transacoes)
+    - Descontos e economias de abastecimentos (tabela veiculo_abastecimentos: 99 Abastece, SouTag, etc.)
+    """
+    cur = conn.cursor()
+
+    # 1. Juros e descontos de transações gerais (excluindo combustível para evitar duplicidade com abastecimentos)
+    cur.execute("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN juros > 0 THEN juros ELSE 0 END), 0) as total_juros,
+            COALESCE(SUM(CASE WHEN desconto > 0 AND (categoria != 'Combustível (Trabalho)' OR categoria IS NULL) THEN desconto ELSE 0 END), 0) as total_desc_trans
+        FROM transacoes
+        WHERE data BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    row_t = cur.fetchone()
+    total_juros = round(float(row_t[0] or 0.0), 2)
+    total_desc_trans = round(float(row_t[1] or 0.0), 2)
+
+    # 2. Descontos e economias de abastecimentos
+    cur.execute("""
+        SELECT COALESCE(SUM(desconto), 0) as total_desc_abast
+        FROM veiculo_abastecimentos
+        WHERE SUBSTR(data, 1, 10) BETWEEN ? AND ? AND desconto > 0
+    """, (inicio_mes, fim_mes))
+    row_a = cur.fetchone()
+    total_desc_abast = round(float(row_a[0] or 0.0), 2) if row_a else 0.0
+
+    total_descontos = round(total_desc_trans + total_desc_abast, 2)
+
+    return {
+        "total_juros": total_juros,
+        "total_descontos": total_descontos,
+        "descontos_transacoes": total_desc_trans,
+        "descontos_abastecimentos": total_desc_abast
+    }

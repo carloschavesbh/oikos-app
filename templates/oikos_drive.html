@@ -735,14 +735,14 @@
             <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Ganho Online (App)
             </label>
-            <input type="text" inputmode="decimal" name="ganho_online" id="turno-online" placeholder="0,00" onkeyup="recalcularBrutoTurno()" oninput="recalcularBrutoTurno()" 
+            <input type="text" inputmode="numeric" name="ganho_online" id="turno-online" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); recalcularBrutoTurno()" 
                    class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-500">
           </div>
           <div>
             <label class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
               Ganho Dinheiro / Pix
             </label>
-            <input type="text" inputmode="decimal" name="ganho_dinheiro_pix" id="turno-dinheiro" placeholder="0,00" onkeyup="recalcularBrutoTurno()" oninput="recalcularBrutoTurno()" 
+            <input type="text" inputmode="numeric" name="ganho_dinheiro_pix" id="turno-dinheiro" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); recalcularBrutoTurno()" 
                    class="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-amber-500">
           </div>
         </div>
@@ -754,7 +754,7 @@
             </label>
             <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Travado (Online + Dinheiro)</span>
           </div>
-          <input type="number" step="0.01" min="0.00" name="ganho_bruto" id="turno-bruto" placeholder="0,00" value="0.00" readonly 
+          <input type="text" name="ganho_bruto" id="turno-bruto" placeholder="R$ 0,00" value="R$ 0,00" readonly 
                  class="w-full px-3 py-2 bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 font-black cursor-not-allowed">
         </div>
       </div>
@@ -817,38 +817,52 @@
         </div>
       </div>
 
-      <!-- Valor Total da Bomba e Valor Pago Real -->
+      <!-- Valor Total da Bomba e Preço por Litro na Bomba -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
           <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Total da Bomba (R$)</label>
-          <input type="number" step="0.01" min="0.01" name="valor_bomba" id="abast-valor-bomba" placeholder="Ex: 100.00" oninput="calcularPrecoLitro()"
+          <input type="number" step="0.01" min="0.01" name="valor_bomba" id="abast-valor-bomba" placeholder="Ex: 100.00" oninput="calcularPrecoLitro('bomba')"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Preço por Litro na Bomba (R$)</label>
+          <input type="number" step="0.001" min="0.001" name="preco_bomba" id="abast-preco-bomba" placeholder="Ex: 3.699" oninput="calcularPrecoLitro('preco_bomba')"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Litros Abastecidos e Valor Pago Real -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros Abastecidos (L)</label>
+          <input type="number" step="0.001" min="0.001" name="litros" id="abast-litros" placeholder="Ex: 27.034" required oninput="calcularPrecoLitro('litros')"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
         </div>
         <div>
           <label class="block text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1">Valor Pago Real (R$)</label>
-          <input type="number" step="0.01" min="0.01" name="valor_pago" id="abast-valor-pago" placeholder="Ex: 90.48" required oninput="calcularPrecoLitro()"
+          <input type="number" step="0.01" min="0.01" name="valor_pago" id="abast-valor-pago" placeholder="Ex: 90.48" required oninput="calcularPrecoLitro('pago')"
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-rose-300 dark:border-rose-500/40 rounded-xl text-xs sm:text-sm text-rose-600 dark:text-rose-400 font-black focus:outline-none focus:border-emerald-500">
         </div>
       </div>
 
-      <!-- Litros Abastecidos e Desconto / Aplicativo -->
-      <div class="grid grid-cols-2 gap-2.5">
-        <div>
-          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros Abastecidos (L)</label>
-          <input type="number" step="0.001" min="0.1" name="litros" id="abast-litros" placeholder="Ex: 22.78" required oninput="calcularPrecoLitro()"
-                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
-        </div>
+      <!-- Origem do Desconto & Preço Normal sem Desconto (SouTag) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div>
           <label class="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Origem do Desconto</label>
-          <select name="app_desconto" id="abast-app-desconto" onchange="calcularPrecoLitro()"
+          <select name="app_desconto" id="abast-app-desconto" onchange="aoMudarOrigemDesconto()"
                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
             <option value="99 Abastece" selected>99 Abastece</option>
-            <option value="Shell Box">Shell Box</option>
             <option value="SouTag">SouTag</option>
+            <option value="Shell Box">Shell Box</option>
             <option value="Premmia">Premmia</option>
             <option value="Posto / Outro">Posto / Outro</option>
             <option value="Nenhum">Nenhum</option>
           </select>
+        </div>
+        <div id="bloco-soutag-preco-normal" class="hidden">
+          <label class="block text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Preço Normal sem Desconto (R$/L)</label>
+          <input type="number" step="0.001" min="0.001" name="preco_normal_soutag" id="abast-preco-normal" placeholder="Ex: 3.999" oninput="calcularPrecoLitro('soutag')"
+                 class="w-full px-3 py-2 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-600/40 rounded-xl text-xs sm:text-sm text-amber-700 dark:text-amber-300 font-bold focus:outline-none focus:border-amber-500">
         </div>
       </div>
 
@@ -1688,151 +1702,220 @@
     }
   }
 
-  function parseValorMonetario(val) {
-    if (!val) return 0.0;
-    if (typeof val === 'number') return val;
-    let str = String(val).trim().replace(/R\$\s*/g, '');
-    if (str.includes('.') && str.includes(',')) {
-      str = str.replace(/\./g, '').replace(',', '.');
-    } else if (str.includes(',')) {
-      str = str.replace(',', '.');
+  function formatarValorMoeda(num) {
+    return Number(num || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function aplicarMascaraMoeda(input) {
+    if (!input) return 0.0;
+    const digitos = String(input.value || '').replace(/\D/g, '');
+    if (!digitos) {
+      input.value = '';
+      return 0.0;
     }
-    const num = parseFloat(str);
-    return isNaN(num) ? 0.0 : num;
+    const val = parseInt(digitos, 10) / 100;
+    input.value = formatarValorMoeda(val);
+    return val;
+  }
+
+  function parseValorMonetario(val) {
+    if (val === null || val === undefined || val === '') return 0.0;
+    if (typeof val === 'number') return isNaN(val) ? 0.0 : val;
+    const str = String(val).trim();
+    const digitos = str.replace(/\D/g, '');
+    if (!digitos) return 0.0;
+    // Se for formato float puro do tipo "22.22" ou "22.00" (sem R$ e sem vírgula)
+    if (!str.includes('R$') && str.includes('.') && !str.includes(',')) {
+      const flt = parseFloat(str);
+      if (!isNaN(flt)) return flt;
+    }
+    return parseInt(digitos, 10) / 100;
   }
 
   function recalcularBrutoTurno() {
-    const onl = parseValorMonetario(document.getElementById('turno-online').value);
-    const din = parseValorMonetario(document.getElementById('turno-dinheiro').value);
+    const onl = parseValorMonetario(document.getElementById('turno-online')?.value);
+    const din = parseValorMonetario(document.getElementById('turno-dinheiro')?.value);
+    const bruto = Math.round((onl + din) * 100) / 100;
     const brutoInput = document.getElementById('turno-bruto');
-    brutoInput.value = (onl + din).toFixed(2);
+    if (brutoInput) {
+      brutoInput.value = formatarValorMoeda(bruto);
+    }
   }
 
   function abrirModalIniciarTurno() {
-    document.getElementById('turno-id').value = '';
-    document.getElementById('modal-turno-titulo').textContent = 'Iniciar Turno (Em Andamento)';
-    document.getElementById('btn-submit-turno-texto').textContent = 'Iniciar Turno';
+    try {
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
 
-    document.getElementById('turno-data').value = '{{ hoje_str }}';
-    document.getElementById('turno-hora-inicio').value = obterHoraAtual();
-    document.getElementById('turno-hora-fim').value = '';
-    document.getElementById('turno-km-inicial').value = '';
-    document.getElementById('turno-km-final').value = '';
-    document.getElementById('turno-online').value = '';
-    document.getElementById('turno-dinheiro').value = '';
-    document.getElementById('turno-bruto').value = '0.00';
-    document.getElementById('turno-obs').value = '';
-    document.getElementById('turno-horas').value = '0.0';
-    document.getElementById('turno-km').value = '0.0';
-    document.getElementById('turno-combustivel').value = '0.00';
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      setVal('turno-id', '');
+      const titulo = document.getElementById('modal-turno-titulo');
+      if (titulo) titulo.textContent = 'Iniciar Turno (Em Andamento)';
+      const btnTexto = document.getElementById('btn-submit-turno-texto');
+      if (btnTexto) btnTexto.textContent = 'Iniciar Turno';
 
-    recalcularHorariosTurno();
-    recalcularHodometroTurno();
-    recalcularBrutoTurno();
+      setVal('turno-data', '{{ hoje_str }}');
+      setVal('turno-hora-inicio', typeof obterHoraAtual === 'function' ? obterHoraAtual() : '');
+      setVal('turno-hora-fim', '');
+      setVal('turno-km-inicial', '');
+      setVal('turno-km-final', '');
+      setVal('turno-online', '');
+      setVal('turno-dinheiro', '');
+      setVal('turno-bruto', typeof formatarValorMoeda === 'function' ? formatarValorMoeda(0) : 'R$ 0,00');
+      setVal('turno-obs', '');
+      setVal('turno-horas', '0.0');
+      setVal('turno-km', '0.0');
+      setVal('turno-combustivel', '0.00');
 
-    document.getElementById('modal-turno').classList.remove('hidden');
-    document.getElementById('turno-km-inicial').focus();
+      if (typeof recalcularHorariosTurno === 'function') recalcularHorariosTurno();
+      if (typeof recalcularHodometroTurno === 'function') recalcularHodometroTurno();
+      if (typeof recalcularBrutoTurno === 'function') recalcularBrutoTurno();
+
+      const elFocus = document.getElementById('turno-km-inicial');
+      if (elFocus) elFocus.focus();
+    } catch (err) {
+      console.error('Erro ao abrirModalIniciarTurno:', err);
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
+    }
   }
 
   function abrirModalRegistrarTurno() {
-    document.getElementById('turno-id').value = '';
-    document.getElementById('modal-turno-titulo').textContent = 'Registrar Novo Turno';
-    document.getElementById('btn-submit-turno-texto').textContent = 'Salvar Turno';
+    try {
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
 
-    document.getElementById('turno-data').value = '{{ hoje_str }}';
-    document.getElementById('turno-hora-inicio').value = obterHoraAtual();
-    document.getElementById('turno-hora-fim').value = '';
-    document.getElementById('turno-km-inicial').value = '';
-    document.getElementById('turno-km-final').value = '';
-    document.getElementById('turno-online').value = '';
-    document.getElementById('turno-dinheiro').value = '';
-    document.getElementById('turno-bruto').value = '0.00';
-    document.getElementById('turno-obs').value = '';
-    document.getElementById('turno-horas').value = '0.0';
-    document.getElementById('turno-km').value = '0.0';
-    document.getElementById('turno-combustivel').value = '0.00';
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      setVal('turno-id', '');
+      const titulo = document.getElementById('modal-turno-titulo');
+      if (titulo) titulo.textContent = 'Registrar Novo Turno';
+      const btnTexto = document.getElementById('btn-submit-turno-texto');
+      if (btnTexto) btnTexto.textContent = 'Salvar Turno';
 
-    recalcularHorariosTurno();
-    recalcularHodometroTurno();
-    recalcularBrutoTurno();
+      setVal('turno-data', '{{ hoje_str }}');
+      setVal('turno-hora-inicio', typeof obterHoraAtual === 'function' ? obterHoraAtual() : '');
+      setVal('turno-hora-fim', '');
+      setVal('turno-km-inicial', '');
+      setVal('turno-km-final', '');
+      setVal('turno-online', '');
+      setVal('turno-dinheiro', '');
+      setVal('turno-bruto', typeof formatarValorMoeda === 'function' ? formatarValorMoeda(0) : 'R$ 0,00');
+      setVal('turno-obs', '');
+      setVal('turno-horas', '0.0');
+      setVal('turno-km', '0.0');
+      setVal('turno-combustivel', '0.00');
 
-    document.getElementById('modal-turno').classList.remove('hidden');
-    document.getElementById('turno-km-inicial').focus();
+      if (typeof recalcularHorariosTurno === 'function') recalcularHorariosTurno();
+      if (typeof recalcularHodometroTurno === 'function') recalcularHodometroTurno();
+      if (typeof recalcularBrutoTurno === 'function') recalcularBrutoTurno();
+
+      const elFocus = document.getElementById('turno-km-inicial');
+      if (elFocus) elFocus.focus();
+    } catch (err) {
+      console.error('Erro ao abrirModalRegistrarTurno:', err);
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
+    }
   }
   window.abrirModalTurno = abrirModalRegistrarTurno;
+  window.abrirModalIniciarTurno = abrirModalIniciarTurno;
+  window.abrirModalRegistrarTurno = abrirModalRegistrarTurno;
 
   function abrirModalFinalizarTurno(btn) {
     abrirModalEncerrarTurno(btn);
-    const d = btn.dataset;
-    document.getElementById('modal-turno-titulo').textContent = `Finalizar Turno #${d.id || ''}`;
-    document.getElementById('btn-submit-turno-texto').textContent = 'Finalizar Turno';
+    const d = (btn && btn.dataset) ? btn.dataset : {};
+    const titulo = document.getElementById('modal-turno-titulo');
+    if (titulo) titulo.textContent = `Finalizar Turno #${d.id || ''}`;
+    const btnTexto = document.getElementById('btn-submit-turno-texto');
+    if (btnTexto) btnTexto.textContent = 'Finalizar Turno';
     // Foca em KM final ou ganhos
-    if (!document.getElementById('turno-km-final').value) {
-      document.getElementById('turno-km-final').focus();
+    const kmFinalEl = document.getElementById('turno-km-final');
+    if (kmFinalEl && !kmFinalEl.value) {
+      kmFinalEl.focus();
     } else {
-      document.getElementById('turno-online').focus();
+      const onlEl = document.getElementById('turno-online');
+      if (onlEl) onlEl.focus();
     }
   }
   window.abrirModalFinalizarTurno = abrirModalFinalizarTurno;
 
   function abrirModalEncerrarTurno(btn) {
     abrirModalEditarTurno(btn);
-    const d = btn.dataset;
-    document.getElementById('modal-turno-titulo').textContent = `Encerrar Turno #${d.id}`;
-    document.getElementById('btn-submit-turno-texto').textContent = 'Encerrar Turno';
-    if (!document.getElementById('turno-hora-fim').value) {
-      document.getElementById('turno-hora-fim').value = obterHoraAtual();
+    const d = (btn && btn.dataset) ? btn.dataset : {};
+    const titulo = document.getElementById('modal-turno-titulo');
+    if (titulo) titulo.textContent = `Encerrar Turno #${d.id || ''}`;
+    const btnTexto = document.getElementById('btn-submit-turno-texto');
+    if (btnTexto) btnTexto.textContent = 'Encerrar Turno';
+    const hf = document.getElementById('turno-hora-fim');
+    if (hf && !hf.value && typeof obterHoraAtual === 'function') {
+      hf.value = obterHoraAtual();
     }
-    recalcularHorariosTurno();
-    document.getElementById('turno-hora-fim').focus();
+    if (typeof recalcularHorariosTurno === 'function') recalcularHorariosTurno();
+    if (hf) hf.focus();
   }
+  window.abrirModalEncerrarTurno = abrirModalEncerrarTurno;
 
   function abrirModalEditarTurno(btn) {
-    const d = btn.dataset;
-    document.getElementById('turno-id').value = d.id || '';
-    document.getElementById('modal-turno-titulo').textContent = `Editar Turno #${d.id}`;
-    document.getElementById('btn-submit-turno-texto').textContent = 'Salvar Alterações';
+    try {
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
 
-    document.getElementById('turno-data').value = d.data || '{{ hoje_str }}';
-    document.getElementById('turno-hora-inicio').value = d.horainicio || '';
-    document.getElementById('turno-hora-fim').value = d.horafim || '';
-    document.getElementById('turno-km-inicial').value = (d.kminicial && parseFloat(d.kminicial) > 0) ? d.kminicial : '';
-    document.getElementById('turno-km-final').value = (d.kmfinal && parseFloat(d.kmfinal) > 0) ? d.kmfinal : '';
-    document.getElementById('turno-online').value = (d.online !== undefined && d.online !== '' && parseFloat(d.online) > 0) ? Number(d.online).toFixed(2) : '';
-    document.getElementById('turno-dinheiro').value = (d.dinheiro !== undefined && d.dinheiro !== '' && parseFloat(d.dinheiro) > 0) ? Number(d.dinheiro).toFixed(2) : '';
-    document.getElementById('turno-obs').value = d.obs || '';
+      const d = (btn && btn.dataset) ? btn.dataset : {};
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+      setVal('turno-id', d.id || '');
+      const titulo = document.getElementById('modal-turno-titulo');
+      if (titulo) titulo.textContent = `Editar Turno #${d.id || ''}`;
+      const btnTexto = document.getElementById('btn-submit-turno-texto');
+      if (btnTexto) btnTexto.textContent = 'Salvar Alterações';
 
-    // Preserva valores anteriores nos campos ocultos
-    document.getElementById('turno-horas').value = d.horas || '0.0';
-    document.getElementById('turno-km').value = d.km || '0.0';
-    document.getElementById('turno-combustivel').value = d.combustivel || '0.00';
-    document.getElementById('turno-periodo').value = d.periodo || 'Manhã';
+      setVal('turno-data', d.data || '{{ hoje_str }}');
+      setVal('turno-hora-inicio', d.horainicio || '');
+      setVal('turno-hora-fim', d.horafim || '');
+      setVal('turno-km-inicial', (d.kminicial && parseFloat(d.kminicial) > 0) ? d.kminicial : '');
+      setVal('turno-km-final', (d.kmfinal && parseFloat(d.kmfinal) > 0) ? d.kmfinal : '');
+      
+      const onlNum = (d.online !== undefined && d.online !== '' && parseFloat(d.online) > 0) ? parseFloat(d.online) : 0;
+      const dinNum = (d.dinheiro !== undefined && d.dinheiro !== '' && parseFloat(d.dinheiro) > 0) ? parseFloat(d.dinheiro) : 0;
+      setVal('turno-online', onlNum > 0 ? (typeof formatarValorMoeda === 'function' ? formatarValorMoeda(onlNum) : onlNum) : '');
+      setVal('turno-dinheiro', dinNum > 0 ? (typeof formatarValorMoeda === 'function' ? formatarValorMoeda(dinNum) : dinNum) : '');
+      setVal('turno-obs', d.obs || '');
 
-    // Executa recálculos automáticos em tempo real
-    recalcularHorariosTurno();
-    recalcularHodometroTurno();
-    recalcularBrutoTurno();
+      setVal('turno-horas', d.horas || '0.0');
+      setVal('turno-km', d.km || '0.0');
+      setVal('turno-combustivel', d.combustivel || '0.00');
+      setVal('turno-periodo', d.periodo || 'Manhã');
 
-    // Se já havia KM registrado e hodômetro final em branco, informa no resumo
-    if ((!d.kmfinal || d.kmfinal === '') && d.km && parseFloat(d.km) > 0) {
-      document.getElementById('turno-km').value = d.km;
-      document.getElementById('turno-combustivel').value = d.combustivel || (parseFloat(d.km) * 0.38).toFixed(2);
-      document.getElementById('turno-km-resumo-txt').innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-bold">✓ ${d.km} km já registrados</span> • Final pendente`;
-    }
+      if (typeof recalcularHorariosTurno === 'function') recalcularHorariosTurno();
+      if (typeof recalcularHodometroTurno === 'function') recalcularHodometroTurno();
+      if (typeof recalcularBrutoTurno === 'function') recalcularBrutoTurno();
 
-    document.getElementById('modal-turno').classList.remove('hidden');
+      if ((!d.kmfinal || d.kmfinal === '') && d.km && parseFloat(d.km) > 0) {
+        setVal('turno-km', d.km);
+        setVal('turno-combustivel', d.combustivel || (parseFloat(d.km) * 0.38).toFixed(2));
+        const resumo = document.getElementById('turno-km-resumo-txt');
+        if (resumo) resumo.innerHTML = `<span class="text-emerald-600 dark:text-emerald-400 font-bold">✓ ${d.km} km já registrados</span> • Final pendente`;
+      }
 
-    // Foca no campo mais pertinente
-    if (d.kminicial && (!d.kmfinal || d.kmfinal === '')) {
-      document.getElementById('turno-km-final').focus();
-    } else {
-      document.getElementById('turno-hora-fim').focus();
+      if (d.kminicial && (!d.kmfinal || d.kmfinal === '')) {
+        const kf = document.getElementById('turno-km-final');
+        if (kf) kf.focus();
+      } else {
+        const hf = document.getElementById('turno-hora-fim');
+        if (hf) hf.focus();
+      }
+    } catch (err) {
+      console.error('Erro em abrirModalEditarTurno:', err);
+      const modal = document.getElementById('modal-turno');
+      if (modal) modal.classList.remove('hidden');
     }
   }
+  window.abrirModalEditarTurno = abrirModalEditarTurno;
 
   function fecharModalTurno() {
-    document.getElementById('modal-turno').classList.add('hidden');
+    const modal = document.getElementById('modal-turno');
+    if (modal) modal.classList.add('hidden');
   }
+  window.fecharModalTurno = fecharModalTurno;
 
   async function salvarTurno(event) {
     event.preventDefault();
@@ -1852,9 +1935,10 @@
 
     const onlVal = parseValorMonetario(document.getElementById('turno-online').value);
     const dinVal = parseValorMonetario(document.getElementById('turno-dinheiro').value);
+    const brutoVal = Math.round((onlVal + dinVal) * 100) / 100;
     fd.set('ganho_online', onlVal.toFixed(2));
     fd.set('ganho_dinheiro_pix', dinVal.toFixed(2));
-    fd.set('ganho_bruto', (onlVal + dinVal).toFixed(2));
+    fd.set('ganho_bruto', brutoVal.toFixed(2));
 
     try {
       const res = await fetch('/motorista/turnos/salvar', { method: 'POST', body: fd });
@@ -1899,30 +1983,82 @@
 
   // --- MODAL ABASTECER (DRIVVO) ---
   function abrirModalAbastecer() {
-    document.getElementById('modal-abastecer').classList.remove('hidden');
-    calcularPrecoLitro();
-    const elBomba = document.getElementById('abast-valor-bomba');
-    if (elBomba) elBomba.focus();
+    try {
+      const modal = document.getElementById('modal-abastecer');
+      if (modal) modal.classList.remove('hidden');
+      if (typeof aoMudarOrigemDesconto === 'function') aoMudarOrigemDesconto();
+      const elBomba = document.getElementById('abast-valor-bomba');
+      if (elBomba) elBomba.focus();
+    } catch (err) {
+      console.error('Erro em abrirModalAbastecer:', err);
+      const modal = document.getElementById('modal-abastecer');
+      if (modal) modal.classList.remove('hidden');
+    }
   }
+  window.abrirModalAbastecer = abrirModalAbastecer;
 
   function fecharModalAbastecer() {
-    document.getElementById('modal-abastecer').classList.add('hidden');
+    const modal = document.getElementById('modal-abastecer');
+    if (modal) modal.classList.add('hidden');
+  }
+  window.fecharModalAbastecer = fecharModalAbastecer;
+
+  function aoMudarOrigemDesconto() {
+    const appSel = document.getElementById('abast-app-desconto')?.value || '99 Abastece';
+    const blocoSouTag = document.getElementById('bloco-soutag-preco-normal');
+    const elBomba = document.getElementById('abast-valor-bomba');
+    const elPago = document.getElementById('abast-valor-pago');
+
+    if (appSel === 'SouTag') {
+      if (blocoSouTag) blocoSouTag.classList.remove('hidden');
+      // No SouTag o valor pago real é igual ao total da bomba (desconto vai direto no bico da bomba)
+      if (elBomba && elBomba.value && elPago) {
+        elPago.value = elBomba.value;
+      }
+    } else {
+      if (blocoSouTag) blocoSouTag.classList.add('hidden');
+    }
+    calcularPrecoLitro('origem');
   }
 
-  function calcularPrecoLitro() {
-    const vBomba = parseFloat(document.getElementById('abast-valor-bomba')?.value) || 0;
-    const vPago = parseFloat(document.getElementById('abast-valor-pago')?.value) || 0;
-    const l = parseFloat(document.getElementById('abast-litros')?.value) || 0;
-    const appSel = document.getElementById('abast-app-desconto')?.value || 'Shell Box';
+  function calcularPrecoLitro(origemTrigger = '') {
+    const elBomba = document.getElementById('abast-valor-bomba');
+    const elPrecoBomba = document.getElementById('abast-preco-bomba');
+    const elLitros = document.getElementById('abast-litros');
+    const elPago = document.getElementById('abast-valor-pago');
+    const elApp = document.getElementById('abast-app-desconto');
+    const elPrecoNormal = document.getElementById('abast-preco-normal');
+
+    const vBomba = parseFloat(elBomba?.value) || 0;
+    const pBomba = parseFloat(elPrecoBomba?.value) || 0;
+    let lits = parseFloat(elLitros?.value) || 0;
+    let vPago = parseFloat(elPago?.value) || 0;
+    const appSel = elApp?.value || '99 Abastece';
+    const pNormal = parseFloat(elPrecoNormal?.value) || 0;
+
+    // Se a origem for SouTag e alterou o valor da bomba, iguala valor pago real
+    if (appSel === 'SouTag') {
+      if (origemTrigger === 'bomba' || (vBomba > 0 && (!vPago || origemTrigger === 'origem'))) {
+        vPago = vBomba;
+        if (elPago) elPago.value = vBomba.toFixed(2);
+      }
+    }
+
+    // 1. Cálculo Bidirecional de Litros por Preço da Bomba:
+    // Se preencher Valor Total da Bomba e Preço por Litro na Bomba:
+    if ((origemTrigger === 'bomba' || origemTrigger === 'preco_bomba' || origemTrigger === 'origem') && vBomba > 0 && pBomba > 0) {
+      lits = Math.round((vBomba / pBomba) * 1000) / 1000;
+      if (elLitros) elLitros.value = lits.toFixed(3);
+    } else if (origemTrigger === 'litros' && lits > 0 && vBomba > 0 && (!pBomba || pBomba === 0)) {
+      const calcPBomba = Math.round((vBomba / lits) * 1000) / 1000;
+      if (elPrecoBomba) elPrecoBomba.value = calcPBomba.toFixed(3);
+    }
+
+    // 2. Preço Real por Litro:
     const pHidden = document.getElementById('abast-preco-litro');
     const pTxt = document.getElementById('abast-preco-real-txt');
-    const descHidden = document.getElementById('abast-desconto');
-    const badgeWrap = document.getElementById('abast-badge-economia');
-    const badgeTxt = document.getElementById('abast-badge-economia-txt');
-
-    // Preço Real por Litro = Valor Pago Real / Litros
-    if (vPago > 0 && l > 0) {
-      const precoReal = vPago / l;
+    if (vPago > 0 && lits > 0) {
+      const precoReal = vPago / lits;
       if (pHidden) pHidden.value = precoReal.toFixed(3);
       if (pTxt) pTxt.textContent = `R$ ${precoReal.toFixed(3).replace('.', ',')}/L`;
     } else {
@@ -1930,16 +2066,32 @@
       if (pTxt) pTxt.textContent = 'R$ 0,000/L';
     }
 
-    // Economia = Valor da Bomba - Valor Pago Real
-    const economia = (vBomba > vPago && vPago > 0) ? Number((vBomba - vPago).toFixed(2)) : 0.0;
+    // 3. Cálculo de Economia / Desconto:
+    let economia = 0.0;
+    if (appSel === 'SouTag') {
+      // Desconto SouTag = (Preco_Normal - Preco_SouTag) * Litros_Abastecidos
+      const precoEfetivoSouTag = (lits > 0 && vPago > 0) ? (vPago / lits) : pBomba;
+      if (pNormal > precoEfetivoSouTag && lits > 0) {
+        economia = Math.round((pNormal - precoEfetivoSouTag) * lits * 100) / 100;
+      }
+    } else {
+      // Para 99 Abastece ou outros: Desconto = Valor_Total_Bomba - Valor_Pago_Real
+      if (vBomba > vPago && vPago > 0) {
+        economia = Math.round((vBomba - vPago) * 100) / 100;
+      }
+    }
+
+    const descHidden = document.getElementById('abast-desconto');
     if (descHidden) descHidden.value = economia.toFixed(2);
 
-    if (economia > 0 && vBomba > 0) {
-      const pct = ((economia / vBomba) * 100).toFixed(1).replace('.0', '');
+    const badgeWrap = document.getElementById('abast-badge-economia');
+    const badgeTxt = document.getElementById('abast-badge-economia-txt');
+    if (economia > 0) {
+      const baseVal = (appSel === 'SouTag' && pNormal > 0 && lits > 0) ? (pNormal * lits) : vBomba;
+      const pct = baseVal > 0 ? ((economia / baseVal) * 100).toFixed(1).replace('.0', '') : '0';
       const econFmt = economia.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-      const appLabel = appSel && appSel !== 'Nenhum' ? appSel : 'Posto / Outro';
       if (badgeTxt) {
-        badgeTxt.textContent = `🏷️ Economia de ${econFmt} (${pct}%) via ${appLabel}`;
+        badgeTxt.textContent = `🏷️ Economia de ${econFmt} (${pct}%) via ${appSel}`;
       }
       if (badgeWrap) badgeWrap.classList.remove('hidden');
     } else {
@@ -1958,8 +2110,13 @@
 
     const vpEl = document.getElementById('abast-valor-pago');
     const ltEl = document.getElementById('abast-litros');
-    if (vpEl) fd.set('valor_pago', parseValorMonetario(vpEl.value).toFixed(2));
-    if (ltEl) fd.set('litros', parseValorMonetario(ltEl.value).toFixed(3));
+    const vbEl = document.getElementById('abast-valor-bomba');
+    const descEl = document.getElementById('abast-desconto');
+
+    if (vpEl) fd.set('valor_pago', parseFloat(vpEl.value || 0).toFixed(2));
+    if (ltEl) fd.set('litros', parseFloat(ltEl.value || 0).toFixed(3));
+    if (vbEl && vbEl.value) fd.set('valor_bomba', parseFloat(vbEl.value || 0).toFixed(2));
+    if (descEl && descEl.value) fd.set('desconto', parseFloat(descEl.value || 0).toFixed(2));
 
     try {
       const res = await fetch('/motorista/abastecer', { method: 'POST', body: fd });
@@ -2098,6 +2255,44 @@
       btn.textContent = 'Salvar Manutenção';
     }
   }
+  // --- Fechar todos os modais ---
+  function fecharModais() {
+    const ids = ['modal-turno', 'modal-abastecer', 'modal-pausa', 'modal-transferir-99', 'modal-transferir-mp', 'modal-manutencao'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+  }
+
+  // Listener para fechar modais com tecla Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      fecharModais();
+    }
+  });
+
+  // Exportação explícita de funções para o objeto window global
+  window.abrirModalIniciarTurno = abrirModalIniciarTurno;
+  window.abrirModalRegistrarTurno = abrirModalRegistrarTurno;
+  window.abrirModalTurno = abrirModalRegistrarTurno;
+  window.abrirModalFinalizarTurno = abrirModalFinalizarTurno;
+  window.abrirModalEncerrarTurno = abrirModalEncerrarTurno;
+  window.abrirModalEditarTurno = abrirModalEditarTurno;
+  window.fecharModalTurno = fecharModalTurno;
+  window.abrirModalAbastecer = abrirModalAbastecer;
+  window.fecharModalAbastecer = fecharModalAbastecer;
+  window.aoMudarOrigemDesconto = aoMudarOrigemDesconto;
+  window.calcularPrecoLitro = calcularPrecoLitro;
+  window.abrirModalPausa = abrirModalPausa;
+  window.fecharModalPausa = fecharModalPausa;
+  window.abrirModalFinalizarTurnoPorId = abrirModalFinalizarTurnoPorId;
+  window.abrirModalTransferir99 = abrirModalTransferir99;
+  window.fecharModalTransferir99 = fecharModalTransferir99;
+  window.abrirModalTransferirMP = abrirModalTransferirMP;
+  window.fecharModalTransferirMP = fecharModalTransferirMP;
+  window.abrirModalManutencao = abrirModalManutencao;
+  window.fecharModalManutencao = fecharModalManutencao;
+  window.fecharModais = fecharModais;
 </script>
 
 <script>

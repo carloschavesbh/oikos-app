@@ -1047,15 +1047,26 @@ async def pagina_contas(request: Request):
     )
 
 
-@app.post("/api/contas/{conta_id}/editar")
+@app.post("/contas")
+@app.post("/api/contas")
+@app.post("/contas/nova")
+@app.post("/api/contas/nova")
+@app.post("/contas/editar/{conta_id}")
+@app.put("/contas/editar/{conta_id}")
+@app.post("/api/contas/editar/{conta_id}")
+@app.put("/api/contas/editar/{conta_id}")
 @app.post("/contas/{conta_id}/editar")
-@app.post("/api/contas/editar")
+@app.put("/contas/{conta_id}/editar")
+@app.post("/api/contas/{conta_id}/editar")
+@app.put("/api/contas/{conta_id}/editar")
 @app.post("/contas/editar")
-@app.post("/api/contas/salvar")
+@app.post("/api/contas/editar")
 @app.post("/contas/salvar")
+@app.post("/api/contas/salvar")
 async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
     """
-    Cria ou edita uma conta em contas_config e registra o ajuste/marco inicial de saldo se aplicável.
+    Cria ou edita uma conta em contas_config (refletida na view contas) e registra
+    o ajuste/marco inicial de saldo se aplicável. Suporta JSON e formulários HTML padrão.
     """
     conn = conectar_db()
     try:
@@ -1066,7 +1077,8 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
             nome = str(payload.get("nome", "")).strip()
             saldo_informado = float(payload.get("saldo") or payload.get("saldo_atual") or payload.get("saldo_inicial") or 0.0)
             cor = str(payload.get("cor", "#009ee3")).strip()
-            icone = str(payload.get("icone", "mercadopago.svg")).strip()
+            raw_icone = str(payload.get("icone", "")).strip() or "banco_default.svg"
+            icone = os.path.basename(raw_icone)
             tipo = str(payload.get("tipo", "digital")).strip()
             nao_somar = payload.get("nao_somar")
             if nao_somar is not None:
@@ -1079,7 +1091,8 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
             nome = str(form.get("nome", "")).strip()
             saldo_informado = float(form.get("saldo") or form.get("saldo_atual") or form.get("saldo_inicial") or 0.0)
             cor = str(form.get("cor", "#009ee3")).strip()
-            icone = str(form.get("icone", "mercadopago.svg")).strip()
+            raw_icone = str(form.get("icone", "")).strip() or "banco_default.svg"
+            icone = os.path.basename(raw_icone)
             tipo = str(form.get("tipo", "digital")).strip()
             nao_somar = form.get("nao_somar")
             if nao_somar is not None:
@@ -1092,6 +1105,10 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
 
         cur = conn.cursor()
         hoje_iso = date.today().strftime("%Y-%m-%d")
+
+        is_ajax = ("application/json" in content_type or 
+                   "application/json" in request.headers.get("accept", "") or
+                   request.headers.get("x-requested-with") == "XMLHttpRequest")
 
         if target_id and int(target_id) > 0:
             target_id = int(target_id)
@@ -1128,12 +1145,15 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
                     target_id
                 ))
             conn.commit()
-            return JSONResponse({
-                "success": True,
-                "sucesso": True,
-                "conta_id": target_id,
-                "mensagem": f"Conta '{nome}' atualizada com sucesso!"
-            })
+            if is_ajax:
+                return JSONResponse({
+                    "success": True,
+                    "sucesso": True,
+                    "conta_id": target_id,
+                    "mensagem": f"Conta '{nome}' atualizada com sucesso!"
+                })
+            else:
+                return RedirectResponse(url="/contas", status_code=303)
         else:
             cur.execute("""
                 INSERT INTO contas_config (nome, tipo, cor, icone, incluir_saldo_consolidado)
@@ -1150,12 +1170,15 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
                     motivo="Saldo inicial de cadastro de conta"
                 )
             conn.commit()
-            return JSONResponse({
-                "success": True,
-                "sucesso": True,
-                "conta_id": nova_id,
-                "mensagem": f"Conta '{nome}' cadastrada com sucesso!"
-            })
+            if is_ajax:
+                return JSONResponse({
+                    "success": True,
+                    "sucesso": True,
+                    "conta_id": nova_id,
+                    "mensagem": f"Conta '{nome}' cadastrada com sucesso!"
+                })
+            else:
+                return RedirectResponse(url="/contas", status_code=303)
     except HTTPException:
         raise
     except Exception as e:
@@ -2412,21 +2435,33 @@ async def pagina_planejamento(
     pct_geral_orcamento = round((total_gasto_geral / total_orcado_geral) * 100, 1) if total_orcado_geral > 0 else 0.0
 
     # 6. JUROS E DESCONTOS NO MÊS SELECIONADO
+    # Descontos de despesas gerais (tabela transacoes)
     cur.execute("""
         SELECT 
             COALESCE(SUM(CASE WHEN juros > 0 THEN juros ELSE 0 END), 0) as total_juros_mes,
-            COALESCE(SUM(CASE WHEN desconto > 0 THEN desconto ELSE 0 END), 0) as total_descontos_mes
+            COALESCE(SUM(CASE WHEN desconto > 0 AND (categoria != 'Combustível (Trabalho)' OR categoria IS NULL) THEN desconto ELSE 0 END), 0) as total_descontos_transacoes
         FROM transacoes
         WHERE data BETWEEN ? AND ?
     """, (inicio_mes, fim_mes))
     row_jd = cur.fetchone()
     total_juros_mes = round(float(row_jd[0]), 2) if row_jd else 0.0
-    total_descontos_mes = round(float(row_jd[1]), 2) if row_jd else 0.0
+    total_descontos_transacoes = round(float(row_jd[1]), 2) if row_jd else 0.0
+
+    # Descontos da tabela veiculo_abastecimentos (Economia 99 Abastece, SouTag, Shell Box, etc.)
+    cur.execute("""
+        SELECT COALESCE(SUM(desconto), 0) as total_descontos_abast
+        FROM veiculo_abastecimentos
+        WHERE SUBSTR(data, 1, 10) BETWEEN ? AND ? AND desconto > 0
+    """, (inicio_mes, fim_mes))
+    row_ab_desc = cur.fetchone()
+    total_descontos_abast = round(float(row_ab_desc[0]), 2) if row_ab_desc else 0.0
+
+    total_descontos_mes = round(total_descontos_transacoes + total_descontos_abast, 2)
 
     cur.execute("""
         SELECT id, data, descricao, categoria, valor, juros, desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste, pago, conta
         FROM transacoes
-        WHERE (juros > 0 OR desconto > 0) AND data BETWEEN ? AND ?
+        WHERE (juros > 0 OR (desconto > 0 AND (categoria != 'Combustível (Trabalho)' OR categoria IS NULL))) AND data BETWEEN ? AND ?
         ORDER BY data DESC, id DESC
     """, (inicio_mes, fim_mes))
     rows_aj = cur.fetchall()
@@ -2450,6 +2485,40 @@ async def pagina_planejamento(
             "pago": int(r[8] or 0),
             "conta": r[9] or "Mercado Pago"
         })
+
+    # Inclui no detalhamento dos descontos os abastecimentos com economia do mês
+    cur.execute("""
+        SELECT id, data, combustivel, litros, preco_litro, valor_pago, desconto, app_desconto, posto, conta
+        FROM veiculo_abastecimentos
+        WHERE SUBSTR(data, 1, 10) BETWEEN ? AND ? AND desconto > 0
+        ORDER BY data DESC, id DESC
+    """, (inicio_mes, fim_mes))
+    rows_ab = cur.fetchall()
+    for ab in rows_ab:
+        dt_str = str(ab[1])[:10]
+        try:
+            dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
+        except Exception:
+            dt_fmt = dt_str
+        comb = ab[2] or "Combustível"
+        app_origem = ab[7] or "99 Abastece"
+        val_desc = float(ab[6] or 0.0)
+        lancamentos_ajustes.append({
+            "id": f"abast-{ab[0]}",
+            "data": dt_str,
+            "data_formatada": dt_fmt,
+            "descricao": f"Abastecimento {comb} - Economia {app_origem}: {formatar_moeda_br(val_desc)}",
+            "categoria": "Combustível (Trabalho)",
+            "valor": float(ab[5] or 0.0),
+            "juros": 0.0,
+            "desconto": val_desc,
+            "motivo_ajuste": f"Economia via {app_origem}",
+            "pago": 1,
+            "conta": ab[9] or "Mercado Pago"
+        })
+
+    # Ordena todos os lançamentos com juros ou descontos por data decrescente
+    lancamentos_ajustes.sort(key=lambda x: str(x["data"]), reverse=True)
 
     conn.close()
 
@@ -3455,7 +3524,13 @@ async def api_motorista_abastecer(
     except (TypeError, ValueError):
         desc_in = 0.0
 
-    if val_bomba >= val_pago and val_bomba > 0:
+    raw_app = app_desconto if (app_desconto and not hasattr(app_desconto, 'default')) else origem_desconto
+    app_nome = str(raw_app).strip() if (raw_app and not hasattr(raw_app, 'default') and str(raw_app).strip() != "") else "Nenhum"
+
+    if desc_in > 0 and ("soutag" in app_nome.lower() or "soutag" in str(origem_desconto or '').lower()):
+        desc_val = desc_in
+        val_bomba = round(val_pago + desc_val, 2)
+    elif val_bomba >= val_pago and val_bomba > 0:
         desc_val = round(max(0.0, val_bomba - val_pago), 2)
     else:
         desc_val = round(max(0.0, desc_in), 2)
@@ -3466,8 +3541,6 @@ async def api_motorista_abastecer(
     # Preço Real por Litro = Valor Pago Real / Litros
     calc_preco = round(val_pago / lits, 3)
 
-    raw_app = app_desconto if (app_desconto and not hasattr(app_desconto, 'default')) else origem_desconto
-    app_nome = str(raw_app).strip() if (raw_app and not hasattr(raw_app, 'default') and str(raw_app).strip() != "") else "Nenhum"
     if desc_val > 0 and app_nome == "Nenhum":
         app_nome = "Posto / Outro"
 
@@ -3515,10 +3588,11 @@ async def api_motorista_abastecer(
 
         # 1. Registrar transação financeira de despesa estritamente pelo Valor Pago Real
         desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
+        motivo_desc = f"Economia via {app_nome}" if desc_val > 0 else ""
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario)
-            VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1)
-        """, (data_iso, desc_trans, val_pago, conta_nome, conta_id))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste)
+            VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?)
+        """, (data_iso, desc_trans, val_pago, conta_nome, conta_id, desc_val, motivo_desc))
         trans_id = cur.lastrowid
 
         # 2. Registrar na tabela veiculo_abastecimentos (Drivvo)
