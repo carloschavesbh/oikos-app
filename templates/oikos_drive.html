@@ -211,7 +211,7 @@
           {{ foco_hoje.bruto_hoje | moeda }}
         </div>
         <span id="drive-faturado-sub-display" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block font-medium">
-          {{ foco_hoje.qtd_turnos_hoje }} turno(s) • {{ foco_hoje.horas_hoje_real }}h realizadas
+          {{ foco_hoje.qtd_turnos_hoje }} turno(s) • {{ foco_hoje.horas_hoje_real | horas_br }} realizadas
         </span>
       </div>
 
@@ -222,7 +222,7 @@
           {{ foco_hoje.restante_meta_hoje | moeda }}
         </div>
         <span id="drive-restante-sub-display" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block font-medium">
-          {% if foco_hoje.restante_meta_hoje > 0 %}{{ foco_hoje.horas_restantes }}h restantes{% else %}Meta Batida! 🎉{% endif %}
+          {% if foco_hoje.restante_meta_hoje > 0 %}{{ foco_hoje.horas_restantes | horas_br }} restantes{% else %}Meta Batida! 🎉{% endif %}
         </span>
       </div>
 
@@ -231,7 +231,7 @@
         <div class="flex items-center justify-between">
           <span class="text-[11px] text-slate-500 dark:text-slate-400 uppercase font-bold">Cobertura</span>
           <span id="drive-pct-display" class="text-sm font-black text-emerald-600 dark:text-emerald-400">
-            {{ foco_hoje.pct_meta_hoje }}%
+            {{ foco_hoje.pct_meta_hoje | pct_br }}
           </span>
         </div>
         <!-- Barra de Progresso Visual -->
@@ -2345,9 +2345,9 @@
     const val = parseFloat(input?.value);
     if (isNaN(val) || val < 0.5 || val > 16) {
       if (typeof showToast === 'function') {
-        showToast('Valor Inválido', 'Informe entre 0.5h e 16h.', true);
+        showToast('Valor Inválido', 'Informe entre 0,5h e 16,0h.', true);
       } else {
-        alert('Informe entre 0.5h e 16h.');
+        alert('Informe entre 0,5h e 16,0h.');
       }
       return;
     }
@@ -2359,8 +2359,9 @@
       const response = await fetch('/api/meta-horas', { method: 'POST', body: formData });
       const data = await response.json();
       if (data.sucesso) {
+        const hFmt = (data.horas || val).toFixed(1).replace('.', ',') + 'h';
         if (typeof showToast === 'function') {
-          showToast('Meta Atualizada!', `Meta de hoje ajustada para ${data.horas}h (${data.nova_meta})`);
+          showToast('Meta Atualizada!', `Meta de hoje ajustada para ${hFmt} (${data.nova_meta})`);
         }
 
         // 1. Meta Alvo Hoje
@@ -2391,12 +2392,16 @@
 
         const elRestSub = document.getElementById('drive-restante-sub-display');
         if (elRestSub) {
-          elRestSub.textContent = data.restante_meta_hoje > 0 ? `${data.horas_restantes}h restantes` : 'Meta Batida! 🎉';
+          const restFmt = (data.horas_restantes || 0).toFixed(1).replace('.', ',') + 'h';
+          elRestSub.textContent = data.restante_meta_hoje > 0 ? `${restFmt} restantes` : 'Meta Batida! 🎉';
         }
 
         // 4. Cobertura / Progresso
         const elPct = document.getElementById('drive-pct-display');
-        if (elPct) elPct.textContent = `${data.pct_meta_hoje}%`;
+        if (elPct) {
+          const pctFmt = (data.pct_meta_hoje || 0).toFixed(1).replace('.', ',') + '%';
+          elPct.textContent = pctFmt;
+        }
 
         const elBarra = document.getElementById('drive-barra-progresso');
         if (elBarra) elBarra.style.width = `${data.pct_meta_hoje}%`;

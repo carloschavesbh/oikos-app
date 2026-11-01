@@ -129,6 +129,49 @@ def formatar_moeda_br(valor: Any) -> str:
 templates.env.filters["moeda"] = formatar_moeda_br
 
 
+def formatar_horas_br(val) -> str:
+    """Formata valor numérico de horas no padrão brasileiro (ex: 6,0h ou 1,5h)."""
+    if val is None or val == "":
+        return "0,0h"
+    try:
+        f = float(val)
+        return f"{f:.1f}".replace(".", ",") + "h"
+    except Exception:
+        return f"{val}h"
+
+
+def formatar_pct_br(val) -> str:
+    """Formata valor percentual no padrão brasileiro (ex: 100% ou 85,5%)."""
+    if val is None or val == "":
+        return "0%"
+    try:
+        f = float(val)
+        if f == int(f):
+            return f"{int(f)}%"
+        return f"{f:.1f}".replace(".", ",") + "%"
+    except Exception:
+        return f"{val}%"
+
+
+def formatar_numero_br(val, casas: int = 1) -> str:
+    """Formata valor numérico decimal com vírgula (ex: 1,5 ou 10)."""
+    if val is None or val == "":
+        return "0"
+    try:
+        f = float(val)
+        if casas == 0 or f == int(f):
+            return str(int(f))
+        fmt = f"{{:.{casas}f}}"
+        return fmt.format(f).replace(".", ",")
+    except Exception:
+        return str(val)
+
+
+templates.env.filters["horas_br"] = formatar_horas_br
+templates.env.filters["pct_br"] = formatar_pct_br
+templates.env.filters["numero_br"] = formatar_numero_br
+
+
 def obter_icone_categoria(cat: str) -> str:
     """Mapeia categoria para ícone representativo."""
     if not cat:
