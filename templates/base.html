@@ -34,10 +34,534 @@
         document.documentElement.classList.add('sidebar-collapsed');
       }
     })();
+  // =========================================================================
+    // [ CONTROLES DO BOTÃO GLOBAL "+" E MODAL DE TRANSAÇÕES ]
+    // =========================================================================
+    let cacheOpcoesGlobal = null;
+    let abaAtualGlobal = 'despesa';
+
+    function alternarMenuGlobalTransacoes(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) {
+        menu.classList.toggle('hidden');
+      }
+    }
+
+    async function carregarOpcoesTransacaoGlobal() {
+      if (cacheOpcoesGlobal) return cacheOpcoesGlobal;
+      try {
+        const res = await fetch('/api/opcoes-transacao-global');
+        if (res.ok) {
+          cacheOpcoesGlobal = await res.json();
+          return cacheOpcoesGlobal;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar opções globais:', err);
+      }
+      return null;
+    }
+
+    async function abrirModalTransacaoGlobal(tipo) {
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) menu.classList.add('hidden');
+
+      const modal = document.getElementById('modal-transacao-global');
+      if (!modal) return;
+
+      // Popula selects com opções reais
+      const dados = await carregarOpcoesTransacaoGlobal();
+      if (dados) {
+        // Data padrão
+        const inputData = document.getElementById('global-input-data');
+        if (inputData && !inputData.value) inputData.value = dados.hoje;
+
+        // Contas
+        const selConta = document.getElementById('global-select-conta');
+        const selOrig = document.getElementById('global-select-origem');
+        const selDest = document.getElementById('global-select-destino');
+
+        if (selConta && dados.contas) {
+          selConta.innerHTML = dados.contas.map(c => `<option value="${c.nome}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selOrig && dados.contas) {
+          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selDest && dados.contas) {
+          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.icone} ${c.nome}</option>`).join('');
+        }
+      }
+
+      mudarAbaModalGlobal(tipo || 'despesa');
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModalTransacaoGlobal() {
+      const val = document.getElementById('global-input-valor').value;
+      const desc = document.getElementById('global-input-descricao').value;
+      if ((val && val !== '0,00') || desc.trim()) {
+        if (!confirm('Deseja fechar sem salvar? Os dados digitados serão perdidos.')) return;
+      }
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
+
+    function mudarAbaModalGlobal(tipo) {
+      abaAtualGlobal = tipo;
+      document.getElementById('global-input-tipo').value = tipo;
+
+      // Abas visuais
+      const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-global-${t}`);
+        if (btn) {
+          if (t === tipo) {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-extrabold';
+          } else {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900';
+          }
+        }
+      });
+
+      // Título e Ícone
+      const titulos = {
+        'despesa': ['🔴', 'Nova Despesa'],
+        'receita': ['🟢', 'Nova Receita'],
+        'transferencia': ['🔄', 'Transferência entre Contas'],
+        'recorrencia': ['🔁', 'Nova Despesa Recorrente'],
+        'pagaleve': ['⚡', 'Nova Compra Paga Leve']
+      };
+      const info = titulos[tipo] || titulos['despesa'];
+      document.getElementById('global-modal-icone').textContent = info[0];
+      document.getElementById('global-modal-titulo').textContent = info[1];
+
+      // Blocos de campos
+      const blocoPadrao = document.getElementById('bloco-campos-padrao');
+      const blocoTransf = document.getElementById('bloco-campos-transferencia');
+      const blocoRecorr = document.getElementById('bloco-campos-recorrencia');
+      const blocoPL = document.getElementById('bloco-campos-pagaleve');
+      const blocoStatus = document.getElementById('bloco-status-pagamento');
+
+      blocoPadrao.classList.add('hidden');
+      blocoTransf.classList.add('hidden');
+      blocoRecorr.classList.add('hidden');
+      blocoPL.classList.add('hidden');
+      blocoStatus.classList.add('hidden');
+
+      const selCat = document.getElementById('global-select-categoria');
+      if (cacheOpcoesGlobal && selCat) {
+        if (tipo === 'receita') {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_receita.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_despesa.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+      }
+
+      if (tipo === 'transferencia') {
+        blocoTransf.classList.remove('hidden');
+      } else if (tipo === 'recorrencia') {
+        blocoPadrao.classList.remove('hidden');
+        blocoRecorr.classList.remove('hidden');
+      } else if (tipo === 'pagaleve') {
+        blocoPL.classList.remove('hidden');
+      } else {
+        blocoPadrao.classList.remove('hidden');
+        blocoStatus.classList.remove('hidden');
+      }
+    }
+
+    function aplicarMascaraMoedaGlobal(input) {
+      let v = input.value.replace(/\D/g, '');
+      v = (v / 100).toFixed(2) + '';
+      v = v.replace('.', ',');
+      v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+      input.value = v;
+    }
+
+    async function submeterTransacaoGlobal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('global-btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      const tipo = abaAtualGlobal;
+      const valorStr = document.getElementById('global-input-valor').value.replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr) || 0;
+      const data = document.getElementById('global-input-data').value;
+      const desc = document.getElementById('global-input-descricao').value.trim();
+
+      try {
+        if (tipo === 'transferencia') {
+          const origId = document.getElementById('global-select-origem').value;
+          const destId = document.getElementById('global-select-destino').value;
+          const fd = new FormData();
+          fd.append('conta_origem_id', origId);
+          fd.append('conta_destino_id', destId);
+          fd.append('valor', valor);
+          fd.append('data', data);
+          fd.append('descricao', desc);
+
+          const res = await fetch('/api/transferencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transferência Realizada', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro na Transferência', json.erro || 'Falha ao transferir', true);
+          }
+        } else if (tipo === 'recorrencia') {
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const diaVenc = document.getElementById('global-input-dia-venc').value;
+          const meses = document.getElementById('global-select-meses-duracao').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('valor', valor);
+          fd.append('conta', conta);
+          fd.append('dia_vencimento', diaVenc);
+          fd.append('meses_duracao', meses);
+          fd.append('data_inicio', data);
+
+          const res = await fetch('/api/recorrencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Recorrência Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        } else if (tipo === 'pagaleve') {
+          const titular = document.getElementById('global-select-pl-titular').value;
+          const parcelas = document.getElementById('global-select-pl-parcelas').value;
+
+          const payload = {
+            descricao: desc,
+            valor_total: valor,
+            valor: valor,
+            data_compra: data,
+            titular: titular,
+            total_parcelas: parseInt(parcelas) || 4
+          };
+
+          const res = await fetch('/api/pagaleve/salvar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Paga Leve Registrado', json.mensagem || 'Compra parcelada com sucesso!');
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro no Paga Leve', json.erro || 'Falha ao registrar compra', true);
+          }
+        } else {
+          // Despesa ou Receita normal
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
+
+          const fd = new FormData();
+          fd.append('data', data);
+          fd.append('tipo', tipo);
+          fd.append('valor', valor);
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('conta', conta);
+          fd.append('pago', pago);
+
+          const res = await fetch('/api/lancamentos', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transação Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Transação';
+      }
+    }
+
+    function fecharModalSemConfirmacao() {
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
   </script>
 
   <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com">// =========================================================================
+    // [ CONTROLES DO BOTÃO GLOBAL "+" E MODAL DE TRANSAÇÕES ]
+    // =========================================================================
+    let cacheOpcoesGlobal = null;
+    let abaAtualGlobal = 'despesa';
+
+    function alternarMenuGlobalTransacoes(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) {
+        menu.classList.toggle('hidden');
+      }
+    }
+
+    async function carregarOpcoesTransacaoGlobal() {
+      if (cacheOpcoesGlobal) return cacheOpcoesGlobal;
+      try {
+        const res = await fetch('/api/opcoes-transacao-global');
+        if (res.ok) {
+          cacheOpcoesGlobal = await res.json();
+          return cacheOpcoesGlobal;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar opções globais:', err);
+      }
+      return null;
+    }
+
+    async function abrirModalTransacaoGlobal(tipo) {
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) menu.classList.add('hidden');
+
+      const modal = document.getElementById('modal-transacao-global');
+      if (!modal) return;
+
+      // Popula selects com opções reais
+      const dados = await carregarOpcoesTransacaoGlobal();
+      if (dados) {
+        // Data padrão
+        const inputData = document.getElementById('global-input-data');
+        if (inputData && !inputData.value) inputData.value = dados.hoje;
+
+        // Contas
+        const selConta = document.getElementById('global-select-conta');
+        const selOrig = document.getElementById('global-select-origem');
+        const selDest = document.getElementById('global-select-destino');
+
+        if (selConta && dados.contas) {
+          selConta.innerHTML = dados.contas.map(c => `<option value="${c.nome}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selOrig && dados.contas) {
+          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selDest && dados.contas) {
+          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.icone} ${c.nome}</option>`).join('');
+        }
+      }
+
+      mudarAbaModalGlobal(tipo || 'despesa');
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModalTransacaoGlobal() {
+      const val = document.getElementById('global-input-valor').value;
+      const desc = document.getElementById('global-input-descricao').value;
+      if ((val && val !== '0,00') || desc.trim()) {
+        if (!confirm('Deseja fechar sem salvar? Os dados digitados serão perdidos.')) return;
+      }
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
+
+    function mudarAbaModalGlobal(tipo) {
+      abaAtualGlobal = tipo;
+      document.getElementById('global-input-tipo').value = tipo;
+
+      // Abas visuais
+      const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-global-${t}`);
+        if (btn) {
+          if (t === tipo) {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-extrabold';
+          } else {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900';
+          }
+        }
+      });
+
+      // Título e Ícone
+      const titulos = {
+        'despesa': ['🔴', 'Nova Despesa'],
+        'receita': ['🟢', 'Nova Receita'],
+        'transferencia': ['🔄', 'Transferência entre Contas'],
+        'recorrencia': ['🔁', 'Nova Despesa Recorrente'],
+        'pagaleve': ['⚡', 'Nova Compra Paga Leve']
+      };
+      const info = titulos[tipo] || titulos['despesa'];
+      document.getElementById('global-modal-icone').textContent = info[0];
+      document.getElementById('global-modal-titulo').textContent = info[1];
+
+      // Blocos de campos
+      const blocoPadrao = document.getElementById('bloco-campos-padrao');
+      const blocoTransf = document.getElementById('bloco-campos-transferencia');
+      const blocoRecorr = document.getElementById('bloco-campos-recorrencia');
+      const blocoPL = document.getElementById('bloco-campos-pagaleve');
+      const blocoStatus = document.getElementById('bloco-status-pagamento');
+
+      blocoPadrao.classList.add('hidden');
+      blocoTransf.classList.add('hidden');
+      blocoRecorr.classList.add('hidden');
+      blocoPL.classList.add('hidden');
+      blocoStatus.classList.add('hidden');
+
+      const selCat = document.getElementById('global-select-categoria');
+      if (cacheOpcoesGlobal && selCat) {
+        if (tipo === 'receita') {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_receita.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_despesa.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+      }
+
+      if (tipo === 'transferencia') {
+        blocoTransf.classList.remove('hidden');
+      } else if (tipo === 'recorrencia') {
+        blocoPadrao.classList.remove('hidden');
+        blocoRecorr.classList.remove('hidden');
+      } else if (tipo === 'pagaleve') {
+        blocoPL.classList.remove('hidden');
+      } else {
+        blocoPadrao.classList.remove('hidden');
+        blocoStatus.classList.remove('hidden');
+      }
+    }
+
+    function aplicarMascaraMoedaGlobal(input) {
+      let v = input.value.replace(/\D/g, '');
+      v = (v / 100).toFixed(2) + '';
+      v = v.replace('.', ',');
+      v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+      input.value = v;
+    }
+
+    async function submeterTransacaoGlobal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('global-btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      const tipo = abaAtualGlobal;
+      const valorStr = document.getElementById('global-input-valor').value.replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr) || 0;
+      const data = document.getElementById('global-input-data').value;
+      const desc = document.getElementById('global-input-descricao').value.trim();
+
+      try {
+        if (tipo === 'transferencia') {
+          const origId = document.getElementById('global-select-origem').value;
+          const destId = document.getElementById('global-select-destino').value;
+          const fd = new FormData();
+          fd.append('conta_origem_id', origId);
+          fd.append('conta_destino_id', destId);
+          fd.append('valor', valor);
+          fd.append('data', data);
+          fd.append('descricao', desc);
+
+          const res = await fetch('/api/transferencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transferência Realizada', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro na Transferência', json.erro || 'Falha ao transferir', true);
+          }
+        } else if (tipo === 'recorrencia') {
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const diaVenc = document.getElementById('global-input-dia-venc').value;
+          const meses = document.getElementById('global-select-meses-duracao').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('valor', valor);
+          fd.append('conta', conta);
+          fd.append('dia_vencimento', diaVenc);
+          fd.append('meses_duracao', meses);
+          fd.append('data_inicio', data);
+
+          const res = await fetch('/api/recorrencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Recorrência Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        } else if (tipo === 'pagaleve') {
+          const titular = document.getElementById('global-select-pl-titular').value;
+          const parcelas = document.getElementById('global-select-pl-parcelas').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('valor_original', valor);
+          fd.append('data_compra', data);
+          fd.append('titular', titular);
+          fd.append('total_parcelas', parcelas);
+
+          const res = await fetch('/api/pagaleve/salvar', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Paga Leve Registrado', json.mensagem || 'Compra parcelada com sucesso!');
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro no Paga Leve', json.erro || 'Falha ao registrar compra', true);
+          }
+        } else {
+          // Despesa ou Receita normal
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
+
+          const fd = new FormData();
+          fd.append('data', data);
+          fd.append('tipo', tipo);
+          fd.append('valor', valor);
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('conta', conta);
+          fd.append('pago', pago);
+
+          const res = await fetch('/api/lancamentos', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transação Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Transação';
+      }
+    }
+
+    function fecharModalSemConfirmacao() {
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
+  </script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -57,6 +581,265 @@
           }
         }
       }
+    }
+  // =========================================================================
+    // [ CONTROLES DO BOTÃO GLOBAL "+" E MODAL DE TRANSAÇÕES ]
+    // =========================================================================
+    let cacheOpcoesGlobal = null;
+    let abaAtualGlobal = 'despesa';
+
+    function alternarMenuGlobalTransacoes(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) {
+        menu.classList.toggle('hidden');
+      }
+    }
+
+    async function carregarOpcoesTransacaoGlobal() {
+      if (cacheOpcoesGlobal) return cacheOpcoesGlobal;
+      try {
+        const res = await fetch('/api/opcoes-transacao-global');
+        if (res.ok) {
+          cacheOpcoesGlobal = await res.json();
+          return cacheOpcoesGlobal;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar opções globais:', err);
+      }
+      return null;
+    }
+
+    async function abrirModalTransacaoGlobal(tipo) {
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) menu.classList.add('hidden');
+
+      const modal = document.getElementById('modal-transacao-global');
+      if (!modal) return;
+
+      // Popula selects com opções reais
+      const dados = await carregarOpcoesTransacaoGlobal();
+      if (dados) {
+        // Data padrão
+        const inputData = document.getElementById('global-input-data');
+        if (inputData && !inputData.value) inputData.value = dados.hoje;
+
+        // Contas
+        const selConta = document.getElementById('global-select-conta');
+        const selOrig = document.getElementById('global-select-origem');
+        const selDest = document.getElementById('global-select-destino');
+
+        if (selConta && dados.contas) {
+          selConta.innerHTML = dados.contas.map(c => `<option value="${c.nome}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selOrig && dados.contas) {
+          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selDest && dados.contas) {
+          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.icone} ${c.nome}</option>`).join('');
+        }
+      }
+
+      mudarAbaModalGlobal(tipo || 'despesa');
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModalTransacaoGlobal() {
+      const val = document.getElementById('global-input-valor').value;
+      const desc = document.getElementById('global-input-descricao').value;
+      if ((val && val !== '0,00') || desc.trim()) {
+        if (!confirm('Deseja fechar sem salvar? Os dados digitados serão perdidos.')) return;
+      }
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
+
+    function mudarAbaModalGlobal(tipo) {
+      abaAtualGlobal = tipo;
+      document.getElementById('global-input-tipo').value = tipo;
+
+      // Abas visuais
+      const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-global-${t}`);
+        if (btn) {
+          if (t === tipo) {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-extrabold';
+          } else {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900';
+          }
+        }
+      });
+
+      // Título e Ícone
+      const titulos = {
+        'despesa': ['🔴', 'Nova Despesa'],
+        'receita': ['🟢', 'Nova Receita'],
+        'transferencia': ['🔄', 'Transferência entre Contas'],
+        'recorrencia': ['🔁', 'Nova Despesa Recorrente'],
+        'pagaleve': ['⚡', 'Nova Compra Paga Leve']
+      };
+      const info = titulos[tipo] || titulos['despesa'];
+      document.getElementById('global-modal-icone').textContent = info[0];
+      document.getElementById('global-modal-titulo').textContent = info[1];
+
+      // Blocos de campos
+      const blocoPadrao = document.getElementById('bloco-campos-padrao');
+      const blocoTransf = document.getElementById('bloco-campos-transferencia');
+      const blocoRecorr = document.getElementById('bloco-campos-recorrencia');
+      const blocoPL = document.getElementById('bloco-campos-pagaleve');
+      const blocoStatus = document.getElementById('bloco-status-pagamento');
+
+      blocoPadrao.classList.add('hidden');
+      blocoTransf.classList.add('hidden');
+      blocoRecorr.classList.add('hidden');
+      blocoPL.classList.add('hidden');
+      blocoStatus.classList.add('hidden');
+
+      const selCat = document.getElementById('global-select-categoria');
+      if (cacheOpcoesGlobal && selCat) {
+        if (tipo === 'receita') {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_receita.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_despesa.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+      }
+
+      if (tipo === 'transferencia') {
+        blocoTransf.classList.remove('hidden');
+      } else if (tipo === 'recorrencia') {
+        blocoPadrao.classList.remove('hidden');
+        blocoRecorr.classList.remove('hidden');
+      } else if (tipo === 'pagaleve') {
+        blocoPL.classList.remove('hidden');
+      } else {
+        blocoPadrao.classList.remove('hidden');
+        blocoStatus.classList.remove('hidden');
+      }
+    }
+
+    function aplicarMascaraMoedaGlobal(input) {
+      let v = input.value.replace(/\D/g, '');
+      v = (v / 100).toFixed(2) + '';
+      v = v.replace('.', ',');
+      v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+      input.value = v;
+    }
+
+    async function submeterTransacaoGlobal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('global-btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      const tipo = abaAtualGlobal;
+      const valorStr = document.getElementById('global-input-valor').value.replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr) || 0;
+      const data = document.getElementById('global-input-data').value;
+      const desc = document.getElementById('global-input-descricao').value.trim();
+
+      try {
+        if (tipo === 'transferencia') {
+          const origId = document.getElementById('global-select-origem').value;
+          const destId = document.getElementById('global-select-destino').value;
+          const fd = new FormData();
+          fd.append('conta_origem_id', origId);
+          fd.append('conta_destino_id', destId);
+          fd.append('valor', valor);
+          fd.append('data', data);
+          fd.append('descricao', desc);
+
+          const res = await fetch('/api/transferencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transferência Realizada', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro na Transferência', json.erro || 'Falha ao transferir', true);
+          }
+        } else if (tipo === 'recorrencia') {
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const diaVenc = document.getElementById('global-input-dia-venc').value;
+          const meses = document.getElementById('global-select-meses-duracao').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('valor', valor);
+          fd.append('conta', conta);
+          fd.append('dia_vencimento', diaVenc);
+          fd.append('meses_duracao', meses);
+          fd.append('data_inicio', data);
+
+          const res = await fetch('/api/recorrencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Recorrência Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        } else if (tipo === 'pagaleve') {
+          const titular = document.getElementById('global-select-pl-titular').value;
+          const parcelas = document.getElementById('global-select-pl-parcelas').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('valor_original', valor);
+          fd.append('data_compra', data);
+          fd.append('titular', titular);
+          fd.append('total_parcelas', parcelas);
+
+          const res = await fetch('/api/pagaleve/salvar', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Paga Leve Registrado', json.mensagem || 'Compra parcelada com sucesso!');
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro no Paga Leve', json.erro || 'Falha ao registrar compra', true);
+          }
+        } else {
+          // Despesa ou Receita normal
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
+
+          const fd = new FormData();
+          fd.append('data', data);
+          fd.append('tipo', tipo);
+          fd.append('valor', valor);
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('conta', conta);
+          fd.append('pago', pago);
+
+          const res = await fetch('/api/lancamentos', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transação Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Transação';
+      }
+    }
+
+    function fecharModalSemConfirmacao() {
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
     }
   </script>
 
@@ -639,8 +1422,14 @@
         </a>
       </div>
 
-      <!-- LADO DIREITO: TEMA & ATUALIZAR -->
+      <!-- LADO DIREITO: TEMA, AÇÃO GLOBAL "+" & ATUALIZAR -->
       <div class="flex items-center gap-1.5">
+        <button type="button" onclick="alternarMenuGlobalTransacoes(event)" aria-label="Nova transação ou ação rápida"
+                class="touch-target p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-sm shadow-emerald-600/30 transition flex items-center justify-center cursor-pointer" title="Nova Transação">
+          <svg class="w-4 h-4 font-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </button>
         <button id="mobile-theme-toggle" onclick="toggleTheme()" type="button" title="Alternar Modo Claro / Noturno"
                 class="touch-target p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 active:scale-95 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 shadow-sm transition flex items-center justify-center cursor-pointer">
           <span id="mobile-theme-icon" class="text-sm">🌙</span>
@@ -748,7 +1537,7 @@
   <div id="main-wrapper" class="min-h-screen flex flex-col justify-between w-full">
     
     <!-- CONTEÚDO PRINCIPAL INJETADO -->
-    <main class="flex-grow max-w-6xl w-full mx-auto px-3 sm:px-6 py-4 md:py-6">
+    <main class="flex-grow max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 md:py-6">
       {% block content %}{% endblock %}
     </main>
 
@@ -1212,7 +2001,506 @@
     } else {
       initTheme();
     }
+  // =========================================================================
+    // [ CONTROLES DO BOTÃO GLOBAL "+" E MODAL DE TRANSAÇÕES ]
+    // =========================================================================
+    let cacheOpcoesGlobal = null;
+    let abaAtualGlobal = 'despesa';
+
+    function alternarMenuGlobalTransacoes(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) {
+        menu.classList.toggle('hidden');
+      }
+    }
+
+    async function carregarOpcoesTransacaoGlobal() {
+      if (cacheOpcoesGlobal) return cacheOpcoesGlobal;
+      try {
+        const res = await fetch('/api/opcoes-transacao-global');
+        if (res.ok) {
+          cacheOpcoesGlobal = await res.json();
+          return cacheOpcoesGlobal;
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar opções globais:', err);
+      }
+      return null;
+    }
+
+    async function abrirModalTransacaoGlobal(tipo) {
+      const menu = document.getElementById('menu-dropdown-global');
+      if (menu) menu.classList.add('hidden');
+
+      const modal = document.getElementById('modal-transacao-global');
+      if (!modal) return;
+
+      // Popula selects com opções reais
+      const dados = await carregarOpcoesTransacaoGlobal();
+      if (dados) {
+        // Data padrão
+        const inputData = document.getElementById('global-input-data');
+        if (inputData && !inputData.value) inputData.value = dados.hoje;
+
+        // Contas
+        const selConta = document.getElementById('global-select-conta');
+        const selOrig = document.getElementById('global-select-origem');
+        const selDest = document.getElementById('global-select-destino');
+
+        if (selConta && dados.contas) {
+          selConta.innerHTML = dados.contas.map(c => `<option value="${c.nome}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selOrig && dados.contas) {
+          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.icone} ${c.nome}</option>`).join('');
+        }
+        if (selDest && dados.contas) {
+          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.icone} ${c.nome}</option>`).join('');
+        }
+      }
+
+      mudarAbaModalGlobal(tipo || 'despesa');
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModalTransacaoGlobal() {
+      const val = document.getElementById('global-input-valor').value;
+      const desc = document.getElementById('global-input-descricao').value;
+      if ((val && val !== '0,00') || desc.trim()) {
+        if (!confirm('Deseja fechar sem salvar? Os dados digitados serão perdidos.')) return;
+      }
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
+
+    function mudarAbaModalGlobal(tipo) {
+      abaAtualGlobal = tipo;
+      document.getElementById('global-input-tipo').value = tipo;
+
+      // Abas visuais
+      const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`tab-global-${t}`);
+        if (btn) {
+          if (t === tipo) {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm font-extrabold';
+          } else {
+            btn.className = 'flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900';
+          }
+        }
+      });
+
+      // Título e Ícone
+      const titulos = {
+        'despesa': ['🔴', 'Nova Despesa'],
+        'receita': ['🟢', 'Nova Receita'],
+        'transferencia': ['🔄', 'Transferência entre Contas'],
+        'recorrencia': ['🔁', 'Nova Despesa Recorrente'],
+        'pagaleve': ['⚡', 'Nova Compra Paga Leve']
+      };
+      const info = titulos[tipo] || titulos['despesa'];
+      document.getElementById('global-modal-icone').textContent = info[0];
+      document.getElementById('global-modal-titulo').textContent = info[1];
+
+      // Blocos de campos
+      const blocoPadrao = document.getElementById('bloco-campos-padrao');
+      const blocoTransf = document.getElementById('bloco-campos-transferencia');
+      const blocoRecorr = document.getElementById('bloco-campos-recorrencia');
+      const blocoPL = document.getElementById('bloco-campos-pagaleve');
+      const blocoStatus = document.getElementById('bloco-status-pagamento');
+
+      blocoPadrao.classList.add('hidden');
+      blocoTransf.classList.add('hidden');
+      blocoRecorr.classList.add('hidden');
+      blocoPL.classList.add('hidden');
+      blocoStatus.classList.add('hidden');
+
+      const selCat = document.getElementById('global-select-categoria');
+      if (cacheOpcoesGlobal && selCat) {
+        if (tipo === 'receita') {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_receita.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+          selCat.innerHTML = cacheOpcoesGlobal.categorias_despesa.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+      }
+
+      if (tipo === 'transferencia') {
+        blocoTransf.classList.remove('hidden');
+      } else if (tipo === 'recorrencia') {
+        blocoPadrao.classList.remove('hidden');
+        blocoRecorr.classList.remove('hidden');
+      } else if (tipo === 'pagaleve') {
+        blocoPL.classList.remove('hidden');
+      } else {
+        blocoPadrao.classList.remove('hidden');
+        blocoStatus.classList.remove('hidden');
+      }
+    }
+
+    function aplicarMascaraMoedaGlobal(input) {
+      let v = input.value.replace(/\D/g, '');
+      v = (v / 100).toFixed(2) + '';
+      v = v.replace('.', ',');
+      v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+      input.value = v;
+    }
+
+    async function submeterTransacaoGlobal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('global-btn-submit');
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      const tipo = abaAtualGlobal;
+      const valorStr = document.getElementById('global-input-valor').value.replace(/\./g, '').replace(',', '.');
+      const valor = parseFloat(valorStr) || 0;
+      const data = document.getElementById('global-input-data').value;
+      const desc = document.getElementById('global-input-descricao').value.trim();
+
+      try {
+        if (tipo === 'transferencia') {
+          const origId = document.getElementById('global-select-origem').value;
+          const destId = document.getElementById('global-select-destino').value;
+          const fd = new FormData();
+          fd.append('conta_origem_id', origId);
+          fd.append('conta_destino_id', destId);
+          fd.append('valor', valor);
+          fd.append('data', data);
+          fd.append('descricao', desc);
+
+          const res = await fetch('/api/transferencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transferência Realizada', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro na Transferência', json.erro || 'Falha ao transferir', true);
+          }
+        } else if (tipo === 'recorrencia') {
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const diaVenc = document.getElementById('global-input-dia-venc').value;
+          const meses = document.getElementById('global-select-meses-duracao').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('valor', valor);
+          fd.append('conta', conta);
+          fd.append('dia_vencimento', diaVenc);
+          fd.append('meses_duracao', meses);
+          fd.append('data_inicio', data);
+
+          const res = await fetch('/api/recorrencias', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Recorrência Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        } else if (tipo === 'pagaleve') {
+          const titular = document.getElementById('global-select-pl-titular').value;
+          const parcelas = document.getElementById('global-select-pl-parcelas').value;
+
+          const fd = new FormData();
+          fd.append('descricao', desc);
+          fd.append('valor_original', valor);
+          fd.append('data_compra', data);
+          fd.append('titular', titular);
+          fd.append('total_parcelas', parcelas);
+
+          const res = await fetch('/api/pagaleve/salvar', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Paga Leve Registrado', json.mensagem || 'Compra parcelada com sucesso!');
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro no Paga Leve', json.erro || 'Falha ao registrar compra', true);
+          }
+        } else {
+          // Despesa ou Receita normal
+          const cat = document.getElementById('global-select-categoria').value;
+          const conta = document.getElementById('global-select-conta').value;
+          const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
+
+          const fd = new FormData();
+          fd.append('data', data);
+          fd.append('tipo', tipo);
+          fd.append('valor', valor);
+          fd.append('descricao', desc);
+          fd.append('categoria', cat);
+          fd.append('conta', conta);
+          fd.append('pago', pago);
+
+          const res = await fetch('/api/lancamentos', { method: 'POST', body: fd });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Transação Salva', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
+          }
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Transação';
+      }
+    }
+
+    function fecharModalSemConfirmacao() {
+      const modal = document.getElementById('modal-transacao-global');
+      if (modal) modal.classList.add('hidden');
+      document.getElementById('form-transacao-global').reset();
+    }
   </script>
+  <!-- ===================================================================== -->
+  <!-- [ BOTÃO GLOBAL "+" FLUTUANTE & MENU DE TRANSAÇÕES ]                   -->
+  <!-- ===================================================================== -->
+  <div id="container-fab-global" class="fixed bottom-20 md:bottom-6 right-20 md:right-24 z-40 select-none">
+    
+    <!-- Menu Dropdown Suspenso -->
+    <div id="menu-dropdown-global" class="hidden absolute bottom-14 md:bottom-14 right-0 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 space-y-1 backdrop-blur-md transition-all duration-200 z-50">
+      <div class="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+        Ações Rápidas
+      </div>
+      
+      <!-- 1. Nova Despesa -->
+      <button type="button" onclick="abrirModalTransacaoGlobal('despesa')"
+              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer">
+        <span class="w-6 h-6 rounded-lg bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-sm">🔴</span>
+        <div class="text-left">
+          <div class="font-bold">Nova Despesa</div>
+          <div class="text-[10px] text-slate-400 font-normal">Conta ou cartão de débito</div>
+        </div>
+      </button>
+
+      <!-- 2. Nova Receita -->
+      <button type="button" onclick="abrirModalTransacaoGlobal('receita')"
+              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer">
+        <span class="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-sm">🟢</span>
+        <div class="text-left">
+          <div class="font-bold">Nova Receita</div>
+          <div class="text-[10px] text-slate-400 font-normal">Entradas externas recebidas</div>
+        </div>
+      </button>
+
+      <!-- 3. Transferência -->
+      <button type="button" onclick="abrirModalTransacaoGlobal('transferencia')"
+              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition cursor-pointer">
+        <span class="w-6 h-6 rounded-lg bg-sky-100 dark:bg-sky-900/50 flex items-center justify-center text-sky-600 dark:text-sky-400 text-sm">🔄</span>
+        <div class="text-left">
+          <div class="font-bold">Transferência</div>
+          <div class="text-[10px] text-slate-400 font-normal">Entre contas de saldo</div>
+        </div>
+      </button>
+
+      <!-- 4. Recorrência -->
+      <button type="button" onclick="abrirModalTransacaoGlobal('recorrencia')"
+              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer">
+        <span class="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm">🔁</span>
+        <div class="text-left">
+          <div class="font-bold">Despesa Recorrente</div>
+          <div class="text-[10px] text-slate-400 font-normal">Fixar despesas mensais</div>
+        </div>
+      </button>
+
+      <!-- 5. Paga Leve -->
+      <button type="button" onclick="abrirModalTransacaoGlobal('pagaleve')"
+              class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition cursor-pointer">
+        <span class="w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center text-purple-600 dark:text-purple-400 text-sm">⚡</span>
+        <div class="text-left">
+          <div class="font-bold">Compra Paga Leve</div>
+          <div class="text-[10px] text-slate-400 font-normal">Parcelamento em 4x quinzenais</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- Botão FAB Principal -->
+    <button id="btn-fab-global" type="button" onclick="alternarMenuGlobalTransacoes(event)"
+            aria-label="Adicionar nova transação (Despesa, Receita, Transferência, Recorrência ou Paga Leve)"
+            class="group flex items-center gap-2 px-3.5 py-3 md:py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-xl shadow-emerald-600/35 border border-emerald-400/30 transition-all duration-200 cursor-pointer">
+      <svg id="icon-fab-plus" class="w-5 h-5 transition-transform duration-200 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+      </svg>
+      <span class="hidden md:inline font-bold tracking-tight">Nova Transação</span>
+    </button>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ MODAL GLOBAL UNIFICADO DE TRANSAÇÕES ]                              -->
+  <!-- ===================================================================== -->
+  <div id="modal-transacao-global" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden transition-all my-8">
+      
+      <!-- Cabeçalho do Modal com Abas -->
+      <div class="px-5 pt-4 pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span id="global-modal-icone" class="text-xl">🔴</span>
+            <h3 id="global-modal-titulo" class="font-extrabold text-base text-slate-900 dark:text-white">Nova Transação</h3>
+          </div>
+          <button type="button" onclick="fecharModalTransacaoGlobal()" aria-label="Fechar modal"
+                  class="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Abas de Navegação -->
+        <div class="flex items-center gap-1 p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-xl text-xs font-bold overflow-x-auto">
+          <button type="button" onclick="mudarAbaModalGlobal('despesa')" id="tab-global-despesa"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-300 shadow-sm">
+            🔴 Despesa
+          </button>
+          <button type="button" onclick="mudarAbaModalGlobal('receita')" id="tab-global-receita"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
+            🟢 Receita
+          </button>
+          <button type="button" onclick="mudarAbaModalGlobal('transferencia')" id="tab-global-transferencia"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
+            🔄 Transf.
+          </button>
+          <button type="button" onclick="mudarAbaModalGlobal('recorrencia')" id="tab-global-recorrencia"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
+            🔁 Recorr.
+          </button>
+          <button type="button" onclick="mudarAbaModalGlobal('pagaleve')" id="tab-global-pagaleve"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
+            ⚡ Paga Leve
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulário Unificado com Preservação de Estado -->
+      <form id="form-transacao-global" onsubmit="submeterTransacaoGlobal(event)" class="p-5 space-y-4">
+        <input type="hidden" id="global-input-tipo" name="tipo" value="despesa">
+
+        <!-- 1. Valor e Data -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor (R$)*</label>
+            <input type="text" id="global-input-valor" required placeholder="0,00"
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold text-base focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                   oninput="aplicarMascaraMoedaGlobal(this)">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data*</label>
+            <input type="date" id="global-input-data" required
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- 2. Descrição -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição*</label>
+          <input type="text" id="global-input-descricao" required placeholder="Ex: Supermercado, Salário, Internet..."
+                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+
+        <!-- 3. CAMPOS ESPECÍFICOS DE DESPESA / RECEITA -->
+        <div id="bloco-campos-padrao" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria*</label>
+            <select id="global-select-categoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <!-- Populado dinamicamente -->
+            </select>
+          </div>
+          <div>
+            <label id="global-label-conta" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta / Forma*</label>
+            <select id="global-select-conta" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <!-- Populado dinamicamente -->
+            </select>
+          </div>
+        </div>
+
+        <!-- 4. CAMPOS ESPECÍFICOS DE TRANSFERÊNCIA -->
+        <div id="bloco-campos-transferencia" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta de Origem (Sai)*</label>
+            <select id="global-select-origem" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta de Destino (Entra)*</label>
+            <select id="global-select-destino" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </select>
+          </div>
+        </div>
+
+        <!-- 5. CAMPOS ESPECÍFICOS DE RECORRÊNCIA -->
+        <div id="bloco-campos-recorrencia" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Dia do Vencimento*</label>
+            <input type="number" id="global-input-dia-venc" min="1" max="31" value="10"
+                   class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Duração (Meses)*</label>
+            <select id="global-select-meses-duracao" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+              <option value="6">6 meses</option>
+              <option value="12" selected>12 meses (1 ano)</option>
+              <option value="24">24 meses (2 anos)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 6. CAMPOS ESPECÍFICOS DE PAGA LEVE -->
+        <div id="bloco-campos-pagaleve" class="hidden space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Titular da Conta*</label>
+              <select id="global-select-pl-titular" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="Carlos" selected>Carlos (Limite Ref. R$ 300,00)</option>
+                <option value="Fernanda">Fernanda (Sob Demanda)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Número de Parcelas*</label>
+              <select id="global-select-pl-parcelas" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="4" selected>4x Quinzenais (Padrão Paga Leve)</option>
+                <option value="2">2x Quinzenais</option>
+                <option value="3">3x Quinzenais</option>
+              </select>
+            </div>
+          </div>
+          <p class="text-[11px] text-purple-600 dark:text-purple-400 font-medium bg-purple-50 dark:bg-purple-950/40 p-2.5 rounded-xl border border-purple-200 dark:border-purple-900/60">
+            ⚡ As parcelas serão geradas a cada 15 dias automaticamente, preservando o modelo e a rastreabilidade do Paga Leve.
+          </p>
+        </div>
+
+        <!-- 7. Status de Pagamento (apenas para despesa/receita pontual) -->
+        <div id="bloco-status-pagamento" class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="global-check-pago" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300">
+          <label for="global-check-pago" class="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+            Já liquidado / efetivamente pago ou recebido
+          </label>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="fecharModalTransacaoGlobal()"
+                  class="touch-target px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" id="global-btn-submit"
+                  class="touch-target px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition cursor-pointer flex items-center gap-1.5">
+            <span>Salvar Transação</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>
