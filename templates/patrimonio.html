@@ -94,28 +94,28 @@
     <div class="flex items-center justify-between font-bold text-slate-900 dark:text-white">
       <div class="flex items-center gap-2">
         <span>ℹ️</span>
-        <span>Como este cálculo é composto (Sem Contagem Dupla)</span>
+        <span>Visão Patrimonial Pessoal do Oikos (Critério de Passivos)</span>
       </div>
       <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
         Passivo Parcial / Estimado
       </span>
     </div>
     <p class="leading-relaxed text-[11px]">
-      <strong>Fórmula:</strong> Patrimônio Líquido = (Bens Físicos Estimados + Saldo Consolidado em Contas e Carteira) - (Obrigações de Cartões a Vencer + Parcelas Futuras do Paga Leve + Outros Parcelamentos a Vencer + Dívidas Formais).
+      <strong>Fórmula:</strong> Patrimônio Líquido = (Bens Físicos Estimados + Saldo em Contas e Carteira) - (Dívidas Formais + Obrigações de Compras em Cartão + Parcelas Futuras do Paga Leve + Financiamentos/Carnês Cadastrados).
     </p>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
       <div>
-        <strong class="text-emerald-600 dark:text-emerald-400">O que entra:</strong>
-        Valores reais apurados de caixa, valor de mercado dos bens cadastrados e parcelas nominais pendentes de liquidação.
+        <strong class="text-emerald-600 dark:text-emerald-400">Passivos Patrimoniais:</strong>
+        Dívidas e acordos formais cadastrados pelo saldo devedor conhecido, somados às parcelas futuras de compras realizadas em Cartão de Crédito e Paga Leve, contadas estritamente uma única vez.
       </div>
       <div>
-        <strong class="text-rose-500">O que NÃO entra:</strong>
-        Cofrinhos (já são subdivisões do Mercado Pago e não são somados duas vezes) e Limites de Cartão (não constituem patrimônio próprio).
+        <strong class="text-rose-500">Contas Orçamentárias do Cotidiano:</strong>
+        Contas de consumo contínuo (telefonia, internet, luz, água e assinaturas) pertencem ao fluxo de caixa, orçamento mensal e contas a pagar. Não reduzem o patrimônio líquido acumulado.
       </div>
     </div>
     <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
-      <strong>Critério de Passivos (Saldo Devedor vs. Parcelas Futuras):</strong>
-      Diferenciamos o saldo devedor formal de contratos da soma nominal das parcelas futuras conhecidas. Como os parcelamentos de cartão, Paga Leve e despesas fixas registram apenas o valor de cada parcela a vencer, o passivo total reflete o <em>saldo devedor conhecido</em> das parcelas cadastradas. Na ausência de contratos de financiamento com juros futuros abertos, o indicador é identificado como <strong>parcial ou estimado</strong>.
+      <strong>Garantia Anti-Duplicidade & Limitações:</strong>
+      Cofrinhos não são somados em duplicidade (já fazem parte do saldo em conta). Limites de crédito não são ativos. Na ausência de contratos de financiamento bancário formalizados com taxa de juros futuros, o passivo reflete o saldo nominal das parcelas contratadas, sendo apresentado como <strong>visão patrimonial gerencial estimada</strong> (sem pretensão de balanço contábil formal).
     </div>
   </div>
 
@@ -282,11 +282,11 @@
           </div>
         </div>
 
-        <!-- 2.3 OUTROS PARCELAMENTOS FIXOS -->
+        <!-- 2.3 OUTROS PARCELAMENTOS E FINANCIAMENTOS -->
         <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
           <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
             <span class="flex items-center gap-1.5">
-              <span>📋</span> <span>Outros Parcelamentos (Telefonia, Assinaturas)</span>
+              <span>📋</span> <span>Outros Parcelamentos (Carnês, Empréstimos ou Financiamentos)</span>
             </span>
             <strong class="text-slate-800 dark:text-slate-200">{{ resumo.total_outros_parc | moeda }}</strong>
           </div>
@@ -298,6 +298,9 @@
               <span class="font-bold text-slate-700 dark:text-slate-300 shrink-0">{{ item.valor | moeda }}</span>
             </div>
             {% endfor %}
+            {% if not resumo.transacoes_outros_parc %}
+            <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">Nenhum registro cadastrado nesta área.</p>
+            {% endif %}
           </div>
         </div>
 
@@ -324,7 +327,7 @@
           </div>
           {% else %}
           <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-            Nenhuma dívida formal renegociada cadastrada em Dívidas.
+            Nenhum registro cadastrado nesta área.
           </p>
           {% endif %}
         </div>

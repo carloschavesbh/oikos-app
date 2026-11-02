@@ -453,26 +453,62 @@ def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
                 "grupo": r[4]
             })
 
-    # D. Outros Parcelamentos Futuros (transações pendentes - dedup com cartões e Paga Leve)
+    # D. Outros Parcelamentos & Financiamentos Legítimos (fora de Cartões e Paga Leve)
+    # REGRA PATRIMONIAL DO OIKOS: Contas de consumo e despesas operacionais cotidianas
+    # (água, luz, telefonia, internet, assinaturas e mensalidades de consumo),
+    # mesmo que cadastradas com antecedência para compor o fluxo de caixa ou pendentes/atrasadas,
+    # pertencem ao orçamento mensal e contas a pagar, NÃO sendo passivos patrimoniais.
+    # Apenas compras parceladas legítimas de bens duráveis (carnês/crediários) ou financiamentos
+    # contraídos são considerados passivos patrimoniais.
     transacoes_outros_parc = []
     total_outros_parc = 0.0
+
+    CATEGORIAS_CONSUMO_COTIDIANO = {
+        "moradia/contas", "habitação", "habitacao", "energia", "água", "agua",
+        "telefonia", "internet", "combustível", "combustivel", "transporte",
+        "alimentação", "alimentacao", "saúde", "saude", "academia / wellhub",
+        "barbearia", "educação", "educacao", "pessoal", "pessoal - carlos",
+        "pessoal - fernanda", "impostos veículo", "impostos veiculo", "geral"
+    }
+
     cur.execute("""
-        SELECT id, descricao, valor, data, grupo_parcelamento
+        SELECT id, descricao, valor, data, categoria, subcategoria, conta, grupo_parcelamento, numero_parcela, total_parcelas_compra
         FROM transacoes
-        WHERE grupo_parcelamento IS NOT NULL AND (pago = 0 OR pago IS NULL)
+        WHERE grupo_parcelamento IS NOT NULL
+          AND grupo_parcelamento != ''
+          AND NOT grupo_parcelamento LIKE 'pagaleve_%'
+          AND NOT grupo_parcelamento LIKE 'fixa_%'
+          AND NOT grupo_parcelamento LIKE 'recorren%'
+          AND (pago = 0 OR pago IS NULL)
+          AND tipo = 'despesa'
         ORDER BY data ASC
     """)
     for r in cur.fetchall():
-        if r[0] not in ids_processados:
-            ids_processados.add(r[0])
-            val = float(r[2])
+        tid = r[0]
+        if tid in ids_processados:
+            continue
+        
+        cat = str(r[4] or "").strip().lower()
+        tot_p = r[9]
+
+        # Exclui despesas de consumo cotidiano e contas orçamentárias
+        if cat in CATEGORIAS_CONSUMO_COTIDIANO:
+            continue
+
+        # Inclui apenas compras parceladas legítimas ou financiamentos
+        eh_divida_financiamento = any(k in cat for k in ["empréstimo", "emprestimo", "financiamento", "dívida", "divida"])
+        eh_compra_parcelada = bool(tot_p and tot_p > 1)
+
+        if eh_divida_financiamento or eh_compra_parcelada:
+            ids_processados.add(tid)
+            val = float(r[2] or 0.0)
             total_outros_parc += val
             transacoes_outros_parc.append({
-                "id": r[0],
+                "id": tid,
                 "descricao": r[1],
                 "valor": val,
                 "data": str(r[3]),
-                "grupo": r[4]
+                "grupo": r[7]
             })
 
     # E. Dívidas & Acordos Formais cadastrados (dividas_gerenciamento)
