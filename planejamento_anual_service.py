@@ -786,6 +786,7 @@ def comparar_cenarios_com_despesas(
         renda_total = round(renda_estavel + renda_var, 2)
         sobra_ou_falta = round(renda_total - despesas_totais, 2)
         cobertura_estrutura = round((renda_total / tot_estrutura * 100), 1) if tot_estrutura > 0 else 100.0
+        cobertura_total = round((renda_total / despesas_totais * 100), 1) if despesas_totais > 0 else 100.0
 
         resultados_cenarios[nome_cen] = {
             "renda_estavel": renda_estavel,
@@ -795,12 +796,14 @@ def comparar_cenarios_com_despesas(
             "sobra_ou_falta": sobra_ou_falta,
             "status": "superavit" if sobra_ou_falta >= 0 else "deficit",
             "cobertura_estrutura_pct": cobertura_estrutura,
+            "cobertura_total_pct": cobertura_total,
             "cobre_estrutura": renda_total >= tot_estrutura,
             "cobre_tudo": sobra_ou_falta >= 0
         }
 
     return {
         "despesas_totais": despesas_totais,
+        "total_estrutura": round(tot_estrutura, 2),
         "por_natureza": {
             "estrutura_familiar": {
                 "nome": "Estrutura da Família",
