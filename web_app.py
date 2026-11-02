@@ -377,12 +377,22 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         if c.get("tipo") != "cofrinho"
     ]
 
-    # 2. Receita Mensal Consolidada (Salário Fernanda + Produção Oficial 99)
-    prod_99 = saldo_service.obter_producao_consolidada_99(conn)
-    fat_99_mes = float(prod_99.get("total_mes_bruto", 1469.50))
-    fat_99_semana = float(prod_99.get("semana", {}).get("bruto", 146.70))
-
+    # 2. Receita Mensal Consolidada (Critério rigoroso idêntico ao Planejamento: transações financeiras reais recebidas)
     cur = conn.cursor()
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0) FROM transacoes
+        WHERE tipo = 'receita' AND pago = 1 AND data >= ? AND data <= ?
+    """, (inicio_mes_str, fim_mes_str))
+    receita_mensal_total = float(cur.fetchone()[0] or 0.0)
+
+    # Previsão explícita apenas se houver receita cadastrada a receber no período (sem suposições)
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0) FROM transacoes
+        WHERE tipo = 'receita' AND (pago = 0 OR pago IS NULL) AND data >= ? AND data <= ?
+    """, (inicio_mes_str, fim_mes_str))
+    receita_prevista_total = float(cur.fetchone()[0] or 0.0)
+
+    # Discriminação informativa das receitas recebidas (se houver)
     cur.execute("""
         SELECT COALESCE(SUM(valor), 0) FROM transacoes
         WHERE tipo = 'receita' AND pago = 1 AND data >= ? AND data <= ?
@@ -390,8 +400,11 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     """, (inicio_mes_str, fim_mes_str))
     row_sal = cur.fetchone()
     sal_fernanda = float(row_sal[0]) if (row_sal and row_sal[0] > 0) else 0.0
-    sal_fernanda_previsto = 3523.43
-    receita_mensal_total = sal_fernanda + fat_99_mes
+
+    # Produção Operacional da 99 (métrica de atividade do módulo Drive, segregada do fluxo de receitas financeiras)
+    prod_99 = saldo_service.obter_producao_consolidada_99(conn, data_ref=hoje)
+    fat_99_mes = float(prod_99.get("total_mes_bruto", 0.0))
+    fat_99_semana = float(prod_99.get("semana", {}).get("bruto", 0.0))
 
     # 3. Despesas do Mês (Pagas + Pendentes do Mês)
     cur.execute("""
@@ -549,8 +562,8 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         "ano": ano_atual,
         # Resumo da Casa
         "receita_mensal": receita_mensal_total,
+        "receita_prevista": receita_prevista_total,
         "salario_fernanda": sal_fernanda,
-        "salario_fernanda_previsto": sal_fernanda_previsto,
         "fat_99_mes": fat_99_mes,
         "despesa_mensal": despesa_mensal_total,
         "despesas_pagas": despesas_pagas_mes,
@@ -2825,13 +2838,15 @@ async def pagina_motorista(
     inicio_semana = row_sem[0] if row_sem else (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
     fim_semana = row_sem[1] if row_sem else (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
 
-    # Produção 99 consolidada oficial
-    prod_99 = saldo_service.obter_producao_consolidada_99(conn)
-    total_mes_bruto = float(prod_99.get("total_mes_bruto", 1469.50))
-    marco_bruto = float(prod_99.get("marco", {}).get("faturamento_bruto", 1322.80) if prod_99.get("marco") else 1322.80)
-    semana_bruto = float(prod_99.get("semana", {}).get("bruto", 146.70))
-    recebido_online = float(prod_99.get("total_mes_online", 1046.39))
-    recebido_dinheiro = float(prod_99.get("total_mes_dinheiro", 423.11))
+    # Produção 99 consolidada oficial respeitando o mês de referência consultado
+    dia_ref = min(hoje.day if eh_mes_atual else ultimo_dia, ultimo_dia)
+    data_ref_drive = date(ano, mes, dia_ref)
+    prod_99 = saldo_service.obter_producao_consolidada_99(conn, data_ref=data_ref_drive)
+    total_mes_bruto = float(prod_99.get("total_mes_bruto", 0.0))
+    marco_bruto = float(prod_99.get("marco", {}).get("faturamento_bruto", 0.0) if prod_99.get("marco") else 0.0)
+    semana_bruto = float(prod_99.get("semana", {}).get("bruto", 0.0))
+    recebido_online = float(prod_99.get("total_mes_online", 0.0))
+    recebido_dinheiro = float(prod_99.get("total_mes_dinheiro", 0.0))
 
     # Obter saldos das contas para transferências rápidas
     res_saldo = saldo_service.calcular_saldo_consolidado(conn)

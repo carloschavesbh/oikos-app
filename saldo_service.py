@@ -2177,9 +2177,11 @@ def obter_producao_consolidada_99(
 
     divergencia = round(total_mes_bruto - (total_mes_din + total_mes_onl), 2)
 
+    marco_retorno = marco if marco_mesmo_mes else None
+
     return {
-        "marco": marco,
-        "marco_oficial": marco,
+        "marco": marco_retorno,
+        "marco_oficial": marco_retorno,
         "mes_referencia": f"{ano}-{mes:02d}",
         "total_mes_bruto": total_mes_bruto,
         "total_mes_dinheiro": total_mes_din,
