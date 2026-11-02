@@ -305,11 +305,6 @@
                 <h3 class="font-bold text-sm text-slate-900 dark:text-white">{{ c.categoria }}</h3>
                 <span class="text-[10px] font-semibold text-slate-400">({{ c.qtd_transacoes }} lançamentos)</span>
               </div>
-              {% if c.sinonimos and c.sinonimos | length > 0 %}
-              <div class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                Agrega: {{ c.sinonimos | join(', ') }}
-              </div>
-              {% endif %}
               <span class="text-[10px] font-bold uppercase tracking-wider
                           {% if c.status_cor == 'emerald' %}text-emerald-600 dark:text-emerald-400
                           {% elif c.status_cor == 'amber' %}text-amber-600 dark:text-amber-400
@@ -583,17 +578,26 @@
             <span class="text-xl font-black text-slate-900 dark:text-white">{{ cc.cenarios.conservador.renda_total | moeda }}</span>
             <span class="text-[11px] text-slate-400 block">(Fixa {{ cen.estavel.valor_final | moeda }} + Drive {{ cen.conservador.valor_final | moeda }})</span>
           </div>
-          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-1.5 text-xs">
-            <div class="flex justify-between">
-              <span class="text-slate-500">Resultado Previsto:</span>
-              <strong class="{% if cc.cenarios.conservador.sobra_ou_falta >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
-                {{ cc.cenarios.conservador.sobra_ou_falta | moeda }}
+          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 text-xs">
+            <div>
+              <div class="flex justify-between items-baseline">
+                <span class="text-slate-500 font-medium">Saldo previsto sobre as despesas cadastradas:</span>
+                <strong class="{% if cc.cenarios.conservador.sobra_ou_falta >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                  {{ cc.cenarios.conservador.sobra_ou_falta | moeda }}
+                </strong>
+              </div>
+              <span class="text-[9px] text-slate-400 block italic leading-tight">(projeção teórica — não é dinheiro disponível hoje)</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Básica (Estrutura: {{ cc.total_estrutura | moeda }}):</span>
+              <strong class="{% if cc.cenarios.conservador.cobre_estrutura %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
+                {{ cc.cenarios.conservador.cobertura_estrutura_pct }}%
               </strong>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-500">Cobertura da Estrutura:</span>
-              <strong class="{% if cc.cenarios.conservador.cobre_estrutura %}text-emerald-600{% else %}text-amber-600{% endif %}">
-                {{ cc.cenarios.conservador.cobertura_estrutura_pct }}%
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Total do Mês (Despesas: {{ cc.despesas_totais | moeda }}):</span>
+              <strong class="{% if cc.cenarios.conservador.cobre_tudo %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                {{ cc.cenarios.conservador.cobertura_total_pct }}%
               </strong>
             </div>
           </div>
@@ -619,17 +623,26 @@
             <span class="text-xl font-black text-slate-900 dark:text-white">{{ cc.cenarios.habitual.renda_total | moeda }}</span>
             <span class="text-[11px] text-slate-400 block">(Fixa {{ cen.estavel.valor_final | moeda }} + Drive {{ cen.habitual.valor_final | moeda }})</span>
           </div>
-          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-1.5 text-xs">
-            <div class="flex justify-between">
-              <span class="text-slate-500">Resultado Previsto:</span>
-              <strong class="{% if cc.cenarios.habitual.sobra_ou_falta >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
-                {{ cc.cenarios.habitual.sobra_ou_falta | moeda }}
+          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 text-xs">
+            <div>
+              <div class="flex justify-between items-baseline">
+                <span class="text-slate-500 font-medium">Saldo previsto sobre as despesas cadastradas:</span>
+                <strong class="{% if cc.cenarios.habitual.sobra_ou_falta >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                  {{ cc.cenarios.habitual.sobra_ou_falta | moeda }}
+                </strong>
+              </div>
+              <span class="text-[9px] text-slate-400 block italic leading-tight">(projeção teórica — não é dinheiro disponível hoje)</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Básica (Estrutura: {{ cc.total_estrutura | moeda }}):</span>
+              <strong class="{% if cc.cenarios.habitual.cobre_estrutura %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
+                {{ cc.cenarios.habitual.cobertura_estrutura_pct }}%
               </strong>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-500">Cobertura da Estrutura:</span>
-              <strong class="{% if cc.cenarios.habitual.cobre_estrutura %}text-emerald-600{% else %}text-amber-600{% endif %}">
-                {{ cc.cenarios.habitual.cobertura_estrutura_pct }}%
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Total do Mês (Despesas: {{ cc.despesas_totais | moeda }}):</span>
+              <strong class="{% if cc.cenarios.habitual.cobre_tudo %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                {{ cc.cenarios.habitual.cobertura_total_pct }}%
               </strong>
             </div>
           </div>
@@ -655,17 +668,26 @@
             <span class="text-xl font-black text-slate-900 dark:text-white">{{ cc.cenarios.favorável.renda_total | moeda }}</span>
             <span class="text-[11px] text-slate-400 block">(Fixa {{ cen.estavel.valor_final | moeda }} + Drive {{ cen.favorável.valor_final | moeda }})</span>
           </div>
-          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-1.5 text-xs">
-            <div class="flex justify-between">
-              <span class="text-slate-500">Resultado Previsto:</span>
-              <strong class="{% if cc.cenarios.favorável.sobra_ou_falta >= 0 %}text-emerald-600{% else %}text-rose-600{% endif %}">
-                {{ cc.cenarios.favorável.sobra_ou_falta | moeda }}
+          <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2 text-xs">
+            <div>
+              <div class="flex justify-between items-baseline">
+                <span class="text-slate-500 font-medium">Saldo previsto sobre as despesas cadastradas:</span>
+                <strong class="{% if cc.cenarios.favorável.sobra_ou_falta >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                  {{ cc.cenarios.favorável.sobra_ou_falta | moeda }}
+                </strong>
+              </div>
+              <span class="text-[9px] text-slate-400 block italic leading-tight">(projeção teórica — não é dinheiro disponível hoje)</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Básica (Estrutura: {{ cc.total_estrutura | moeda }}):</span>
+              <strong class="{% if cc.cenarios.favorável.cobre_estrutura %}text-emerald-600 dark:text-emerald-400{% else %}text-amber-600 dark:text-amber-400{% endif %}">
+                {{ cc.cenarios.favorável.cobertura_estrutura_pct }}%
               </strong>
             </div>
-            <div class="flex justify-between">
-              <span class="text-slate-500">Cobertura da Estrutura:</span>
-              <strong class="{% if cc.cenarios.favorável.cobre_estrutura %}text-emerald-600{% else %}text-amber-600{% endif %}">
-                {{ cc.cenarios.favorável.cobertura_estrutura_pct }}%
+            <div class="flex justify-between items-center">
+              <span class="text-slate-500">Cob. Total do Mês (Despesas: {{ cc.despesas_totais | moeda }}):</span>
+              <strong class="{% if cc.cenarios.favorável.cobre_tudo %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                {{ cc.cenarios.favorável.cobertura_total_pct }}%
               </strong>
             </div>
           </div>
@@ -675,6 +697,22 @@
         </div>
 
       </div>
+
+      <!-- BLOCO DE PASSIVO ANTERIOR (CONTAS ATRASADAS) SEPARADO DA PROJEÇÃO CORRENTE -->
+      {% if total_atrasadas and total_atrasadas > 0 %}
+      <div class="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 rounded-xl p-3.5 space-y-1.5 text-xs">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-sm">⚠️</span>
+            <span class="font-bold text-rose-800 dark:text-rose-300">Contas Atrasadas (Vencidas até {{ hoje_formatado }}):</span>
+          </div>
+          <strong class="text-rose-600 dark:text-rose-400 font-black text-sm">{{ total_atrasadas | moeda }}</strong>
+        </div>
+        <p class="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+          Existem <strong>{{ qtd_atrasadas }} conta(s)</strong> pendente(s) de meses anteriores. O saldo previsto sobre as despesas cadastradas é uma projeção teórica do mês e <strong>NÃO</strong> representa recurso disponível para quitar atrasados, pois não considera saldo inicial de caixa, fluxo diário de entradas nem compromissos não cadastrados.
+        </p>
+      </div>
+      {% endif %}
 
       <!-- NOTA DE RESPONSABILIDADE & METODOLOGIA -->
       <div class="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
