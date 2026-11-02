@@ -2477,33 +2477,41 @@ async def pagina_planejamento(
 
     orcamento_categorias = []
     total_orcado_geral = 0.0
+    total_gasto_com_limite = 0.0
     total_gasto_geral = 0.0
+    qtd_sem_limite = 0
 
     for cat in todas_categorias:
         gasto_info = gastos_por_cat.get(cat, {"gasto_real": 0.0, "qtd": 0})
         g_real = gasto_info["gasto_real"]
-
-        if cat in limites_db:
-            limite = limites_db[cat]
-        else:
-            limite = round(g_real * 1.15, 2) if g_real > 0 else 200.0
-
-        total_orcado_geral += limite
         total_gasto_geral += g_real
 
-        pct = round((g_real / limite) * 100, 1) if limite > 0 else 0.0
-        pct_barra = min(100.0, pct)
-        dif = round(limite - g_real, 2)
+        tem_limite = cat in limites_db
+        if tem_limite:
+            limite = limites_db[cat]
+            total_orcado_geral += limite
+            total_gasto_com_limite += g_real
+            pct = round((g_real / limite) * 100, 1) if limite > 0 else 0.0
+            pct_barra = min(100.0, pct)
+            dif = round(limite - g_real, 2)
 
-        if pct < 80:
-            status_cor = "emerald"
-            status_texto = "Dentro do Orçamento"
-        elif pct <= 100:
-            status_cor = "amber"
-            status_texto = "Perto do Limite"
+            if pct < 80:
+                status_cor = "emerald"
+                status_texto = "Dentro do Orçamento"
+            elif pct <= 100:
+                status_cor = "amber"
+                status_texto = "Perto do Limite"
+            else:
+                status_cor = "rose"
+                status_texto = "Orçamento Estourado!"
         else:
-            status_cor = "rose"
-            status_texto = "Orçamento Estourado!"
+            limite = None
+            pct = None
+            pct_barra = 0.0
+            dif = None
+            status_cor = "slate"
+            status_texto = "Sem limite definido"
+            qtd_sem_limite += 1
 
         cat_lower = cat.lower()
         if "combust" in cat_lower or "abast" in cat_lower:
@@ -2532,6 +2540,7 @@ async def pagina_planejamento(
             "icone": icone,
             "gasto_real": g_real,
             "orcado": limite,
+            "tem_limite": tem_limite,
             "diferenca": dif,
             "percentual": pct,
             "percentual_barra": pct_barra,
@@ -2541,7 +2550,7 @@ async def pagina_planejamento(
         })
 
     orcamento_categorias.sort(key=lambda x: x["gasto_real"], reverse=True)
-    pct_geral_orcamento = round((total_gasto_geral / total_orcado_geral) * 100, 1) if total_orcado_geral > 0 else 0.0
+    pct_geral_orcamento = round((total_gasto_com_limite / total_orcado_geral) * 100, 1) if total_orcado_geral > 0 else 0.0
 
     # 6. JUROS E DESCONTOS NO MÊS SELECIONADO
     # Descontos de despesas gerais (tabela transacoes)
@@ -2677,7 +2686,9 @@ async def pagina_planejamento(
             "msg_saude": msg_saude,
             "orcamento_categorias": orcamento_categorias,
             "total_orcado_geral": total_orcado_geral,
+            "total_gasto_com_limite": total_gasto_com_limite,
             "total_gasto_geral": total_gasto_geral,
+            "qtd_sem_limite": qtd_sem_limite,
             "pct_geral_orcamento": pct_geral_orcamento,
             "total_juros_mes": total_juros_mes,
             "total_descontos_mes": total_descontos_mes,

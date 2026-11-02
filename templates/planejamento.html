@@ -266,21 +266,28 @@
       </div>
 
       <!-- Resumo Consolidado do Orçamento -->
-      <div class="flex items-center gap-4 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-        <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Gasto Total</span>
-          <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_gasto_geral | moeda }}</strong>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+        <div class="flex items-center gap-4">
+          <div>
+            <span class="text-slate-400 block text-[10px] uppercase font-bold">Gasto Total</span>
+            <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_gasto_geral | moeda }}</strong>
+          </div>
+          <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
+            <span class="text-slate-400 block text-[10px] uppercase font-bold">Teto Orçado</span>
+            <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_orcado_geral | moeda }}</strong>
+          </div>
+          <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
+            <span class="text-slate-400 block text-[10px] uppercase font-bold">Comprometimento</span>
+            <strong class="{% if pct_geral_orcamento < 80 %}text-emerald-600 dark:text-emerald-400{% elif pct_geral_orcamento <= 100 %}text-amber-500{% else %}text-rose-500{% endif %} font-black">
+              {{ pct_geral_orcamento }}%
+            </strong>
+          </div>
         </div>
-        <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Teto Orçado</span>
-          <strong class="text-slate-900 dark:text-white font-extrabold">{{ total_orcado_geral | moeda }}</strong>
+        {% if qtd_sem_limite > 0 %}
+        <div class="border-t sm:border-t-0 sm:border-l border-slate-200 dark:border-slate-800 pt-1.5 sm:pt-0 sm:pl-3 text-[11px] text-slate-500 dark:text-slate-400">
+          <span class="italic font-medium">({{ qtd_sem_limite }} categoria(s) sem limite ficaram de fora do cálculo do teto)</span>
         </div>
-        <div class="border-l border-slate-200 dark:border-slate-800 pl-4">
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Comprometimento</span>
-          <strong class="{% if pct_geral_orcamento < 80 %}text-emerald-600 dark:text-emerald-400{% elif pct_geral_orcamento <= 100 %}text-amber-500{% else %}text-rose-500{% endif %} font-black">
-            {{ pct_geral_orcamento }}%
-          </strong>
-        </div>
+        {% endif %}
       </div>
     </div>
 
@@ -301,7 +308,8 @@
               <span class="text-[10px] font-bold uppercase tracking-wider
                           {% if c.status_cor == 'emerald' %}text-emerald-600 dark:text-emerald-400
                           {% elif c.status_cor == 'amber' %}text-amber-600 dark:text-amber-400
-                          {% else %}text-rose-600 dark:text-rose-400{% endif %}">
+                          {% elif c.status_cor == 'rose' %}text-rose-600 dark:text-rose-400
+                          {% else %}text-slate-400{% endif %}">
                 ● {{ c.status_texto }}
               </span>
             </div>
@@ -310,6 +318,7 @@
           <!-- Valores: Real / Orçado / Botão Ajustar -->
           <div class="flex items-center justify-between sm:justify-end gap-3 self-end sm:self-auto w-full sm:w-auto">
             <div class="text-right">
+              {% if c.tem_limite %}
               <div class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
                 {{ c.gasto_real | moeda }} <span class="text-slate-400 font-normal">/ {{ c.orcado | moeda }}</span>
               </div>
@@ -320,11 +329,21 @@
                 Excesso: <span class="text-rose-600 dark:text-rose-400 font-semibold">{{ (c.diferenca * -1) | moeda }}</span>
                 {% endif %}
               </div>
+              {% else %}
+              <div class="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white">
+                {{ c.gasto_real | moeda }}
+              </div>
+              <div class="text-[10px] font-medium text-slate-400">
+                <button type="button" onclick="abrirModalLimite('{{ c.categoria }}', '')" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer">
+                  Definir limite
+                </button>
+              </div>
+              {% endif %}
             </div>
 
             <!-- Botão Editar Teto da Categoria -->
-            <button onclick="abrirModalLimite('{{ c.categoria }}', '{{ c.orcado }}')" 
-                    title="Ajustar teto orçado"
+            <button onclick="abrirModalLimite('{{ c.categoria }}', '{{ c.orcado if c.orcado is not none else '' }}')" 
+                    title="{{ 'Ajustar teto orçado' if c.tem_limite else 'Definir limite' }}"
                     class="touch-target p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold transition active:scale-95 shadow-2xs cursor-pointer">
               ✏️
             </button>
@@ -333,6 +352,7 @@
 
         <!-- Barra de Progresso Visual Colorida -->
         <div class="space-y-1">
+          {% if c.tem_limite %}
           <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
             <div class="h-full rounded-full transition-all duration-500
                         {% if c.status_cor == 'emerald' %}bg-emerald-500
@@ -347,6 +367,17 @@
             </span>
             <span>100% (Teto)</span>
           </div>
+          {% else %}
+          <div class="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-slate-300 dark:bg-slate-700" style="width: 0%;"></div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+            <span>Gasto registrado: {{ c.gasto_real | moeda }}</span>
+            <button type="button" onclick="abrirModalLimite('{{ c.categoria }}', '')" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer">
+              Definir limite
+            </button>
+          </div>
+          {% endif %}
         </div>
 
       </div>
