@@ -18,3 +18,4 @@ for t in turnos[:3]:
 print("\n--- 3. VERIFICAR SE O GANHO DO TURNO VIRA TRANSAÇÃO AUTOMATICAMENTE ---")
 # Vamos checar em web_app.py ou app.py onde turnos são inseridos
 conn.close()
+

@@ -4695,6 +4695,21 @@ import patrimonio_service
 # ROTAS DA API: PLANEJAMENTO DE RENDA VARIÁVEL E DESPESAS ANUAIS / EVENTUAIS
 # =============================================================================
 
+@app.post("/api/planejamento/meses-amostra")
+async def api_salvar_meses_amostra(request: Request):
+    dados = await request.json()
+    meses_ativos = dados.get("meses_ativos", [])
+    conn = conectar_db()
+    try:
+        import planejamento_anual_service
+        ok = planejamento_anual_service.salvar_selecao_meses_amostra(conn, meses_ativos)
+        return JSONResponse({"sucesso": ok})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/planejamento/cenarios")
 async def api_salvar_cenarios_renda(request: Request):
     dados = await request.json()

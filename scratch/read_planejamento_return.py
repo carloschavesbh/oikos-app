@@ -8,3 +8,4 @@ for idx, line in enumerate(lines):
     if found and 'return templates.TemplateResponse' in line:
         print(''.join(lines[idx-30:idx+25]))
         break
+

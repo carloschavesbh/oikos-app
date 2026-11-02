@@ -127,3 +127,4 @@ conn.commit()
 conn.close()
 
 print("\n=== TODOS OS TESTES UNITÁRIOS DO SERVIÇO PASSARAM COM SUCESSO! ===")
+

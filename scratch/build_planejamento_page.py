@@ -980,3 +980,4 @@ with open('templates/planejamento.html', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print("SUCESSO: templates/planejamento.html remodelado com sub-tabs e novas seções de Renda e Calendário!")
+

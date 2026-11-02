@@ -28,3 +28,4 @@ transf = conn.execute("SELECT COUNT(*), SUM(valor) FROM transacoes WHERE tipo LI
 print(f"Transferências: {transf}")
 
 conn.close()
+

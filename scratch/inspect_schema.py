@@ -10,3 +10,4 @@ for t in sorted(tables):
     cols = [c[1] for c in cur.fetchall()]
     print(f"  {t}: {', '.join(cols[:8])}{'...' if len(cols)>8 else ''}")
 conn.close()
+

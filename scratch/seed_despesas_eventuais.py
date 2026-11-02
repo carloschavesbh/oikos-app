@@ -26,3 +26,4 @@ if qtd == 0:
     print(f"Inseridos {len(despesas_iniciais)} compromissos anuais/eventuais realistas!")
 
 conn.close()
+

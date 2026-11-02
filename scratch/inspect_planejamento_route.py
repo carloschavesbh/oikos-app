@@ -14,3 +14,4 @@ while idx != -1:
         print(text[line_start-50:line_start+800])
         print("----------------")
     idx = text.find('/planejamento', idx + 1)
+

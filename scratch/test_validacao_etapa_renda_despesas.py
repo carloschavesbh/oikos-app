@@ -108,10 +108,10 @@ print("Nota: Na apuração da renda familiar, não somamos os dois; usa-se o lan
 
 # 3.2 Não tratar ausência de dados como zero
 hist = planejamento_anual_service.analisar_historico_renda(conn, 12, 2026, 10)
-meses_incompletos = [m for m in hist['historico'] if m['incompleto']]
+meses_incompletos = [m for m in hist['historico'] if m['qualidade'] in ('parcial', 'sem_dados')]
 print(f"Meses identificados como incompletos/lacunas: {len(meses_incompletos)}")
 for mi in meses_incompletos:
-    print(f"  - {mi['mes']}: {mi['motivo_incompleto']}")
+    print(f"  - {mi['mes']}: {mi['motivo_qualidade']}")
 assert hist['estatisticas_variavel']['qtd_meses_validos'] <= 12, "Qtd meses válidos inválida"
 assert hist['estatisticas_variavel']['minimo_observado'] > 0, "Mínimo observado não deveria ser zero"
 print("✓ Ausência de dados não tratada como zero: média e cenários usam apenas meses válidos.")
@@ -129,8 +129,10 @@ print(f"Saldo real no Cofrinho 1: R$ 600.00 | Soma distribuída: R$ {soma_reserv
 assert soma_reservada_cof1 <= 600.01, f"Erro: saldo de cofrinho duplicado! {soma_reservada_cof1} > 600.0"
 print("✓ Rateio anti-duplicidade de cofrinho confirmado.")
 
-# Restaurar saldo do cofrinho 1
+# Restaurar saldo do cofrinho 1 e limpar dados de teste
 cur.execute("UPDATE cofrinhos SET saldo_confirmado = 0.0 WHERE id = 1")
+cur.execute("DELETE FROM planejamento_cenarios_renda WHERE observacoes LIKE '%Ajuste manual para teste%'")
+cur.execute("DELETE FROM planejamento_meses_amostra")
 conn.commit()
 conn.close()
 
@@ -141,3 +143,4 @@ assert hash_prod == ESPERADO_PROD, f"ALERTA: financas_casa.db foi alterado! Hash
 print(f"✓ financas_casa.db 100% INTACTO: {hash_prod}")
 
 print("\n=== TODOS OS TESTES DA ETAPA PASSARAM COM 100% DE SUCESSO! ===")
+

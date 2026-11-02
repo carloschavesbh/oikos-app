@@ -1,9 +1,10 @@
 """
 =============================================================================
-PLANEJAMENTO DE RENDA VARIÁVEL, CENÁRIOS E DESPESAS ANUAIS / EVENTUAIS
-Módulo do Oikos Pessoal para análise de renda familiar estável vs. variável,
-cenários de sensibilidade (conservador/habitual/favorável), natureza das
-despesas, calendário de despesas eventuais/anuais e alocação de cofrinhos.
+PLANEJAMENTO DE RENDA FAMILIAR, CENÁRIOS E CALENDÁRIO ANUAL (12 MESES)
+Módulo do Oikos Pessoal para análise da renda familiar (estável vs variável),
+cenários de sensibilidade com controle de meses da amostra pelo usuário,
+margem operacional do Drive (resultado após custos registrados), natureza das
+despesas e calendário anual com cálculo real de contribuições e cofrinhos.
 =============================================================================
 """
 
@@ -12,7 +13,7 @@ import datetime
 import calendar
 from typing import Dict, List, Optional, Tuple, Any
 
-# Naturezas Orçamentárias Permitidas
+# Naturezas Orçamentárias Permitidas (Classificação por atributo separado)
 NATUREZAS_ORCAMENTARIAS = [
     {
         "id": "estrutura_familiar",
@@ -30,7 +31,7 @@ NATUREZAS_ORCAMENTARIAS = [
         "id": "objetivos_investimentos",
         "nome": "Objetivos & Investimentos",
         "icone": "🎯",
-        "descricao": "Amortização acelerada de dívidas, formação de reservas e metas patrimoniais."
+        "descricao": "Amortização de dívidas, formação de reservas e metas patrimoniais."
     }
 ]
 
@@ -111,7 +112,16 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
     );
     """)
 
-    # 3. Calendário anual e despesas sazonais/eventuais
+    # 3. Meses selecionados pelo usuário para compor a amostra dos cenários
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS planejamento_meses_amostra (
+        mes_key TEXT PRIMARY KEY,
+        incluir INTEGER DEFAULT 1,
+        atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 4. Calendário anual e despesas sazonais/eventuais
     cur.execute("""
     CREATE TABLE IF NOT EXISTS planejamento_despesas_eventuais (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +136,7 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
         status TEXT DEFAULT 'planejada',
         transacao_id INTEGER REFERENCES transacoes(id),
         cofrinho_id INTEGER REFERENCES cofrinhos(id),
+        valor_reservado_manual REAL DEFAULT 0.0,
         frequencia_contribuicao TEXT DEFAULT 'mensal',
         observacoes TEXT,
         criado_em TEXT DEFAULT CURRENT_TIMESTAMP
@@ -138,6 +149,12 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
             INSERT OR IGNORE INTO planejamento_natureza_despesas (categoria, natureza, origem)
             VALUES (?, ?, 'padrao')
         """, (cat, nat))
+
+        # Migração idempotente de colunas novas em planejamento_despesas_eventuais
+    cur.execute("PRAGMA table_info(planejamento_despesas_eventuais)")
+    colunas_dev = [c[1] for c in cur.fetchall()]
+    if "valor_reservado_manual" not in colunas_dev:
+        cur.execute("ALTER TABLE planejamento_despesas_eventuais ADD COLUMN valor_reservado_manual REAL DEFAULT 0.0")
 
     conn.commit()
 
@@ -152,7 +169,6 @@ def obter_classificacao_natureza(conn: sqlite3.Connection) -> Dict[str, str]:
     cur = conn.cursor()
     cur.execute("SELECT categoria, natureza FROM planejamento_natureza_despesas")
     resultado = {r[0]: r[1] for r in cur.fetchall()}
-    # Complementa com mapeamento padrão se alguma categoria nova não estiver no banco
     for cat, nat in MAPEAMENTO_PADRAO_NATUREZA.items():
         if cat not in resultado:
             resultado[cat] = nat
@@ -178,18 +194,49 @@ def salvar_classificacao_natureza(conn: sqlite3.Connection, categoria: str, natu
 
 
 # =============================================================================
-# 2. ANÁLISE DE HISTÓRICO DE RENDA & DETECÇÃO DE LACUNAS
+# 2. ANÁLISE DE HISTÓRICO DE RENDA & CONTROLE DE MESES PELO USUÁRIO
 # =============================================================================
 
-def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, ano_ref: Optional[int] = None, mes_ref: Optional[int] = None) -> Dict[str, Any]:
+def salvar_selecao_meses_amostra(conn: sqlite3.Connection, meses_ativos: List[str]) -> bool:
+    """Salva a lista de meses que o usuário escolheu incluir na amostra estatística."""
+    inicializar_tabelas_renda_e_anual(conn)
+    cur = conn.cursor()
+    # Limpa seleções anteriores
+    cur.execute("DELETE FROM planejamento_meses_amostra")
+    for m in meses_ativos:
+        cur.execute("INSERT INTO planejamento_meses_amostra (mes_key, incluir) VALUES (?, 1)", (m.strip(),))
+    conn.commit()
+    return True
+
+
+def obter_meses_amostra_salvos(conn: sqlite3.Connection) -> Optional[set]:
+    """Retorna o conjunto de meses que o usuário marcou para incluir, ou None se nunca configurado."""
+    inicializar_tabelas_renda_e_anual(conn)
+    cur = conn.cursor()
+    cur.execute("SELECT mes_key FROM planejamento_meses_amostra WHERE incluir = 1")
+    rows = cur.fetchall()
+    if not rows:
+        return None
+    return {r[0] for r in rows}
+
+
+def analisar_historico_renda(
+    conn: sqlite3.Connection,
+    meses_analise: int = 12,
+    ano_ref: Optional[int] = None,
+    mes_ref: Optional[int] = None
+) -> Dict[str, Any]:
     """
-    Analisa o histórico mensal de receitas até meses_analise meses atrás.
-    Distingue:
+    Analisa o histórico de receitas mês a mês com decomposição transparente:
       - Renda estável: Salário Fernanda
       - Renda variável: 99 / Chaves (Carlos) e Receitas Extras
-      - Entradas não-operacionais: Aportes/Empréstimos (não contam como renda de trabalho)
-      - Transferências: desconsideradas (não são receitas)
-    Detecta meses incompletos e lacunas de informação sem tratar ausência de dados como zero.
+      - Entradas não-operacionais: Aportes/Empréstimos de terceiros
+      - Rendimentos bancários
+    Diferencia com rigor:
+      - 'completo_confirmado': fluxo regular contínuo de trabalho
+      - 'parcial': poucos lançamentos (ex: repasse isolado, mês em andamento ou atípico)
+      - 'sem_dados': sem registros de receitas da atividade
+    Permite ao usuário incluir/excluir meses da amostra estatística.
     """
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
@@ -199,7 +246,7 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
         ano_ref = hoje.year
         mes_ref = hoje.month
 
-    # Monta lista dos últimos N meses em ordem decrescente
+    # Monta lista dos últimos N meses
     meses_alvo = []
     curr_y, curr_m = ano_ref, mes_ref
     for _ in range(meses_analise):
@@ -215,7 +262,9 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
             strftime('%Y-%m', data) as mes,
             categoria,
             COUNT(*) as qtd,
-            SUM(valor) as total
+            SUM(valor) as total,
+            MIN(data) as d_min,
+            MAX(data) as d_max
         FROM transacoes
         WHERE tipo = 'receita'
           AND strftime('%Y-%m', data) IN ({placeholders})
@@ -225,100 +274,133 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
     cur.execute(query, meses_alvo)
     linhas = cur.fetchall()
 
-    # Dicionário por mês: {mes: {'estavel': X, 'variavel': X, 'outros': X, 'detalhes': []}}
     dados_por_mes: Dict[str, Dict[str, Any]] = {}
     for m in meses_alvo:
         dados_por_mes[m] = {
             "mes": m,
             "estavel": 0.0,
             "variavel": 0.0,
-            "aportes_emprestimos": 0.0,
+            "aportes_externos": 0.0,
             "rendimentos": 0.0,
-            "qtd_lancamentos": 0,
-            "incompleto": False,
-            "motivo_incompleto": None,
+            "qtd_tx_variavel": 0,
+            "qtd_tx_total": 0,
+            "primeira_data": None,
+            "ultima_data": None,
+            "qualidade": "sem_dados",
+            "qualidade_label": "Sem Dados / Lacuna",
+            "motivo_qualidade": "Nenhuma receita operacional registrada.",
+            "incluir_na_amostra": False,
             "tem_dados": False
         }
 
-    for mes_str, categoria, qtd, total in linhas:
+    for mes_str, categoria, qtd, total, d_min, d_max in linhas:
         if mes_str not in dados_por_mes:
             continue
+        info = dados_por_mes[mes_str]
         val = float(total or 0.0)
-        dados_por_mes[mes_str]["qtd_lancamentos"] += qtd
-        dados_por_mes[mes_str]["tem_dados"] = True
+        info["qtd_tx_total"] += qtd
+        info["tem_dados"] = True
 
         cat_norm = (categoria or "").strip()
         if cat_norm in ("Salário Fernanda", "Salário", "Salários"):
-            dados_por_mes[mes_str]["estavel"] += val
+            info["estavel"] += val
         elif cat_norm in ("99 / Chaves (Carlos)", "Receitas Extras", "Ganhos Drive", "Freelas"):
-            dados_por_mes[mes_str]["variavel"] += val
+            info["variavel"] += val
+            info["qtd_tx_variavel"] += qtd
         elif cat_norm in ("Empréstimo / Aporte", "Empréstimos"):
-            dados_por_mes[mes_str]["aportes_emprestimos"] += val
+            info["aportes_externos"] += val
         elif cat_norm in ("Rendimentos", "Rendimento"):
-            dados_por_mes[mes_str]["rendimentos"] += val
+            info["rendimentos"] += val
         else:
-            # Qualquer outra receita entra em variável por segurança analítica
-            dados_por_mes[mes_str]["variavel"] += val
+            info["variavel"] += val
+            info["qtd_tx_variavel"] += qtd
 
-    # Identificar meses incompletos / lacunas
+        if info["primeira_data"] is None or d_min < info["primeira_data"]:
+            info["primeira_data"] = d_min
+        if info["ultima_data"] is None or d_max > info["ultima_data"]:
+            info["ultima_data"] = d_max
+
+    # Carrega meses que o usuário salvou para incluir
+    meses_salvos_usuario = obter_meses_amostra_salvos(conn)
+
     historico_ordenado = []
-    valores_estaveis_validos = []
-    valores_variaveis_validos = []
-
     for m in sorted(meses_alvo):
         info = dados_por_mes[m]
-        # Regra de mês incompleto:
-        # Se for o mês corrente e estiver antes do dia 28
         eh_mes_corrente = (m == f"{hoje.year:04d}-{hoje.month:02d}")
-        if eh_mes_corrente:
-            info["incompleto"] = True
-            info["motivo_incompleto"] = f"Mês em andamento (dia {hoje.day})"
-        elif not info["tem_dados"]:
-            info["incompleto"] = True
-            info["motivo_incompleto"] = "Sem registros cadastrados (lacuna histórica)"
-        elif info["qtd_lancamentos"] < 2 and (info["estavel"] + info["variavel"]) < 500:
-            info["incompleto"] = True
-            info["motivo_incompleto"] = "Registros parciais no mês"
 
-        # Apenas meses com dados participam da amostra estatística
-        # (Não trata ausência de dados como zero!)
-        if info["tem_dados"] and not eh_mes_corrente:
-            if info["estavel"] > 0:
-                valores_estaveis_validos.append(info["estavel"])
-            if info["variavel"] > 0:
-                valores_variaveis_validos.append(info["variavel"])
+        if not info["tem_dados"] or (info["estavel"] == 0 and info["variavel"] == 0):
+            info["qualidade"] = "sem_dados"
+            info["qualidade_label"] = "Sem Dados / Lacuna"
+            info["motivo_qualidade"] = "Lacuna de registros operacionais."
+            default_incluir = False
+        elif eh_mes_corrente:
+            info["qualidade"] = "parcial"
+            info["qualidade_label"] = "Mês em Andamento"
+            info["motivo_qualidade"] = f"Mês atual em curso (dia {hoje.day})."
+            default_incluir = (info["variavel"] > 0)
+        elif info["qtd_tx_variavel"] >= 10:
+            # Mês com mais de 10 lançamentos de corridas/turnos
+            info["qualidade"] = "completo_confirmado"
+            info["qualidade_label"] = "Mês Completo Confirmado"
+            info["motivo_qualidade"] = f"Histórico consistente com {info['qtd_tx_variavel']} lançamentos de corridas."
+            default_incluir = True
+        elif info["qtd_tx_variavel"] > 0:
+            info["qualidade"] = "parcial"
+            info["qualidade_label"] = "Mês Parcial / Incompleto"
+            info["motivo_qualidade"] = f"Apenas {info['qtd_tx_variavel']} lançamento(s) da 99 no mês (repasse isolado ou período curto)."
+            # Por padrão não inclui meses parciais atípicos na amostra para não distorcer o mínimo
+            default_incluir = False
+        else:
+            info["qualidade"] = "parcial"
+            info["qualidade_label"] = "Apenas Renda Fixa"
+            info["motivo_qualidade"] = "Sem registros de corridas da 99 no mês."
+            default_incluir = False
+
+        # Aplica a preferência salva pelo usuário ou o padrão recomendado
+        if meses_salvos_usuario is not None:
+            info["incluir_na_amostra"] = (m in meses_salvos_usuario)
+        else:
+            info["incluir_na_amostra"] = default_incluir
 
         historico_ordenado.append(info)
 
-    # Estatísticas da Renda Variável (Drive + Extras)
-    qtd_meses_variavel = len(valores_variaveis_validos)
-    if qtd_meses_variavel > 0:
-        min_var = min(valores_variaveis_validos)
-        max_var = max(valores_variaveis_validos)
-        media_var = sum(valores_variaveis_validos) / qtd_meses_variavel
+    # Coleta valores dos meses efetivamente incluídos na amostra estatística
+    valores_estaveis_amostra = []
+    valores_variaveis_amostra = []
+
+    for h in historico_ordenado:
+        if h["incluir_na_amostra"]:
+            if h["estavel"] > 0:
+                valores_estaveis_amostra.append(h["estavel"])
+            if h["variavel"] > 0:
+                valores_variaveis_amostra.append(h["variavel"])
+
+    # Estatísticas da Renda Variável com base na amostra selecionada
+    qtd_meses_amostra = len(valores_variaveis_amostra)
+    if qtd_meses_amostra > 0:
+        min_var = min(valores_variaveis_amostra)
+        max_var = max(valores_variaveis_amostra)
+        media_var = sum(valores_variaveis_amostra) / qtd_meses_amostra
     else:
-        # Se não há meses anteriores fechados, usa o mês atual se tiver dados ou 0.0
+        # Fallback seguro
         val_curr = dados_por_mes.get(f"{ano_ref:04d}-{mes_ref:02d}", {}).get("variavel", 0.0)
         min_var = val_curr
         max_var = val_curr
         media_var = val_curr
 
     # Estatísticas da Renda Estável (Salário)
-    qtd_meses_estavel = len(valores_estaveis_validos)
+    qtd_meses_estavel = len(valores_estaveis_amostra)
     if qtd_meses_estavel > 0:
-        media_estavel = sum(valores_estaveis_validos) / qtd_meses_estavel
+        media_estavel = sum(valores_estaveis_amostra) / qtd_meses_estavel
     else:
         media_estavel = dados_por_mes.get(f"{ano_ref:04d}-{mes_ref:02d}", {}).get("estavel", 3500.0)
 
-    # Geração dos Cenários Sugeridos
-    # Conservador: mínimo observado (ou percentil 25 aproximado)
+    # Cenários sugeridos
     cenario_conservador_sugerido = round(min_var, 2)
-    # Habitual: média histórica observada
     cenario_habitual_sugerido = round(media_var, 2)
-    # Favorável: máximo observado (ou média + margem)
     cenario_favoravel_sugerido = round(max_var, 2)
 
-    # Verificar se existem ajustes manuais gravados para este mês
+    # Consulta se há ajustes manuais gravados pelo usuário para este mês
     cur.execute("""
         SELECT 
             renda_estavel_base, renda_estavel_manual,
@@ -354,7 +436,7 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
         "meses_analise": meses_analise,
         "historico": historico_ordenado,
         "estatisticas_variavel": {
-            "qtd_meses_validos": qtd_meses_variavel,
+            "qtd_meses_validos": qtd_meses_amostra,
             "minimo_observado": round(min_var, 2),
             "media_observada": round(media_var, 2),
             "maximo_observado": round(max_var, 2)
@@ -376,14 +458,14 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
                 "manual": cons_manual,
                 "valor_final": cons_final,
                 "is_manual": cons_manual is not None,
-                "descricao": "Mínimo observado no histórico recente (dias de chuva, feriados fracos ou menor disponibilidade)"
+                "descricao": "Mínimo observado na amostra de meses selecionada (dias com menor demanda ou menor disponibilidade)"
             },
             "habitual": {
                 "base": cenario_habitual_sugerido,
                 "manual": hab_manual,
                 "valor_final": hab_final,
                 "is_manual": hab_manual is not None,
-                "descricao": "Média de corridas e ganhos em meses normais de operação"
+                "descricao": "Média de corridas e faturamento nos meses normais de operação"
             },
             "favorável": {
                 "base": cenario_favoravel_sugerido,
@@ -394,7 +476,7 @@ def analisar_historico_renda(conn: sqlite3.Connection, meses_analise: int = 12, 
             }
         },
         "observacoes": obs,
-        "aviso_metodologico": "O mínimo histórico não é uma renda garantida. Em atividades de aplicativo, a renda depende de horas rodadas, demanda, condições do trânsito e do veículo."
+        "aviso_metodologico": "O mínimo histórico não é uma renda garantida. Em atividades de aplicativo, a renda depende de horas trabalhadas, demanda de passageiros e disponibilidade operacional."
     }
 
 
@@ -412,7 +494,6 @@ def salvar_cenarios_renda(
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
 
-    # Obtém as bases históricas
     info_hist = analisar_historico_renda(conn, 12, ano, mes)
     base_estavel = info_hist["estatisticas_estavel"]["media_observada"]
     base_cons = info_hist["estatisticas_variavel"]["minimo_observado"]
@@ -448,17 +529,17 @@ def salvar_cenarios_renda(
 
 
 # =============================================================================
-# 3. INTEGRAÇÃO COM O DRIVE & MARGEM LÍQUIDA OPERACIONAL
+# 3. RESULTADO DO DRIVE & DECOMPOSIÇÃO DE CUSTOS DE COMBUSTÍVEL
 # =============================================================================
 
 def obter_margem_operacional_drive(conn: sqlite3.Connection, ano: int, mes: int) -> Dict[str, Any]:
     """
-    Retorna métricas do Drive para o mês:
+    Retorna a análise operacional do Drive para o mês:
     - Faturamento bruto registrado
-    - Custos registrados (combustível e manutenção)
-    - Resultado líquido estimado disponível para a família
-    - Custos ainda não registrados/disponíveis
-    - Alerta transparente anti-duplicidade
+    - Custos de combustível pagos no posto (saída de caixa real)
+    - Consumo de combustível estimado nos turnos (referência teórica por km)
+    - Resultado após os custos registrados (descrição precisa, sem dedução dupla)
+    - Custos ainda não registrados/disponíveis (pneus, manutenção futura, depreciação)
     """
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
@@ -495,26 +576,48 @@ def obter_margem_operacional_drive(conn: sqlite3.Connection, ano: int, mes: int)
     """, (inicio_mes, fim_mes))
     row_rx = cur.fetchone()
     receita_financeira_99 = float(row_rx[0] or 0.0)
-    qtd_receitas_99 = row_rx[1] or 0
 
-    # 3. Custos operacionais reais registrados no mês
+    # Faturamento bruto operacional (usa o ganho dos turnos se houver, ou a receita das transações)
+    faturamento_bruto = max(ganho_bruto_turnos, receita_financeira_99)
+
+    # 3. Combustível pago no posto (saída de caixa real)
+    cur.execute("""
+        SELECT COALESCE(SUM(valor), 0), COUNT(*)
+        FROM transacoes
+        WHERE tipo = 'despesa'
+          AND categoria IN ('Combustível', 'Combustível (Trabalho)')
+          AND data BETWEEN ? AND ?
+    """, (inicio_mes, fim_mes))
+    row_comb = cur.fetchone()
+    combustivel_pago_posto = float(row_comb[0] or 0.0)
+    qtd_abastecimentos_posto = row_comb[1] or 0
+
+    # 4. Outros custos diretos registrados (ex: seguro ou manutenção lançada)
     cur.execute("""
         SELECT COALESCE(SUM(valor), 0)
         FROM transacoes
         WHERE tipo = 'despesa'
-          AND categoria IN ('Combustível', 'Combustível (Trabalho)', 'Manutenção Veículo')
+          AND categoria = 'Manutenção Veículo'
           AND data BETWEEN ? AND ?
     """, (inicio_mes, fim_mes))
-    custos_veiculo_reais = float(cur.fetchone()[0] or 0.0)
+    manutencao_registrada = float(cur.fetchone()[0] or 0.0)
 
-    # Resultado líquido estimado da atividade
-    # Usa o maior entre ganho de turnos e receita financeira lançada
-    faturamento_bruto = max(ganho_bruto_turnos, receita_financeira_99)
-    # Custos diretos registrados
-    custos_registrados = max(custos_veiculo_reais, combustivel_estimado_turnos)
-    resultado_liquido_disponivel = round(faturamento_bruto - custos_registrados, 2)
+    # Custo de combustível utilizado no resultado financeiro:
+    # Usa os abastecimentos reais pagos no posto (saída de caixa comprovada).
+    # Se não houver abastecimentos pagos registrados no mês, utiliza o consumo estimado dos turnos como fallback.
+    # NUNCA desconta ambos simultaneamente!
+    if combustivel_pago_posto > 0:
+        custo_combustivel_efetivo = combustivel_pago_posto
+        origem_combustivel = "abastecimentos_pagos"
+    else:
+        custo_combustivel_efetivo = combustivel_estimado_turnos
+        origem_combustivel = "estimado_turnos"
 
-    # R$ 35/h como referência
+    custos_registrados_total = round(custo_combustivel_efetivo + manutencao_registrada, 2)
+    # Resultado após os custos registrados (terminologia precisa conforme orientação do usuário)
+    resultado_apos_custos_registrados = round(faturamento_bruto - custos_registrados_total, 2)
+
+    # Referência média pessoal informada pelo motorista (R$ 35,00/h - não é tarifa oficial da plataforma)
     referencia_ganho_hora = 35.0
     faturamento_esperado_horas = round(horas_totais * referencia_ganho_hora, 2)
     ganho_hora_real = round(faturamento_bruto / horas_totais, 2) if horas_totais > 0 else 0.0
@@ -524,21 +627,31 @@ def obter_margem_operacional_drive(conn: sqlite3.Connection, ano: int, mes: int)
         "horas_totais": round(horas_totais, 1),
         "km_totais": round(km_totais, 1),
         "referencia_hora": referencia_ganho_hora,
+        "referencia_hora_rotulo": "Referência média pessoal informada pelo motorista (R$ 35,00/h)",
         "faturamento_bruto": round(faturamento_bruto, 2),
         "faturamento_esperado_horas": faturamento_esperado_horas,
         "ganho_hora_real": ganho_hora_real,
-        "custos_registrados": round(custos_registrados, 2),
-        "detalhe_custos": {
-            "combustivel_registrado": round(custos_veiculo_reais, 2),
-            "combustivel_turnos_estimado": round(combustivel_estimado_turnos, 2)
+        "custos_registrados_total": custos_registrados_total,
+        "resultado_apos_custos_registrados": resultado_apos_custos_registrados,
+        "detalhe_combustivel": {
+            "pago_posto": round(combustivel_pago_posto, 2),
+            "qtd_abastecimentos": qtd_abastecimentos_posto,
+            "estimado_turnos": round(combustivel_estimado_turnos, 2),
+            "origem_utilizada": origem_combustivel,
+            "diferenca_combustivel": round(combustivel_pago_posto - combustivel_estimado_turnos, 2),
+            "explicacao": (
+                "O valor descontado no resultado corresponde aos abastecimentos efetivamente pagos no posto "
+                f"(R$ {combustivel_pago_posto:,.2f}). O consumo estimado nos turnos (R$ {combustivel_estimado_turnos:,.2f}) "
+                "é uma referência teórica baseada nos km rodados e não é descontado novamente, evitando dupla dedução."
+            )
         },
-        "resultado_liquido_disponivel": resultado_liquido_disponivel,
+        "manutencao_registrada": round(manutencao_registrada, 2),
         "custos_nao_disponiveis": [
-            "Provisão de desgaste de pneus (~R$ 0,08/km rodado)",
+            "Provisão de desgaste de pneus (~R$ 0,08/km)",
             "Manutenção preventiva periódica futura (óleo, suspensão, freios)",
             "Depreciação real do veículo HB20"
         ],
-        "aviso_anti_duplicidade": "Os ganhos dos turnos já são creditados como lançamentos de receita ('Ganho Online 99Pay' e 'Ganho Dinheiro/Pix 99'). Transferências entre contas (99Pay -> Mercado Pago) não representam novas receitas e são desconsideradas da renda."
+        "aviso_anti_duplicidade": "Os ganhos dos turnos já são lançados como receitas em contas ('99Pay' e 'Dinheiro/Carteira'). Transferências entre contas (99Pay -> Mercado Pago) não representam novas receitas e são desconsideradas."
     }
 
 
@@ -552,10 +665,7 @@ def comparar_cenarios_com_despesas(
     mes: int,
     cenarios: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """
-    Compara os cenários (conservador, habitual, favorável) com as despesas
-    projetadas do mês, agrupadas por natureza orçamentária.
-    """
+    """Compara os cenários (conservador, habitual, favorável) com as despesas por natureza."""
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
 
@@ -563,10 +673,8 @@ def comparar_cenarios_com_despesas(
     ultimo_dia = calendar.monthrange(ano, mes)[1]
     fim_mes = f"{ano:04d}-{mes:02d}-{ultimo_dia:02d}"
 
-    # 1. Classificação das categorias
     classificacao = obter_classificacao_natureza(conn)
 
-    # 2. Despesas do mês por categoria
     cur.execute("""
         SELECT categoria, COALESCE(SUM(valor), 0)
         FROM transacoes
@@ -602,7 +710,6 @@ def comparar_cenarios_com_despesas(
 
     despesas_totais = round(tot_estrutura + tot_qualidade + tot_objetivos, 2)
 
-    # 3. Analisa os 3 cenários
     renda_estavel = cenarios["estavel"]["valor_final"]
     resultados_cenarios = {}
 
@@ -654,13 +761,13 @@ def comparar_cenarios_com_despesas(
 
 
 # =============================================================================
-# 5. CALENDÁRIO ANUAL & DESPESAS EVENTUAIS (12 MESES) COM COFRINHOS
+# 5. CALENDÁRIO ANUAL & CÁLCULO REAL DE CONTRIBUIÇÕES E COFRINHOS
 # =============================================================================
 
 def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] = None, mes_inicio: Optional[int] = None) -> Dict[str, Any]:
     """
-    Gera a visão dos próximos 12 meses com despesas anuais, sazonais e eventuais,
-    integradas com os cofrinhos e com distribuição anti-duplicidade de saldo.
+    Gera a visão dos próximos 12 meses com cálculo real de contribuições e
+    diferenciação explícita entre saldo do cofrinho, distribuição teórica e valor efetivamente destinado.
     """
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
@@ -670,7 +777,6 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
         ano_inicio = hoje.year
         mes_inicio = hoje.month
 
-    # Monta os 12 meses a partir do mês inicial
     meses_12 = []
     y, m = ano_inicio, mes_inicio
     for _ in range(12):
@@ -702,7 +808,7 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
             "saldo_confirmado": float(r[2] or 0.0),
             "meta_valor": float(r[3] or 0.0),
             "objetivo": r[4],
-            "despesas_vinculadas": []
+            "compromissos_vinculados": []
         }
         for r in rows_cof
     }
@@ -712,14 +818,13 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
         SELECT 
             id, nome, categoria, responsavel, data_prevista, mes_previsto,
             valor_estimado, valor_confirmado, recorrencia, status,
-            transacao_id, cofrinho_id, frequencia_contribuicao, observacoes
+            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao, observacoes
         FROM planejamento_despesas_eventuais
         WHERE status != 'cancelada'
         ORDER BY data_prevista ASC
     """)
     despesas_raw = cur.fetchall()
 
-    # Mapeia despesas para cofrinhos para distribuir o saldo sem duplicar
     cofrinho_para_despesas: Dict[int, List[Dict[str, Any]]] = {}
     lista_despesas = []
 
@@ -736,8 +841,9 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
         status = r[9]
         tx_id = r[10]
         cof_id = r[11]
-        freq = r[12] or "mensal"
-        obs = r[13]
+        v_res_manual = float(r[12] or 0.0)
+        freq = r[13] or "mensal"
+        obs = r[14]
 
         valor_alvo = v_conf if v_conf is not None else v_est
 
@@ -756,13 +862,20 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
             "transacao_id": tx_id,
             "cofrinho_id": cof_id,
             "cofrinho_nome": cofrinhos_dict.get(cof_id, {}).get("nome") if cof_id else None,
-            "frequencia_contribuicao": freq,
-            "observacoes": obs,
-            "saldo_reservado_alocado": 0.0,
+            "saldo_total_cofrinho": cofrinhos_dict.get(cof_id, {}).get("saldo_confirmado", 0.0) if cof_id else 0.0,
+            "valor_reservado_manual": v_res_manual,
+            "distribuicao_sugerida_teorica": 0.0,
+            "valor_efetivamente_reservado": 0.0,
             "falta_reservar": valor_alvo,
             "sugestao_mensal": 0.0,
             "sugestao_semanal": 0.0,
-            "meses_ate_data": 1,
+            "dias_restantes": 0,
+            "semanas_reais": 0,
+            "meses_reais": 0,
+            "status_prazo": "no_prazo",
+            "status_prazo_label": "No Prazo",
+            "frequencia_contribuicao": freq,
+            "observacoes": obs,
             "obrigacao_constituida": tx_id is not None
         }
 
@@ -773,51 +886,98 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
 
         lista_despesas.append(item)
 
-    # Distribuição anti-duplicidade de saldos dos cofrinhos
-    # Se um cofrinho estiver vinculado a mais de 1 compromisso, o saldo é rateado
-    # proporcionalmente ao valor_alvo de cada compromisso, garantindo que o mesmo real
-    # não cubra 2 despesas simultâneas.
+    # 1. Distribuição teórica vs Alocação manual de Cofrinhos
     for cof_id, itens_vinculados in cofrinho_para_despesas.items():
-        saldo_total_cof = cofrinhos_dict[cof_id]["saldo_confirmado"]
+        saldo_cof = cofrinhos_dict[cof_id]["saldo_confirmado"]
         soma_alvos = sum(it["valor_alvo"] for it in itens_vinculados)
 
-        if soma_alvos > 0:
-            for it in itens_vinculados:
-                proporcao = it["valor_alvo"] / soma_alvos
-                # Saldo alocado não pode exceder o valor alvo do item
-                saldo_alocado = min(it["valor_alvo"], round(saldo_total_cof * proporcao, 2))
-                it["saldo_reservado_alocado"] = saldo_alocado
-                it["falta_reservar"] = max(0.0, round(it["valor_alvo"] - saldo_alocado, 2))
-        else:
-            for it in itens_vinculados:
-                it["saldo_reservado_alocado"] = 0.0
-                it["falta_reservar"] = it["valor_alvo"]
+        for it in itens_vinculados:
+            # Distribuição proporcional teórica (meramente informativa)
+            if soma_alvos > 0:
+                prop = it["valor_alvo"] / soma_alvos
+                it["distribuicao_sugerida_teorica"] = min(it["valor_alvo"], round(saldo_cof * prop, 2))
+            else:
+                it["distribuicao_sugerida_teorica"] = 0.0
 
-    # Cálculo do prazo e das sugestões de contribuição para cada compromisso
-    hoje_iso = hoje.strftime("%Y-%m-%d")
+            # Valor efetivamente reservado:
+            # Se o usuário definiu uma alocação manual > 0, respeita a decisão do usuário;
+            # Caso contrário, utiliza a sugestão teórica como base de cálculo
+            if it["valor_reservado_manual"] > 0:
+                it["valor_efetivamente_reservado"] = min(it["valor_alvo"], it["valor_reservado_manual"])
+            else:
+                it["valor_efetivamente_reservado"] = it["distribuicao_sugerida_teorica"]
+
+            it["falta_reservar"] = max(0.0, round(it["valor_alvo"] - it["valor_efetivamente_reservado"], 2))
+
+    # 2. Cálculo Real de Prazos e Oportunidades de Contribuição
     for it in lista_despesas:
-        # Calcula diferença em meses entre hoje e data_prevista
+        if not it["cofrinho_id"]:
+            it["valor_efetivamente_reservado"] = min(it["valor_alvo"], it["valor_reservado_manual"])
+            it["falta_reservar"] = max(0.0, round(it["valor_alvo"] - it["valor_efetivamente_reservado"], 2))
+
         try:
             dt_p = datetime.datetime.strptime(it["data_prevista"], "%Y-%m-%d").date()
-            meses_diff = (dt_p.year - hoje.year) * 12 + (dt_p.month - hoje.month)
-            meses_ate = max(1, meses_diff)
+            dias_rest = (dt_p - hoje).days
         except Exception:
-            meses_ate = 1
+            dt_p = hoje
+            dias_rest = 0
 
-        it["meses_ate_data"] = meses_ate
-        sug_mes = round(it["falta_reservar"] / meses_ate, 2) if it["falta_reservar"] > 0 else 0.0
-        sug_sem = round(sug_mes / 4.33, 2)
-        it["sugestao_mensal"] = sug_mes
-        it["sugestao_semanal"] = sug_sem
+        it["dias_restantes"] = dias_rest
 
-        # Adiciona na linha do tempo se cair nos próximos 12 meses
+        # Tratamento de datas passadas, hoje e prazos reais
+        if dias_rest < 0:
+            it["status_prazo"] = "vencido"
+            it["status_prazo_label"] = f"Vencido há {abs(dias_rest)} dia(s)"
+            it["semanas_reais"] = 0
+            it["meses_reais"] = 0
+            it["sugestao_semanal"] = it["falta_reservar"]
+            it["sugestao_mensal"] = it["falta_reservar"]
+        elif dias_rest == 0:
+            it["status_prazo"] = "hoje"
+            it["status_prazo_label"] = "Vence Hoje"
+            it["semanas_reais"] = 0
+            it["meses_reais"] = 0
+            it["sugestao_semanal"] = it["falta_reservar"]
+            it["sugestao_mensal"] = it["falta_reservar"]
+        elif dias_rest <= 7:
+            it["status_prazo"] = "imediato"
+            it["status_prazo_label"] = f"Vencimento Imediato ({dias_rest} dias)"
+            it["semanas_reais"] = 1
+            it["meses_reais"] = 1
+            it["sugestao_semanal"] = it["falta_reservar"]
+            it["sugestao_mensal"] = it["falta_reservar"]
+        else:
+            it["status_prazo"] = "no_prazo"
+            # Semanas reais inteiras até a data de vencimento
+            semanas_reais = max(1, dias_rest // 7)
+            it["semanas_reais"] = semanas_reais
+
+            # Meses reais inteiros (oportunidades mensais até o vencimento)
+            meses_diff = (dt_p.year - hoje.year) * 12 + (dt_p.month - hoje.month)
+            if dt_p.day < hoje.day and meses_diff > 0:
+                meses_diff -= 1
+            meses_reais = max(1, meses_diff)
+            it["meses_reais"] = meses_reais
+
+            it["status_prazo_label"] = f"Em {dias_rest} dias ({semanas_reais} semanas)"
+
+            if it["falta_reservar"] > 0:
+                # Contribuição semanal exata (sem aproximação de 4,33)
+                it["sugestao_semanal"] = round(it["falta_reservar"] / semanas_reais, 2)
+                # Contribuição mensal exata pelas oportunidades reais de ciclo
+                it["sugestao_mensal"] = round(it["falta_reservar"] / meses_reais, 2)
+            else:
+                it["sugestao_semanal"] = 0.0
+                it["sugestao_mensal"] = 0.0
+
+        # Adiciona na linha do tempo mensal
         if it["mes_previsto"] in mapa_meses:
             mapa_meses[it["mes_previsto"]]["despesas"].append(it)
             mapa_meses[it["mes_previsto"]]["total_previsto"] = round(
                 mapa_meses[it["mes_previsto"]]["total_previsto"] + it["valor_alvo"], 2
             )
             mapa_meses[it["mes_previsto"]]["total_reservado"] = round(
-                mapa_meses[it["mes_previsto"]]["total_reservado"] + it["saldo_reservado_alocado"], 2
+                mapa_meses[it["mes_previsto"]]["total_reservado"] + it["valor_efetivamente_reservado"], 2
             )
 
     total_geral_previsto = sum(m["total_previsto"] for m in meses_12)
@@ -836,7 +996,7 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
 
 
 def criar_despesa_eventual(conn: sqlite3.Connection, dados: Dict[str, Any]) -> int:
-    """Cadastra uma nova despesa anual/eventual."""
+    """Cadastra um novo compromisso anual/eventual legítimo."""
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
 
@@ -863,6 +1023,7 @@ def criar_despesa_eventual(conn: sqlite3.Connection, dados: Dict[str, Any]) -> i
     else:
         cof_id = int(cof_id)
 
+    val_res_manual = float(dados.get("valor_reservado_manual") or 0.0)
     freq = dados.get("frequencia_contribuicao") or "mensal"
     obs = dados.get("observacoes") or ""
     tx_id = dados.get("transacao_id")
@@ -875,12 +1036,12 @@ def criar_despesa_eventual(conn: sqlite3.Connection, dados: Dict[str, Any]) -> i
         INSERT INTO planejamento_despesas_eventuais (
             nome, categoria, responsavel, data_prevista, mes_previsto,
             valor_estimado, valor_confirmado, recorrencia, status,
-            transacao_id, cofrinho_id, frequencia_contribuicao, observacoes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planejada', ?, ?, ?, ?)
+            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao, observacoes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planejada', ?, ?, ?, ?, ?)
     """, (
         nome, cat, resp, dt_prev, mes_prev,
         val_est, val_conf, recorr,
-        tx_id, cof_id, freq, obs
+        tx_id, cof_id, val_res_manual, freq, obs
     ))
     conn.commit()
     return cur.lastrowid
@@ -911,6 +1072,7 @@ def atualizar_despesa_eventual(conn: sqlite3.Connection, despesa_id: int, dados:
     else:
         cof_id = int(cof_id)
 
+    val_res_manual = float(dados.get("valor_reservado_manual") or 0.0)
     freq = dados.get("frequencia_contribuicao") or "mensal"
     obs = dados.get("observacoes") or ""
     status = dados.get("status") or "planejada"
@@ -919,12 +1081,12 @@ def atualizar_despesa_eventual(conn: sqlite3.Connection, despesa_id: int, dados:
         UPDATE planejamento_despesas_eventuais
         SET nome = ?, categoria = ?, responsavel = ?, data_prevista = ?, mes_previsto = ?,
             valor_estimado = ?, valor_confirmado = ?, recorrencia = ?, status = ?,
-            cofrinho_id = ?, frequencia_contribuicao = ?, observacoes = ?
+            cofrinho_id = ?, valor_reservado_manual = ?, frequencia_contribuicao = ?, observacoes = ?
         WHERE id = ?
     """, (
         nome, cat, resp, dt_prev, mes_prev,
         val_est, val_conf, recorr, status,
-        cof_id, freq, obs, despesa_id
+        cof_id, val_res_manual, freq, obs, despesa_id
     ))
     conn.commit()
     return cur.rowcount > 0
@@ -937,11 +1099,7 @@ def conciliar_pagamento_despesa_eventual(
     data_pagamento: str,
     baixar_reserva_cofrinho: bool = True
 ) -> bool:
-    """
-    Registra a liquidação de um compromisso anual/eventual.
-    Se baixar_reserva_cofrinho for True e houver cofrinho vinculado, reduz o saldo
-    do cofrinho utilizado sem duplicar o lançamento de despesa financeira.
-    """
+    """Registra a liquidação de um compromisso e opcionalmente abate a reserva utilizada."""
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
 
@@ -952,14 +1110,12 @@ def conciliar_pagamento_despesa_eventual(
 
     cof_id = row[1]
 
-    # Atualiza status da despesa eventual
     cur.execute("""
         UPDATE planejamento_despesas_eventuais
         SET status = 'paga', valor_confirmado = ?
         WHERE id = ?
     """, (valor_pago, despesa_id))
 
-    # Baixa no cofrinho se solicitado
     if baixar_reserva_cofrinho and cof_id:
         cur.execute("SELECT saldo_confirmado FROM cofrinhos WHERE id = ?", (cof_id,))
         cof_row = cur.fetchone()

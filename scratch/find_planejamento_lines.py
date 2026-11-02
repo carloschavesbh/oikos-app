@@ -15,3 +15,4 @@ print(f"start_idx: {start_idx}, end_idx: {end_idx}")
 if end_idx:
     print("Linhas anteriores ao retorno:")
     print(''.join(lines[end_idx-20:end_idx+35]))
+

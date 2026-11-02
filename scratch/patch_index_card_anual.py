@@ -65,3 +65,4 @@ with open('templates/index.html', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print("SUCESSO: index.html atualizado com card compacto de despesas anuais e eventuais!")
+

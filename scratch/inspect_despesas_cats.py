@@ -17,3 +17,4 @@ subcats = conn.execute("SELECT id, grupo_id, nome, natureza_padrao, finalidade F
 print("Subcategorias:", subcats)
 
 conn.close()
+
