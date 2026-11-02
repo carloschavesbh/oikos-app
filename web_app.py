@@ -972,7 +972,8 @@ async def pagina_lancamentos(
     mes: Optional[int] = Query(None),
     ano: Optional[int] = Query(None),
     periodo: Optional[str] = Query(None),
-    filtro: Optional[str] = Query(None)
+    filtro: Optional[str] = Query(None),
+    ordem: Optional[str] = Query(None)
 ):
     conn = conectar_db()
     hoje = date.today()
@@ -1007,6 +1008,11 @@ async def pagina_lancamentos(
         mes_prox, ano_prox = mes + 1, ano
 
     eh_mes_atual = (ano == hoje.year and mes == hoje.month)
+
+    # Regra: Na ausência de preferência, use data crescente.
+    ordem_req = (ordem or "").strip().lower()
+    eh_decrescente = (ordem_req in ("decrescente", "desc"))
+    ordem_atual = "decrescente" if eh_decrescente else "crescente"
 
     inicio_mes = f"{ano}-{mes:02d}-01"
     ultimo_dia = calendar.monthrange(ano, mes)[1]
@@ -1298,9 +1304,18 @@ async def pagina_lancamentos(
         g["texto_busca"] = " ".join(partes_busca).lower()
         lista_grupos.append(g)
 
-    # Mesclar lista de apresentação e ordenar por data decrescente
+    # Mesclar lista de apresentação e ordenar por data completa com critério de desempate estável
     transacoes = itens_individuais + lista_grupos
-    transacoes.sort(key=lambda x: (x["data"], x.get("id", 0)), reverse=True)
+    def obter_chave_ordem(item):
+        # Data completa no formato ISO YYYY-MM-DD (nunca dd/mm)
+        dt_iso = str(item.get("data") or "")[:10]
+        # Desempate determinístico: grupos primeiro, depois por ID e descrição
+        eh_grupo = 0 if item.get("is_grupo") else 1
+        item_id = int(item.get("id") or 0)
+        desc = str(item.get("descricao") or "")
+        return (dt_iso, eh_grupo, item_id, desc)
+
+    transacoes.sort(key=obter_chave_ordem, reverse=eh_decrescente)
 
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
@@ -1403,6 +1418,7 @@ async def pagina_lancamentos(
             "hoje_str": hoje_str,
             "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
             "categorias_subcategorias_json": json.dumps(CATEGORIAS_SUBCATEGORIAS, ensure_ascii=False),
+            "ordem_atual": ordem_atual,
             "active_tab": "lancamentos"
         }
     )
@@ -2926,6 +2942,11 @@ async def pagina_planejamento(
 
     eh_mes_atual = (ano == hoje.year and mes == hoje.month)
 
+    # Regra: Na ausência de preferência, use data crescente.
+    ordem_req = (ordem or "").strip().lower()
+    eh_decrescente = (ordem_req in ("decrescente", "desc"))
+    ordem_atual = "decrescente" if eh_decrescente else "crescente"
+
     inicio_mes = f"{ano}-{mes:02d}-01"
     ultimo_dia = calendar.monthrange(ano, mes)[1]
     fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
@@ -3359,6 +3380,11 @@ async def pagina_motorista(
         mes_prox, ano_prox = mes + 1, ano
 
     eh_mes_atual = (ano == hoje.year and mes == hoje.month)
+
+    # Regra: Na ausência de preferência, use data crescente.
+    ordem_req = (ordem or "").strip().lower()
+    eh_decrescente = (ordem_req in ("decrescente", "desc"))
+    ordem_atual = "decrescente" if eh_decrescente else "crescente"
 
     # Início e fim do mês selecionado
     inicio_mes = f"{ano}-{mes:02d}-01"

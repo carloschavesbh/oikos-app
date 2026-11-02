@@ -16,7 +16,7 @@
       <!-- NAVEGADOR DE MESES COMPLETO -->
       <div class="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0">
         <!-- Botão Mês Anterior [ ‹ ] -->
-        <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}" 
+        <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
            title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
            class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
           ‹
@@ -24,7 +24,7 @@
 
         <!-- Mês/Ano Centralizado com Dropdown Rápido -->
         <div class="relative inline-flex items-center">
-          <select onchange="window.location.href='/lancamentos?periodo='+this.value" 
+          <select onchange="navegarPeriodoComOrdem(this.value)" 
                   title="Saltar para outro mês"
                   class="appearance-none touch-target bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
             {% for op in opcoes_periodo %}
@@ -37,7 +37,7 @@
         </div>
 
         <!-- Botão Próximo Mês [ › ] -->
-        <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}" 
+        <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
            title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
            class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
           ›
@@ -45,7 +45,7 @@
 
         <!-- Botão Rápido: Mês Atual (se não estiver no mês corrente) -->
         {% if not eh_mes_atual %}
-        <a href="/lancamentos" 
+        <a href="/lancamentos{% if ordem_atual %}?ordem={{ ordem_atual }}{% endif %}" 
            title="Voltar ao Mês Atual"
            class="touch-target inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
           <span>📅</span> <span>Mês Atual</span>
@@ -64,30 +64,6 @@
       </button>
     </div>
   </div>
-
-  <!-- BANNER DE CONTAS ATRASADAS DE MESES ANTERIORES -->
-  {% if qtd_atrasadas > 0 %}
-  <div id="banner-atrasadas" class="bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border border-amber-500/30 dark:border-amber-500/30 rounded-2xl p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition">
-    <div class="flex items-start sm:items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 text-xl">
-        ⚠️
-      </div>
-      <div>
-        <p class="text-xs sm:text-sm font-bold text-slate-900 dark:text-amber-200">
-          Há <span class="text-rose-600 dark:text-rose-400 font-black text-sm sm:text-base">{{ qtd_atrasadas }}</span> {% if qtd_atrasadas == 1 %}lançamento passado que ainda não foi pago{% else %}lançamentos passados que ainda não foram pagos{% endif %}
-        </p>
-        <p class="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
-          Vencimento anterior a {{ mes_nome }}/{{ ano }} • Total pendente: <strong class="text-rose-600 dark:text-rose-400 font-bold">{{ total_atrasadas | moeda }}</strong>
-        </p>
-      </div>
-    </div>
-    <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
-      <button onclick="verContasAtrasadas()" class="touch-target px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition cursor-pointer">
-        <span>⚡</span> Ver Atrasadas & Baixar
-      </button>
-    </div>
-  </div>
-  {% endif %}
 
   <!-- MINI CARDS RESUMO DO MÊS (MOBILE-FIRST) -->
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
@@ -117,19 +93,40 @@
     </div>
   </div>
 
-  <!-- BARRA DE PESQUISA & FILTROS RÁPIDOS -->
-  <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shadow-sm">
-    <!-- Campo de Busca Rápida -->
-    <div class="relative flex-grow">
-      <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
-        🔍
-      </span>
-      <input type="text" id="filtro-busca" onkeyup="filtrarTabela()" placeholder="Buscar por descrição, categoria ou conta..." 
-             class="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+  <!-- BARRA DE PESQUISA, FILTROS & ORDENAÇÃO -->
+  <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col gap-2.5 shadow-sm">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+      <!-- Campo de Busca Rápida -->
+      <div class="relative flex-grow">
+        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">
+          🔍
+        </span>
+        <input type="text" id="filtro-busca" onkeyup="filtrarTabela()" placeholder="Buscar por descrição, categoria ou conta..." 
+               class="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
+      </div>
+
+      <!-- Controle de Ordenação -->
+      <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shrink-0 self-start sm:self-auto" id="container-seletor-ordem">
+        <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 pl-1.5 pr-0.5 hidden md:inline">Ordem:</span>
+        <button type="button" 
+                id="btn-ordem-crescente" 
+                onclick="alterarOrdenacao('crescente')" 
+                title="Data crescente: mais antigas primeiro"
+                class="touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border {% if ordem_atual == 'crescente' %}bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-slate-300/80 dark:border-slate-700 shadow-2xs{% else %}bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent{% endif %}">
+          <span>⬆️ Data crescente</span>
+        </button>
+        <button type="button" 
+                id="btn-ordem-decrescente" 
+                onclick="alterarOrdenacao('decrescente')" 
+                title="Data decrescente: mais recentes primeiro"
+                class="touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border {% if ordem_atual == 'decrescente' %}bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-slate-300/80 dark:border-slate-700 shadow-2xs{% else %}bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent{% endif %}">
+          <span>⬇️ Data decrescente</span>
+        </button>
+      </div>
     </div>
 
     <!-- Botões de Filtro -->
-    <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0 shrink-0">
+    <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0 shrink-0 border-t border-slate-100 dark:border-slate-800/60 pt-2">
       <button onclick="setFiltroTipo('todos')" id="btn-filtro-todos" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
         Todos
       </button>
@@ -181,6 +178,9 @@
               data-atrasada="1"
               data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="1"
+              data-data-iso="{{ t.data }}"
+              data-id="{{ t.id }}"
+              data-is-grupo="0"
               data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }} {{ (t.titular or '') | lower }} {% if t.is_pagaleve %}pagaleve paga leve parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}{% endif %}"
               id="linha-tr-{{ t.id }}"
               style="display: none;">
@@ -336,6 +336,9 @@
               data-mes-passado="0"
               data-grupo-id="{{ t.grupo_id }}"
               data-texto="{{ t.texto_busca }}"
+              data-data-iso="{{ t.data }}"
+              data-id="0"
+              data-is-grupo="1"
               id="linha-grupo-{{ t.grupo_id }}">
             
             <!-- Data -->
@@ -499,7 +502,7 @@
           </tr>
 
           <!-- LINHA FILHA EXPANSÍVEL COM DETALHES DE CADA COMPRA/PARCELA DO GRUPO -->
-          <tr id="detalhes-{{ t.grupo_id }}" class="hidden bg-slate-50/80 dark:bg-slate-900/60 border-y border-dashed border-slate-200 dark:border-slate-800">
+          <tr id="detalhes-{{ t.grupo_id }}" data-parent-grupo="{{ t.grupo_id }}" class="hidden bg-slate-50/80 dark:bg-slate-900/60 border-y border-dashed border-slate-200 dark:border-slate-800">
             <td colspan="6" class="p-3 sm:p-4">
               <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-3 shadow-inner">
                 <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
@@ -562,6 +565,9 @@
               data-atrasada="{% if t.is_atrasada %}1{% else %}0{% endif %}"
               data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="0"
+              data-data-iso="{{ t.data }}"
+              data-id="{{ t.id }}"
+              data-is-grupo="0"
               data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }} {{ (t.titular or '') | lower }} {% if t.is_pagaleve %}pagaleve侵paga leve parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}{% endif %}"
               id="linha-tr-{{ t.id }}">
             
@@ -1061,6 +1067,118 @@
       const b = document.getElementById('btn-filtro-todos');
       if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm';
     }
+  }
+
+  let ordemAtual = '{{ ordem_atual }}' || 'crescente';
+
+  function navegarPeriodoComOrdem(periodo) {
+    if (!periodo) return;
+    window.location.href = `/lancamentos?periodo=${encodeURIComponent(periodo)}${ordemAtual ? '&ordem=' + encodeURIComponent(ordemAtual) : ''}`;
+  }
+
+  function atualizarBotoesOrdemUI(ordem) {
+    const btnCrescente = document.getElementById('btn-ordem-crescente');
+    const btnDecrescente = document.getElementById('btn-ordem-decrescente');
+    
+    const classeAtiva = 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-slate-300/80 dark:border-slate-700 shadow-2xs';
+    const classeInativa = 'bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent';
+
+    if (ordem === 'crescente') {
+      if (btnCrescente) {
+        btnCrescente.className = `touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${classeAtiva}`;
+      }
+      if (btnDecrescente) {
+        btnDecrescente.className = `touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${classeInativa}`;
+      }
+    } else {
+      if (btnCrescente) {
+        btnCrescente.className = `touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${classeInativa}`;
+      }
+      if (btnDecrescente) {
+        btnDecrescente.className = `touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${classeAtiva}`;
+      }
+    }
+  }
+
+  function alterarOrdenacao(novaOrdem) {
+    ordemAtual = (novaOrdem === 'decrescente') ? 'decrescente' : 'crescente';
+    try {
+      localStorage.setItem('oikos_ordem_lancamentos', ordemAtual);
+    } catch (e) {}
+    
+    atualizarBotoesOrdemUI(ordemAtual);
+
+    // Reordenar os elementos do DOM preservando agrupamentos
+    reordenarTabelaDOM(ordemAtual);
+
+    // Atualizar URL sem recarregar a tela preservando parâmetros existentes
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('ordem', ordemAtual);
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {}
+
+    // Preservar busca e filtros ativos
+    filtrarTabela();
+  }
+
+  function reordenarTabelaDOM(ordem) {
+    const tbody = document.querySelector('#tabela-transacoes tbody');
+    if (!tbody) return;
+
+    // Selecionar as linhas de transações do mês (data-mes-passado="0")
+    const linhasMes = Array.from(tbody.querySelectorAll('tr.linha-transacao[data-mes-passado="0"]'));
+    if (linhasMes.length === 0) return;
+
+    // Criar blocos atômicos: cada linha principal emparelhada com sua respectiva linha de detalhe se houver
+    const blocos = [];
+    linhasMes.forEach(linha => {
+      const grupoId = linha.getAttribute('data-grupo-id');
+      let linhaFilha = null;
+      if (grupoId) {
+        linhaFilha = document.getElementById(`detalhes-${grupoId}`);
+      }
+      const dataIso = linha.getAttribute('data-data-iso') || '';
+      const isGrupo = linha.getAttribute('data-is-grupo') === '1' ? 0 : 1;
+      const idNum = parseInt(linha.getAttribute('data-id') || '0', 10);
+      const texto = linha.getAttribute('data-texto') || '';
+
+      blocos.push({
+        linhaPrincipal: linha,
+        linhaFilha: linhaFilha,
+        dataIso: dataIso,
+        isGrupo: isGrupo,
+        idNum: idNum,
+        texto: texto
+      });
+    });
+
+    // Ordenar os blocos pela data completa ISO YYYY-MM-DD
+    blocos.sort((a, b) => {
+      if (a.dataIso !== b.dataIso) {
+        if (ordem === 'crescente') {
+          return a.dataIso.localeCompare(b.dataIso);
+        } else {
+          return b.dataIso.localeCompare(a.dataIso);
+        }
+      }
+      // Desempate estável determinístico: grupos primeiro, depois por ID
+      if (a.isGrupo !== b.isGrupo) {
+        return a.isGrupo - b.isGrupo;
+      }
+      if (a.idNum !== b.idNum) {
+        return (ordem === 'crescente') ? (a.idNum - b.idNum) : (b.idNum - a.idNum);
+      }
+      return a.texto.localeCompare(b.texto);
+    });
+
+    // Reanexar no tbody mantendo integridade perfeita dos pares pai/filho
+    blocos.forEach(b => {
+      tbody.appendChild(b.linhaPrincipal);
+      if (b.linhaFilha) {
+        tbody.appendChild(b.linhaFilha);
+      }
+    });
   }
 
   function toggleDetalhesGrupo(grupoId) {
@@ -1572,7 +1690,25 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     atualizarSubcategorias();
+    
+    // Inicialização da ordenação e preferência salva
     const urlParams = new URLSearchParams(window.location.search);
+    const ordemUrl = urlParams.get('ordem');
+    let ordemPreferida = 'crescente';
+    try {
+      ordemPreferida = localStorage.getItem('oikos_ordem_lancamentos') || 'crescente';
+    } catch(e) {}
+
+    if (!ordemUrl && ordemPreferida && ordemPreferida !== ordemAtual) {
+      alterarOrdenacao(ordemPreferida);
+    } else {
+      if (ordemUrl) {
+        ordemAtual = (ordemUrl === 'decrescente') ? 'decrescente' : 'crescente';
+        try { localStorage.setItem('oikos_ordem_lancamentos', ordemAtual); } catch(e) {}
+      }
+      atualizarBotoesOrdemUI(ordemAtual);
+    }
+
     if (urlParams.get('filtro') === 'atrasadas') {
       setFiltroStatus('atrasadas');
     } else {
