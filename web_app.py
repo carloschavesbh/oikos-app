@@ -692,7 +692,7 @@ async def pagina_lancamentos(
 
     cur.execute("""
         SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
-               COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
+               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
         FROM transacoes
         WHERE (data >= ? AND data <= ?) OR (pago = 1 AND data_liquidacao >= ? AND data_liquidacao <= ?)
         ORDER BY COALESCE(data_liquidacao, data) DESC, id DESC
@@ -751,20 +751,47 @@ async def pagina_lancamentos(
         pago_flag = 1 if r["pago"] == 1 else 0
         is_atrasada = (tipo == "despesa" and pago_flag == 0 and dt_str < hoje_str)
 
+        grp_str = str(r["grupo_parcelamento"] or "").strip()
+        desc_str = str(r["descricao"] or "").strip()
+        is_pl = bool("pagaleve" in grp_str.lower() or "paga leve" in desc_str.lower() or "pagaleve" in desc_str.lower())
+
+        num_parc = r["numero_parcela"]
+        tot_parc = r["total_parcelas_compra"]
+        if is_pl:
+            if not num_parc or not tot_parc:
+                m_parc = re.search(r'(\d+)\s*/\s*(\d+)', desc_str)
+                if m_parc:
+                    num_parc = int(m_parc.group(1))
+                    tot_parc = int(m_parc.group(2))
+                else:
+                    num_parc = 1
+                    tot_parc = 4
+
+        titular_str = str(r["titular"] or "").strip()
+        if not titular_str or titular_str in ("A Confirmar", "None", ""):
+            titular_str = "Carlos"
+
+        cat_str = str(r["categoria"] or "").strip()
+        if not cat_str or cat_str.lower() in ("none", "null"):
+            cat_str = "Sem categoria"
+
         transacoes.append({
             "id": r["id"],
             "data": dt_str,
             "data_formatada": dt_fmt,
-            "descricao": r["descricao"] or "",
+            "descricao": desc_str,
             "valor": val,
             "tipo": tipo,
-            "categoria": r["categoria"] or "Geral",
+            "categoria": cat_str,
             "subcategoria": r["subcategoria"] or "",
             "conta": r["conta"] or "Mercado Pago",
             "pago": pago_flag,
             "grupo_parcelamento": r["grupo_parcelamento"],
-            "numero_parcela": r["numero_parcela"],
-            "total_parcelas_compra": r["total_parcelas_compra"],
+            "numero_parcela": num_parc,
+            "total_parcelas_compra": tot_parc,
+            "titular": titular_str,
+            "is_pagaleve": is_pl,
+            "pagaleve_link": f"/pagaleve#{grp_str}" if grp_str else "/pagaleve",
             "juros": float(r["juros"] or 0.0),
             "desconto": float(r["desconto"] or 0.0),
             "motivo_ajuste": r["motivo_ajuste"] or "",
@@ -776,7 +803,7 @@ async def pagina_lancamentos(
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
         SELECT id, data, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
-               COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
+               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
         ORDER BY data ASC, id ASC
@@ -796,20 +823,47 @@ async def pagina_lancamentos(
         except Exception:
             dt_fmt = dt_str
 
+        grp_str = str(r["grupo_parcelamento"] or "").strip()
+        desc_str = str(r["descricao"] or "").strip()
+        is_pl = bool("pagaleve" in grp_str.lower() or "paga leve" in desc_str.lower() or "pagaleve" in desc_str.lower())
+
+        num_parc = r["numero_parcela"]
+        tot_parc = r["total_parcelas_compra"]
+        if is_pl:
+            if not num_parc or not tot_parc:
+                m_parc = re.search(r'(\d+)\s*/\s*(\d+)', desc_str)
+                if m_parc:
+                    num_parc = int(m_parc.group(1))
+                    tot_parc = int(m_parc.group(2))
+                else:
+                    num_parc = 1
+                    tot_parc = 4
+
+        titular_str = str(r["titular"] or "").strip()
+        if not titular_str or titular_str in ("A Confirmar", "None", ""):
+            titular_str = "Carlos"
+
+        cat_str = str(r["categoria"] or "").strip()
+        if not cat_str or cat_str.lower() in ("none", "null"):
+            cat_str = "Sem categoria"
+
         transacoes_atrasadas.append({
             "id": r["id"],
             "data": dt_str,
             "data_formatada": dt_fmt,
-            "descricao": r["descricao"] or "",
+            "descricao": desc_str,
             "valor": val,
             "tipo": "despesa",
-            "categoria": r["categoria"] or "Geral",
+            "categoria": cat_str,
             "subcategoria": r["subcategoria"] or "",
             "conta": r["conta"] or "Mercado Pago",
             "pago": 0,
             "grupo_parcelamento": r["grupo_parcelamento"],
-            "numero_parcela": r["numero_parcela"],
-            "total_parcelas_compra": r["total_parcelas_compra"],
+            "numero_parcela": num_parc,
+            "total_parcelas_compra": tot_parc,
+            "titular": titular_str,
+            "is_pagaleve": is_pl,
+            "pagaleve_link": f"/pagaleve#{grp_str}" if grp_str else "/pagaleve",
             "juros": float(r["juros"] or 0.0),
             "desconto": float(r["desconto"] or 0.0),
             "motivo_ajuste": r["motivo_ajuste"] or "",
@@ -1839,7 +1893,7 @@ async def pagina_pagaleve(request: Request):
             "grupo_id": grp_id,
             "nome": nome,
             "titular": titular,
-            "categoria": itens_sorted[0].get("categoria") or "Moradia/Contas",
+            "categoria": itens_sorted[0].get("categoria") or "Sem categoria",
             "conta": itens_sorted[0].get("conta") or "Mercado Pago",
             "valor_original": val_orig,
             "total_parcelas": total_parc,
@@ -1894,6 +1948,8 @@ async def pagina_pagaleve(request: Request):
             "prox_venc_fernanda": prox_venc_fernanda,
             "contas_bancarias": contas_bancarias,
             "hoje_iso": hoje_iso,
+            "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
+            "categorias_subcategorias_json": json.dumps(CATEGORIAS_SUBCATEGORIAS, ensure_ascii=False),
             "active_tab": "pagaleve"
         }
     )
@@ -1924,7 +1980,11 @@ async def api_pagaleve_nova_compra(request: Request):
         if titular not in ("Carlos", "Fernanda"):
             titular = "Carlos"
 
-        categoria = str(data.get("categoria") or "Moradia/Contas").strip() or "Moradia/Contas"
+        categoria_raw = str(data.get("categoria") or "").strip()
+        if not categoria_raw or categoria_raw.lower() in ("sem categoria", "none"):
+            categoria = "Sem categoria"
+        else:
+            categoria = categoria_raw
         subcategoria = str(data.get("subcategoria") or "PagaLeve").strip() or "PagaLeve"
 
         val_raw = str(data.get("valor_total") or "0").strip()

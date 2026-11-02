@@ -146,6 +146,9 @@
         <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">{{ qtd_atrasadas }}</span>
         {% endif %}
       </button>
+      <button onclick="setFiltroPagaLeve()" id="btn-filtro-pagaleve" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-purple-600 dark:text-purple-400 hover:text-purple-500 border border-transparent flex items-center gap-1.5">
+        <span>🛍️ Paga Leve</span>
+      </button>
     </div>
   </div>
 
@@ -171,8 +174,9 @@
               data-tipo="{{ t.tipo }}" 
               data-pago="0" 
               data-atrasada="1"
+              data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="1"
-              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ t.conta | lower }}"
+              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }} {{ (t.titular or '') | lower }} {% if t.is_pagaleve %}pagaleve paga leve parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}{% endif %}"
               id="linha-tr-{{ t.id }}"
               style="display: none;">
             
@@ -198,6 +202,18 @@
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                     Mês Anterior
                   </span>
+                  {% if t.is_pagaleve %}
+                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                    <a href="{{ t.pagaleve_link }}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition" title="Ver compra original no Paga Leve">
+                      <span>🛍️ Paga Leve</span>
+                      <span>•</span>
+                      <span>Parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}</span>
+                      <span>•</span>
+                      <span>👤 {{ t.titular }}</span>
+                      <span class="text-[9px] opacity-75">➔</span>
+                    </a>
+                  </div>
+                  {% endif %}
                   {% if t.juros > 0 %}
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20" title="Juros: {{ t.juros | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
                     +{{ t.juros | moeda }} Juros
@@ -278,8 +294,9 @@
               data-tipo="{{ t.tipo }}" 
               data-pago="{{ t.pago }}" 
               data-atrasada="{% if t.is_atrasada %}1{% else %}0{% endif %}"
+              data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="0"
-              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }}"
+              data-texto="{{ t.descricao | lower }} {{ t.categoria | lower }} {{ (t.subcategoria or '') | lower }} {{ t.conta | lower }} {{ (t.titular or '') | lower }} {% if t.is_pagaleve %}pagaleve paga leve parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}{% endif %}"
               id="linha-tr-{{ t.id }}">
             
             <!-- Data -->
@@ -308,7 +325,18 @@
                     🏷️ {{ t.economia_badge }}
                   </span>
                   {% endif %}
-                  {% if t.grupo_parcelamento %}
+                  {% if t.is_pagaleve %}
+                  <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                    <a href="{{ t.pagaleve_link }}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition" title="Ver compra original no Paga Leve">
+                      <span>🛍️ Paga Leve</span>
+                      <span>•</span>
+                      <span>Parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }}</span>
+                      <span>•</span>
+                      <span>👤 {{ t.titular }}</span>
+                      <span class="text-[9px] opacity-75">➔</span>
+                    </a>
+                  </div>
+                  {% elif t.grupo_parcelamento %}
                     {% if 'fixa' in t.grupo_parcelamento or 'recorren' in t.grupo_parcelamento %}
                     <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                       Recorrente
@@ -444,6 +472,17 @@
         </div>
       </div>
 
+      <!-- Atalho Amigável Paga Leve (Pix 4x) -->
+      <div class="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-base">🛍️</span>
+          <span class="text-purple-700 dark:text-purple-300 font-semibold text-[11px] sm:text-xs">Compra no Paga Leve (Pix 4x)?</span>
+        </div>
+        <a href="/pagaleve" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] shadow-sm transition">
+          Cadastrar no Paga Leve ➔
+        </a>
+      </div>
+
       <!-- Data e Valor -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
@@ -502,7 +541,12 @@
       <!-- Categorias e subcategorias -->
       <div class="grid grid-cols-2 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Categoria</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categoria</label>
+            <button type="button" onclick="alternarNovaCategoriaLancamento()" id="btn-toggle-nova-cat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
+              + Nova
+            </button>
+          </div>
           <select name="categoria" id="input-categoria" required onchange="atualizarSubcategorias()"
                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
             <option value="Alimentação">🛒 Alimentação</option>
@@ -514,14 +558,24 @@
             <option value="Transferência">🔄 Transferência</option>
             <option value="99 Produção">🚕 99 Produção</option>
             <option value="Salário">💼 Salário / Renda</option>
+            <option value="Sem categoria">🏷️ Sem categoria</option>
           </select>
+          <input type="text" id="input-categoria-custom" placeholder="Nova categoria..."
+                 class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Subcategoria</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subcategoria</label>
+            <button type="button" onclick="alternarNovaSubcategoriaLancamento()" id="btn-toggle-nova-subcat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
+              + Nova
+            </button>
+          </div>
           <select name="subcategoria" id="subcategoria"
                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
             <!-- Preenchido via JS por atualizarSubcategorias() -->
           </select>
+          <input type="text" id="input-subcategoria-custom" placeholder="Nova subcategoria..."
+                 class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
         </div>
       </div>
 
@@ -609,6 +663,43 @@
     filtrarTabela();
   }
 
+  function setFiltroPagaLeve() {
+    filtroStatusAtual = 'pagaleve';
+    filtroTipoAtual = 'todos';
+    atualizarBotoesFiltro();
+    filtrarTabela();
+  }
+
+  function alternarNovaCategoriaLancamento() {
+    const sel = document.getElementById('input-categoria');
+    const inp = document.getElementById('input-categoria-custom');
+    const btn = document.getElementById('btn-toggle-nova-cat');
+    if (inp.classList.contains('hidden')) {
+      inp.classList.remove('hidden');
+      inp.focus();
+      btn.textContent = '✕ Lista';
+    } else {
+      inp.classList.add('hidden');
+      inp.value = '';
+      btn.textContent = '+ Nova';
+    }
+  }
+
+  function alternarNovaSubcategoriaLancamento() {
+    const sel = document.getElementById('subcategoria');
+    const inp = document.getElementById('input-subcategoria-custom');
+    const btn = document.getElementById('btn-toggle-nova-subcat');
+    if (inp.classList.contains('hidden')) {
+      inp.classList.remove('hidden');
+      inp.focus();
+      btn.textContent = '✕ Lista';
+    } else {
+      inp.classList.add('hidden');
+      inp.value = '';
+      btn.textContent = '+ Nova';
+    }
+  }
+
   function verContasAtrasadas() {
     setFiltroStatus('atrasadas');
     const tab = document.getElementById('tabela-transacoes');
@@ -634,6 +725,9 @@
     } else if (filtroStatusAtual === 'pago') {
       const b = document.getElementById('btn-filtro-pago');
       if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm';
+    } else if (filtroStatusAtual === 'pagaleve') {
+      const b = document.getElementById('btn-filtro-pagaleve');
+      if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-500/25 text-purple-600 dark:text-purple-300 border border-purple-500/40 shadow-sm flex items-center gap-1.5';
     } else if (filtroStatusAtual === 'atrasadas') {
       const b = document.getElementById('btn-filtro-atrasadas');
       if (b) b.className = 'btn-filtro px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/25 text-amber-600 dark:text-amber-300 border border-amber-500/40 shadow-sm flex items-center gap-1.5';
@@ -660,6 +754,9 @@
 
       if (filtroStatusAtual === 'atrasadas') {
         atendeFiltro = ehAtrasada;
+      } else if (filtroStatusAtual === 'pagaleve') {
+        const isPl = linha.getAttribute('data-is-pagaleve') === '1';
+        atendeFiltro = isPl;
       } else {
         if (ehMesPassado) {
           atendeFiltro = false;

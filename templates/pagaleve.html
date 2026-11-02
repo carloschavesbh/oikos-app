@@ -202,7 +202,7 @@
                     {{ c.nome }}
                   </h3>
                   <p class="text-[10px] text-slate-400">
-                    Categoria: <span class="text-slate-300">{{ c.categoria }}</span> • Conta: <span class="text-slate-300">{{ c.conta }}</span>
+                    Categoria: <span class="text-slate-300">{{ c.categoria or 'Sem categoria' }}</span> • Conta: <span class="text-slate-300">{{ c.conta }}</span>
                   </p>
                 </div>
               </div>
@@ -391,7 +391,7 @@
                     {{ c.nome }}
                   </h3>
                   <p class="text-[10px] text-slate-400">
-                    Categoria: <span class="text-slate-300">{{ c.categoria }}</span> • Conta: <span class="text-slate-300">{{ c.conta }}</span>
+                    Categoria: <span class="text-slate-300">{{ c.categoria or 'Sem categoria' }}</span> • Conta: <span class="text-slate-300">{{ c.conta }}</span>
                   </p>
                 </div>
               </div>
@@ -638,17 +638,31 @@
         </div>
 
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Categoria *</label>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400">Categoria</label>
+            <button type="button" onclick="alternarNovaCategoriaPl()" id="btn-toggle-nova-cat-pl" class="text-[10px] text-amber-400 hover:underline font-semibold cursor-pointer">
+              + Nova
+            </button>
+          </div>
           <select id="pl-nova-categoria"
             class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none">
-            <option value="Medicamentos">Medicamentos / Farmácia</option>
-            <option value="Alimentação">Alimentação / Mercado</option>
-            <option value="Moradia/Contas">Moradia / Contas</option>
-            <option value="Pessoal">Pessoal</option>
-            <option value="Manutenção Veículo">Manutenção Veículo</option>
-            <option value="Eletrodomésticos">Eletrodomésticos</option>
-            <option value="Outros">Outros</option>
+            <option value="Sem categoria">Sem categoria</option>
+            {% if categorias_subcategorias %}
+              {% for cat_nome in categorias_subcategorias.keys() %}
+              <option value="{{ cat_nome }}">{{ cat_nome }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="Medicamentos">Medicamentos</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Moradia/Contas">Moradia/Contas</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Saúde">Saúde</option>
+              <option value="Pessoal">Pessoal</option>
+              <option value="Outros">Outros</option>
+            {% endif %}
           </select>
+          <input type="text" id="pl-nova-categoria-custom" placeholder="Nova categoria..."
+            class="hidden w-full mt-1.5 rounded-xl bg-slate-950 border border-amber-400 px-3 py-1.5 text-xs text-white focus:outline-none">
         </div>
       </div>
 
@@ -865,6 +879,20 @@
     modal.classList.add('flex');
   }
 
+  function alternarNovaCategoriaPl() {
+    const inp = document.getElementById('pl-nova-categoria-custom');
+    const btn = document.getElementById('btn-toggle-nova-cat-pl');
+    if (inp.classList.contains('hidden')) {
+      inp.classList.remove('hidden');
+      inp.focus();
+      btn.textContent = '✕ Lista';
+    } else {
+      inp.classList.add('hidden');
+      inp.value = '';
+      btn.textContent = '+ Nova';
+    }
+  }
+
   function fecharModalNovaCompraPl() {
     const modal = document.getElementById('modal-nova-pagaleve');
     modal.classList.add('hidden');
@@ -920,10 +948,16 @@
       });
     }
 
+    let categoriaPl = document.getElementById('pl-nova-categoria').value;
+    const catCustomPl = document.getElementById('pl-nova-categoria-custom');
+    if (catCustomPl && !catCustomPl.classList.contains('hidden') && catCustomPl.value.trim()) {
+      categoriaPl = catCustomPl.value.trim();
+    }
+
     const payload = {
       descricao: document.getElementById('pl-nova-descricao').value.trim(),
       titular: document.getElementById('pl-nova-titular').value,
-      categoria: document.getElementById('pl-nova-categoria').value,
+      categoria: categoriaPl,
       conta_id: parseInt(document.getElementById('pl-nova-conta').value || '1', 10),
       valor_total: parseFloat(document.getElementById('pl-nova-valor-total').value || '0'),
       juros: parseFloat(document.getElementById('pl-nova-juros').value || '0'),
