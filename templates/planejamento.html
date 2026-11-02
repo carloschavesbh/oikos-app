@@ -305,6 +305,11 @@
                 <h3 class="font-bold text-sm text-slate-900 dark:text-white">{{ c.categoria }}</h3>
                 <span class="text-[10px] font-semibold text-slate-400">({{ c.qtd_transacoes }} lançamentos)</span>
               </div>
+              {% if c.sinonimos and c.sinonimos | length > 0 %}
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                Agrega: {{ c.sinonimos | join(', ') }}
+              </div>
+              {% endif %}
               <span class="text-[10px] font-bold uppercase tracking-wider
                           {% if c.status_cor == 'emerald' %}text-emerald-600 dark:text-emerald-400
                           {% elif c.status_cor == 'amber' %}text-amber-600 dark:text-amber-400

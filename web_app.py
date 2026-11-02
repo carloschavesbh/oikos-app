@@ -2460,6 +2460,18 @@ async def pagina_planejamento(
     cur.execute("SELECT categoria, limite FROM limites_categoria")
     limites_db = {r[0]: float(r[1]) for r in cur.fetchall()}
 
+    # Mapa de equivalências case-insensitive para agregação orçamentária
+    # Permite que variações de grafia e sinônimos conhecidos consumam o mesmo teto orçado
+    MAPA_EQUIVALENCIAS_CANONICAS = {
+        "habitação": "Habitação",
+        "habitacao": "Habitação",
+        "moradia/contas": "Habitação",
+        "moradia": "Habitação",
+        "supermercado": "Supermercado",
+        "supermercado / feira": "Supermercado",
+        "supermercado/feira": "Supermercado",
+    }
+
     cur.execute("""
         SELECT categoria, COALESCE(SUM(valor), 0) as gasto_real, COUNT(*) as qtd
         FROM transacoes
@@ -2470,12 +2482,23 @@ async def pagina_planejamento(
     rows_cats = cur.fetchall()
 
     gastos_por_cat = {}
+    sinonimos_por_cat = {}
     for r in rows_cats:
-        c_nome = r[0] or "Outros"
-        gastos_por_cat[c_nome] = {
-            "gasto_real": round(float(r[1]), 2),
-            "qtd": int(r[2])
-        }
+        c_orig = (r[0] or "Outros").strip()
+        v_real = round(float(r[1]), 2)
+        q_real = int(r[2])
+
+        # Encontra a categoria canônica agregadora (se houver sinônimo conhecido)
+        c_canon = MAPA_EQUIVALENCIAS_CANONICAS.get(c_orig.lower(), c_orig)
+
+        if c_canon not in gastos_por_cat:
+            gastos_por_cat[c_canon] = {"gasto_real": 0.0, "qtd": 0}
+            sinonimos_por_cat[c_canon] = []
+
+        gastos_por_cat[c_canon]["gasto_real"] = round(gastos_por_cat[c_canon]["gasto_real"] + v_real, 2)
+        gastos_por_cat[c_canon]["qtd"] += q_real
+        if c_orig != c_canon and c_orig not in sinonimos_por_cat[c_canon]:
+            sinonimos_por_cat[c_canon].append(c_orig)
 
     todas_categorias = sorted(list(set(list(gastos_por_cat.keys()) + list(limites_db.keys()))))
 
@@ -2550,7 +2573,8 @@ async def pagina_planejamento(
             "percentual_barra": pct_barra,
             "status_cor": status_cor,
             "status_texto": status_texto,
-            "qtd_transacoes": gasto_info["qtd"]
+            "qtd_transacoes": gasto_info["qtd"],
+            "sinonimos": sinonimos_por_cat.get(cat, [])
         })
 
     orcamento_categorias.sort(key=lambda x: x["gasto_real"], reverse=True)
