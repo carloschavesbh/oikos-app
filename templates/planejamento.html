@@ -816,19 +816,39 @@
                 {% if h.aportes_externos > 0 %}{{ h.aportes_externos | moeda }}{% else %}—{% endif %}
               </td>
               <td class="py-2.5 px-3 text-center whitespace-nowrap">
-                {% if h.qualidade == 'completo_confirmado' %}
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" title="{{ h.motivo_qualidade }}">
-                  ✓ Completo Confirmado
-                </span>
-                {% elif h.qualidade == 'parcial' %}
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400" title="{{ h.motivo_qualidade }}">
-                  ⚠️ {{ h.qualidade_label }}
-                </span>
-                {% else %}
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 dark:bg-slate-800 text-slate-500" title="{{ h.motivo_qualidade }}">
-                  Lacuna (Sem dados)
-                </span>
-                {% endif %}
+                <div class="inline-flex items-center gap-1.5">
+                  {% if h.confirmado_usuario %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" title="{{ h.motivo_qualidade }}">
+                    ✓ Confirmado por Você
+                  </span>
+                  {% elif h.qualidade == 'provavel_completo' %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400" title="{{ h.motivo_qualidade }}">
+                    💡 Sugestão: Provável Completo
+                  </span>
+                  {% elif h.qualidade == 'poucos_registros' %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400" title="{{ h.motivo_qualidade }}">
+                    💡 Sugestão: Poucos Registros / Renda Baixa
+                  </span>
+                  {% elif h.qualidade == 'em_andamento' %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/15 text-indigo-600 dark:text-indigo-400" title="{{ h.motivo_qualidade }}">
+                    ⏳ Mês em Andamento
+                  </span>
+                  {% elif h.qualidade == 'apenas_fixa' %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-500/15 text-slate-600 dark:text-slate-400" title="{{ h.motivo_qualidade }}">
+                    Apenas Renda Fixa
+                  </span>
+                  {% else %}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 dark:bg-slate-800 text-slate-500" title="{{ h.motivo_qualidade }}">
+                    Sem Dados
+                  </span>
+                  {% endif %}
+
+                  <button type="button" onclick="confirmarMesUsuario('{{ h.mes }}', {{ 'false' if h.confirmado_usuario else 'true' }})"
+                          title="{{ 'Desfazer confirmação e voltar para sugestão' if h.confirmado_usuario else 'Confirmar que este mês possui cobertura comprovada' }}"
+                          class="p-1 rounded-md text-[10px] font-bold border transition cursor-pointer {{ 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40' if h.confirmado_usuario else 'border-slate-300 dark:border-slate-700 text-slate-500 hover:text-indigo-600 hover:border-indigo-400' }}">
+                    {{ 'Desmarcar' if h.confirmado_usuario else 'Confirmar' }}
+                  </button>
+                </div>
               </td>
             </tr>
             {% endfor %}
@@ -1004,12 +1024,14 @@
               </td>
               <td class="py-3 px-3 text-right whitespace-nowrap">
                 {% if d.falta_reservar > 0 %}
-                  {% if d.status_prazo in ['vencido', 'hoje', 'imediato'] %}
+                  {% if d.status_prazo in ['vencido', 'hoje', 'imediato', 'antes_primeira_contribuicao'] %}
                   <strong class="text-rose-600 dark:text-rose-400 block text-xs">Aporte Imediato</strong>
-                  <span class="text-[9px] text-slate-400">{{ d.falta_reservar | moeda }}</span>
+                  <span class="text-[9px] text-slate-400">{{ d.falta_reservar | moeda }} ({{ d.qtd_oportunidades }} oport.)</span>
                   {% else %}
-                  <strong class="text-indigo-600 dark:text-indigo-400 block">{{ d.sugestao_mensal | moeda }}/mês</strong>
-                  <span class="text-[9px] text-slate-400">ou {{ d.sugestao_semanal | moeda }}/semana ({{ d.semanas_reais }} sem)</span>
+                  <strong class="text-indigo-600 dark:text-indigo-400 block">{{ d.valor_por_contribuicao | moeda }}/{{ 'mês' if d.frequencia_contribuicao == 'mensal' else d.frequencia_contribuicao }}</strong>
+                  <span class="text-[9px] text-slate-400">
+                    {{ d.qtd_oportunidades }} contribuição(ões){% if d.proxima_contribuicao %} • Próxima: {{ d.proxima_contribuicao[8:10] }}/{{ d.proxima_contribuicao[5:7] }}{% endif %}
+                  </span>
                   {% endif %}
                 {% else %}
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600">✓ 100% Coberto</span>
@@ -1243,13 +1265,36 @@
           </select>
         </div>
         <div>
-          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Recorrência</label>
-          <select id="dev-recorrencia" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
-            <option value="anual">Anual</option>
-            <option value="semestral">Semestral</option>
-            <option value="pontual">Pontual</option>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Frequência de Contribuição</label>
+          <select id="dev-frequencia" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+            <option value="mensal" selected>Mensal (por mês do calendário)</option>
+            <option value="semanal">Semanal (a cada 7 dias)</option>
+            <option value="quinzenal">Quinzenal (a cada 14 dias)</option>
+            <option value="pontual">Única / Pontual</option>
           </select>
         </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">1ª Contribuição (Início)</label>
+          <input type="date" id="dev-primeira-contrib"
+                 class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+          <span class="text-[10px] text-slate-400">Deixe em branco para iniciar hoje</span>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Reserva Atribuída Manual (R$)</label>
+          <input type="number" step="0.01" id="dev-valor-res-manual" placeholder="0.00"
+                 class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-medium">
+          <span class="text-[10px] text-slate-400">Limitado ao saldo do cofrinho</span>
+        </div>
+      </div>
+      <div>
+        <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Recorrência do Compromisso</label>
+        <select id="dev-recorrencia" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white">
+          <option value="anual">Anual</option>
+          <option value="semestral">Semestral</option>
+          <option value="pontual">Pontual</option>
+        </select>
       </div>
 
       <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
@@ -1425,6 +1470,9 @@
       data_prevista: document.getElementById('dev-data').value,
       valor_estimado: parseFloat(document.getElementById('dev-valor').value) || 0,
       cofrinho_id: document.getElementById('dev-cofrinho').value || null,
+      frequencia_contribuicao: document.getElementById('dev-frequencia').value || 'mensal',
+      primeira_contribuicao: document.getElementById('dev-primeira-contrib').value || null,
+      valor_reservado_manual: parseFloat(document.getElementById('dev-valor-res-manual').value) || 0,
       recorrencia: document.getElementById('dev-recorrencia').value
     };
     try {
@@ -1440,6 +1488,43 @@
         setTimeout(() => location.reload(), 300);
       } else {
         showToast('Erro', res.erro || 'Falha ao criar.', true);
+      }
+    } catch (err) {
+      showToast('Erro', err.message, true);
+    }
+  }
+
+  // Confirmar mês pelo usuário
+  async function confirmarMesUsuario(mesKey, confirmar) {
+    const checkboxes = document.querySelectorAll('.chk-amostra-mes:checked');
+    const mesesAtivos = Array.from(checkboxes).map(c => c.getAttribute('data-mes'));
+    // Se estiver confirmando, garante que o mês está ativo na amostra
+    if (confirmar && !mesesAtivos.includes(mesKey)) {
+      mesesAtivos.push(mesKey);
+    }
+    
+    // Lista de meses confirmados atualmente
+    const mesesConfirmados = [];
+    document.querySelectorAll('[data-mes]').forEach(el => {
+      // Coleta botões que já estavam confirmados
+    });
+    
+    try {
+      const resp = await fetch('/api/planejamento/meses-amostra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meses_ativos: mesesAtivos,
+          meses_confirmados: confirmar ? [mesKey] : [],
+          qualidade_map: { [mesKey]: 'confirmado_usuario' }
+        })
+      });
+      const res = await resp.json();
+      if (res.sucesso) {
+        showToast('Atualizado!', confirmar ? `Mês ${mesKey} confirmado por você.` : `Confirmação de ${mesKey} removida.`);
+        setTimeout(() => location.reload(), 300);
+      } else {
+        showToast('Erro', res.erro || 'Falha ao atualizar.', true);
       }
     } catch (err) {
       showToast('Erro', err.message, true);

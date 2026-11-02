@@ -117,6 +117,9 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
     CREATE TABLE IF NOT EXISTS planejamento_meses_amostra (
         mes_key TEXT PRIMARY KEY,
         incluir INTEGER DEFAULT 1,
+        confirmado_usuario INTEGER DEFAULT 0,
+        qualidade_usuario TEXT,
+        notas TEXT,
         atualizado_em TEXT DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -138,6 +141,7 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
         cofrinho_id INTEGER REFERENCES cofrinhos(id),
         valor_reservado_manual REAL DEFAULT 0.0,
         frequencia_contribuicao TEXT DEFAULT 'mensal',
+        primeira_contribuicao DATE,
         observacoes TEXT,
         criado_em TEXT DEFAULT CURRENT_TIMESTAMP
     );
@@ -150,11 +154,23 @@ def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
             VALUES (?, ?, 'padrao')
         """, (cat, nat))
 
-        # Migração idempotente de colunas novas em planejamento_despesas_eventuais
+    # Migração idempotente de colunas novas em planejamento_meses_amostra
+    cur.execute("PRAGMA table_info(planejamento_meses_amostra)")
+    colunas_pma = [c[1] for c in cur.fetchall()]
+    if "confirmado_usuario" not in colunas_pma:
+        cur.execute("ALTER TABLE planejamento_meses_amostra ADD COLUMN confirmado_usuario INTEGER DEFAULT 0")
+    if "qualidade_usuario" not in colunas_pma:
+        cur.execute("ALTER TABLE planejamento_meses_amostra ADD COLUMN qualidade_usuario TEXT")
+    if "notas" not in colunas_pma:
+        cur.execute("ALTER TABLE planejamento_meses_amostra ADD COLUMN notas TEXT")
+
+    # Migração idempotente de colunas novas em planejamento_despesas_eventuais
     cur.execute("PRAGMA table_info(planejamento_despesas_eventuais)")
     colunas_dev = [c[1] for c in cur.fetchall()]
     if "valor_reservado_manual" not in colunas_dev:
         cur.execute("ALTER TABLE planejamento_despesas_eventuais ADD COLUMN valor_reservado_manual REAL DEFAULT 0.0")
+    if "primeira_contribuicao" not in colunas_dev:
+        cur.execute("ALTER TABLE planejamento_despesas_eventuais ADD COLUMN primeira_contribuicao DATE")
 
     conn.commit()
 
@@ -197,27 +213,58 @@ def salvar_classificacao_natureza(conn: sqlite3.Connection, categoria: str, natu
 # 2. ANÁLISE DE HISTÓRICO DE RENDA & CONTROLE DE MESES PELO USUÁRIO
 # =============================================================================
 
-def salvar_selecao_meses_amostra(conn: sqlite3.Connection, meses_ativos: List[str]) -> bool:
-    """Salva a lista de meses que o usuário escolheu incluir na amostra estatística."""
+def salvar_selecao_meses_amostra(
+    conn: sqlite3.Connection,
+    meses_ativos: List[str],
+    meses_confirmados: Optional[List[str]] = None,
+    qualidade_map: Optional[Dict[str, str]] = None
+) -> bool:
+    """
+    Salva a seleção do usuário para a amostra dos cenários e sua confirmação explícita de cobertura.
+    """
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
-    # Limpa seleções anteriores
+    # Preserva metadados anteriores ou atualiza
+    meses_conf_set = set(meses_confirmados or [])
+    qual_map = qualidade_map or {}
+
     cur.execute("DELETE FROM planejamento_meses_amostra")
     for m in meses_ativos:
-        cur.execute("INSERT INTO planejamento_meses_amostra (mes_key, incluir) VALUES (?, 1)", (m.strip(),))
+        m_key = m.strip()
+        conf = 1 if m_key in meses_conf_set else 0
+        q_user = qual_map.get(m_key)
+        cur.execute("""
+            INSERT INTO planejamento_meses_amostra (mes_key, incluir, confirmado_usuario, qualidade_usuario)
+            VALUES (?, 1, ?, ?)
+        """, (m_key, conf, q_user))
     conn.commit()
     return True
 
 
-def obter_meses_amostra_salvos(conn: sqlite3.Connection) -> Optional[set]:
-    """Retorna o conjunto de meses que o usuário marcou para incluir, ou None se nunca configurado."""
+def obter_configuracoes_meses_amostra(conn: sqlite3.Connection) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Retorna dicionário {mes_key: {'incluir': bool, 'confirmado_usuario': bool, 'qualidade_usuario': str}}."""
     inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
-    cur.execute("SELECT mes_key FROM planejamento_meses_amostra WHERE incluir = 1")
+    cur.execute("SELECT mes_key, incluir, confirmado_usuario, qualidade_usuario FROM planejamento_meses_amostra")
     rows = cur.fetchall()
     if not rows:
         return None
-    return {r[0] for r in rows}
+    return {
+        r[0]: {
+            "incluir": bool(r[1]),
+            "confirmado_usuario": bool(r[2]),
+            "qualidade_usuario": r[3]
+        }
+        for r in rows
+    }
+
+
+def obter_meses_amostra_salvos(conn: sqlite3.Connection) -> Optional[set]:
+    """Retorna o conjunto de meses que o usuário marcou para incluir, ou None se nunca configurado."""
+    config = obter_configuracoes_meses_amostra(conn)
+    if config is None:
+        return None
+    return {m for m, dados in config.items() if dados["incluir"]}
 
 
 def analisar_historico_renda(
@@ -320,47 +367,68 @@ def analisar_historico_renda(
         if info["ultima_data"] is None or d_max > info["ultima_data"]:
             info["ultima_data"] = d_max
 
-    # Carrega meses que o usuário salvou para incluir
-    meses_salvos_usuario = obter_meses_amostra_salvos(conn)
+    # Carrega meses e configurações salvas pelo usuário
+    config_usuario = obter_configuracoes_meses_amostra(conn)
 
     historico_ordenado = []
     for m in sorted(meses_alvo):
         info = dados_por_mes[m]
         eh_mes_corrente = (m == f"{hoje.year:04d}-{hoje.month:02d}")
 
+        # 1. Sugestão automática do sistema baseada em evidências
         if not info["tem_dados"] or (info["estavel"] == 0 and info["variavel"] == 0):
-            info["qualidade"] = "sem_dados"
-            info["qualidade_label"] = "Sem Dados / Lacuna"
-            info["motivo_qualidade"] = "Lacuna de registros operacionais."
+            qualidade_sugerida = "sem_dados"
+            label_sugerido = "Sem Dados / Lacuna"
+            motivo_sugerido = "Nenhuma receita operacional registrada no período."
             default_incluir = False
         elif eh_mes_corrente:
-            info["qualidade"] = "parcial"
-            info["qualidade_label"] = "Mês em Andamento"
-            info["motivo_qualidade"] = f"Mês atual em curso (dia {hoje.day})."
-            default_incluir = (info["variavel"] > 0)
+            qualidade_sugerida = "em_andamento"
+            label_sugerido = "Mês em Andamento"
+            motivo_sugerido = f"Mês atual em curso (dia {hoje.day})."
+            default_incluir = True
         elif info["qtd_tx_variavel"] >= 10:
-            # Mês com mais de 10 lançamentos de corridas/turnos
-            info["qualidade"] = "completo_confirmado"
-            info["qualidade_label"] = "Mês Completo Confirmado"
-            info["motivo_qualidade"] = f"Histórico consistente com {info['qtd_tx_variavel']} lançamentos de corridas."
+            # Sugestão de provável mês completo pela frequência de turnos
+            qualidade_sugerida = "provavel_completo"
+            label_sugerido = "Sugestão: Provável Completo"
+            motivo_sugerido = f"Frequência observada de {info['qtd_tx_variavel']} lançamentos de corridas/turnos ao longo do mês."
             default_incluir = True
         elif info["qtd_tx_variavel"] > 0:
-            info["qualidade"] = "parcial"
-            info["qualidade_label"] = "Mês Parcial / Incompleto"
-            info["motivo_qualidade"] = f"Apenas {info['qtd_tx_variavel']} lançamento(s) da 99 no mês (repasse isolado ou período curto)."
-            # Por padrão não inclui meses parciais atípicos na amostra para não distorcer o mínimo
-            default_incluir = False
+            # Poucos lançamentos de aplicativo: pode ser mês incompleto ou mês com baixa renda/pouca escala
+            qualidade_sugerida = "poucos_registros"
+            label_sugerido = "Sugestão: Poucos Registros / Renda Baixa"
+            motivo_sugerido = (
+                f"{info['qtd_tx_variavel']} lançamento(s) da 99 no mês (R$ {info['variavel']:,.2f}). "
+                "Pode indicar mês incompleto ou mês trabalhado com faturamento reduzido."
+            )
+            default_incluir = True
         else:
-            info["qualidade"] = "parcial"
-            info["qualidade_label"] = "Apenas Renda Fixa"
-            info["motivo_qualidade"] = "Sem registros de corridas da 99 no mês."
+            qualidade_sugerida = "apenas_fixa"
+            label_sugerido = "Sugestão: Apenas Renda Fixa"
+            motivo_sugerido = "Sem registros de corridas da 99 no mês."
             default_incluir = False
 
-        # Aplica a preferência salva pelo usuário ou o padrão recomendado
-        if meses_salvos_usuario is not None:
-            info["incluir_na_amostra"] = (m in meses_salvos_usuario)
+        # 2. Status de Confirmação pelo Usuário
+        cfg_m = config_usuario.get(m) if config_usuario else None
+        if cfg_m:
+            info["incluir_na_amostra"] = cfg_m["incluir"]
+            info["confirmado_usuario"] = cfg_m["confirmado_usuario"]
+            info["qualidade_usuario"] = cfg_m["qualidade_usuario"]
         else:
             info["incluir_na_amostra"] = default_incluir
+            info["confirmado_usuario"] = False
+            info["qualidade_usuario"] = None
+
+        # Exibição: se confirmado pelo usuário, exibe confirmação explícita
+        if info["confirmado_usuario"]:
+            info["qualidade"] = info["qualidade_usuario"] or qualidade_sugerida
+            info["qualidade_label"] = "✓ Confirmado pelo Usuário"
+            info["motivo_qualidade"] = f"Cobertura do período confirmada pelo usuário ({motivo_sugerido})."
+            info["eh_sugestao"] = False
+        else:
+            info["qualidade"] = qualidade_sugerida
+            info["qualidade_label"] = label_sugerido
+            info["motivo_qualidade"] = motivo_sugerido
+            info["eh_sugestao"] = True
 
         historico_ordenado.append(info)
 
@@ -764,6 +832,85 @@ def comparar_cenarios_com_despesas(
 # 5. CALENDÁRIO ANUAL & CÁLCULO REAL DE CONTRIBUIÇÕES E COFRINHOS
 # =============================================================================
 
+def calcular_datas_contribuicao_efetivas(
+    data_inicio: datetime.date,
+    data_vencimento: datetime.date,
+    frequencia: str = "mensal"
+) -> List[datetime.date]:
+    """
+    Gera as datas efetivas de contribuição entre data_inicio e data_vencimento (inclusive).
+    Regras estritas:
+    - Se data_vencimento < data_inicio: 0 oportunidades (vencido/sem datas futuras).
+    - Se data_vencimento == data_inicio: exatamente 1 oportunidade (hoje / aporte imediato).
+    - Para 'mensal': respeita os meses do calendário e ajusta dias inexistentes (ex: dia 31 vira 28/29 em fev, 30 em abr).
+    - Para 'semanal': incrementos exatos de 7 dias a partir de data_inicio.
+    - Para 'quinzenal': incrementos exatos de 14 dias a partir de data_inicio.
+    - Para 'unica' ou 'pontual': 1 oportunidade em data_inicio.
+    """
+    if data_vencimento < data_inicio:
+        return []
+
+    datas: List[datetime.date] = []
+    freq = (frequencia or "mensal").lower().strip()
+
+    if freq == "semanal":
+        curr = data_inicio
+        while curr <= data_vencimento:
+            datas.append(curr)
+            curr += datetime.timedelta(days=7)
+
+    elif freq == "quinzenal":
+        curr = data_inicio
+        while curr <= data_vencimento:
+            datas.append(curr)
+            curr += datetime.timedelta(days=14)
+
+    elif freq in ("unica", "pontual"):
+        datas.append(data_inicio)
+
+    else:
+        # Frequência mensal (padrão): avança pelos meses do calendário respeitando dia alvo
+        dia_alvo = data_inicio.day
+        ano = data_inicio.year
+        mes = data_inicio.month
+        while True:
+            max_dias = calendar.monthrange(ano, mes)[1]
+            dia_efetivo = min(dia_alvo, max_dias)
+            dt = datetime.date(ano, mes, dia_efetivo)
+            if dt > data_vencimento:
+                break
+            if dt >= data_inicio:
+                datas.append(dt)
+            # Avança para o mês seguinte
+            mes += 1
+            if mes > 12:
+                mes = 1
+                ano += 1
+
+    return datas
+
+
+def obter_saldo_disponivel_cofrinho(conn: sqlite3.Connection, cofrinho_id: int) -> float:
+    """
+    Retorna o saldo real do cofrinho (via saldo_service ou saldo_confirmado da tabela).
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT conta_config_id, saldo_confirmado FROM cofrinhos WHERE id = ?", (cofrinho_id,))
+    row = cur.fetchone()
+    if not row:
+        return 0.0
+
+    conta_id, s_conf = row
+    if conta_id:
+        try:
+            import saldo_service
+            res_s = saldo_service.calcular_saldo_conta(conn, conta_id)
+            return float(res_s["saldo_atual"])
+        except Exception:
+            pass
+    return float(s_conf or 0.0)
+
+
 def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] = None, mes_inicio: Optional[int] = None) -> Dict[str, Any]:
     """
     Gera a visão dos próximos 12 meses com cálculo real de contribuições e
@@ -799,26 +946,29 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
     mapa_meses = {item["mes_key"]: item for item in meses_12}
 
     # Carrega cofrinhos disponíveis
-    cur.execute("SELECT id, nome, saldo_confirmado, meta_valor, objetivo FROM cofrinhos")
+    cur.execute("SELECT id, nome, saldo_confirmado, meta_valor, objetivo, conta_config_id FROM cofrinhos")
     rows_cof = cur.fetchall()
-    cofrinhos_dict = {
-        r[0]: {
-            "id": r[0],
+    cofrinhos_dict = {}
+    for r in rows_cof:
+        cof_id_val = r[0]
+        s_disp = obter_saldo_disponivel_cofrinho(conn, cof_id_val)
+        cofrinhos_dict[cof_id_val] = {
+            "id": cof_id_val,
             "nome": r[1],
-            "saldo_confirmado": float(r[2] or 0.0),
+            "saldo_confirmado": s_disp,
             "meta_valor": float(r[3] or 0.0),
             "objetivo": r[4],
+            "conta_config_id": r[5],
             "compromissos_vinculados": []
         }
-        for r in rows_cof
-    }
 
     # Carrega despesas cadastradas
     cur.execute("""
         SELECT 
             id, nome, categoria, responsavel, data_prevista, mes_previsto,
             valor_estimado, valor_confirmado, recorrencia, status,
-            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao, observacoes
+            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao,
+            primeira_contribuicao, observacoes
         FROM planejamento_despesas_eventuais
         WHERE status != 'cancelada'
         ORDER BY data_prevista ASC
@@ -843,7 +993,8 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
         cof_id = r[11]
         v_res_manual = float(r[12] or 0.0)
         freq = r[13] or "mensal"
-        obs = r[14]
+        dt_prim_contrib = r[14]
+        obs = r[15]
 
         valor_alvo = v_conf if v_conf is not None else v_est
 
@@ -867,6 +1018,11 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
             "distribuicao_sugerida_teorica": 0.0,
             "valor_efetivamente_reservado": 0.0,
             "falta_reservar": valor_alvo,
+            "primeira_contribuicao": dt_prim_contrib,
+            "proxima_contribuicao": None,
+            "qtd_oportunidades": 0,
+            "valor_por_contribuicao": 0.0,
+            "datas_contribuicao": [],
             "sugestao_mensal": 0.0,
             "sugestao_semanal": 0.0,
             "dias_restantes": 0,
@@ -887,31 +1043,52 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
         lista_despesas.append(item)
 
     # 1. Distribuição teórica vs Alocação manual de Cofrinhos
+    # Garante estritamente que a soma atribuída nunca ultrapasse o saldo real disponível do cofrinho
     for cof_id, itens_vinculados in cofrinho_para_despesas.items():
         saldo_cof = cofrinhos_dict[cof_id]["saldo_confirmado"]
         soma_alvos = sum(it["valor_alvo"] for it in itens_vinculados)
 
+        # Rateio teórico proporcional (meramente informativo)
         for it in itens_vinculados:
-            # Distribuição proporcional teórica (meramente informativa)
             if soma_alvos > 0:
                 prop = it["valor_alvo"] / soma_alvos
                 it["distribuicao_sugerida_teorica"] = min(it["valor_alvo"], round(saldo_cof * prop, 2))
             else:
                 it["distribuicao_sugerida_teorica"] = 0.0
 
-            # Valor efetivamente reservado:
-            # Se o usuário definiu uma alocação manual > 0, respeita a decisão do usuário;
-            # Caso contrário, utiliza a sugestão teórica como base de cálculo
-            if it["valor_reservado_manual"] > 0:
-                it["valor_efetivamente_reservado"] = min(it["valor_alvo"], it["valor_reservado_manual"])
-            else:
+        # Alocação efetiva:
+        # Se os itens possuem reservas manuais, aloca respeitando a soma limitada ao saldo do cofrinho
+        saldo_remanescente_cof = saldo_cof
+        itens_com_manual = [it for it in itens_vinculados if it["valor_reservado_manual"] > 0]
+
+        if itens_com_manual:
+            for it in itens_com_manual:
+                aloc_pretendida = min(it["valor_alvo"], it["valor_reservado_manual"])
+                aloc_real = min(saldo_remanescente_cof, aloc_pretendida)
+                it["valor_efetivamente_reservado"] = round(aloc_real, 2)
+                saldo_remanescente_cof = max(0.0, round(saldo_remanescente_cof - aloc_real, 2))
+            # Itens sem alocação manual dividem o saldo remanescente pela distribuição proporcional
+            itens_sem_manual = [it for it in itens_vinculados if it["valor_reservado_manual"] <= 0]
+            soma_alvos_sem = sum(it["valor_alvo"] for it in itens_sem_manual)
+            for it in itens_sem_manual:
+                if soma_alvos_sem > 0 and saldo_remanescente_cof > 0:
+                    prop = it["valor_alvo"] / soma_alvos_sem
+                    aloc = min(it["valor_alvo"], round(saldo_remanescente_cof * prop, 2))
+                    it["valor_efetivamente_reservado"] = aloc
+                else:
+                    it["valor_efetivamente_reservado"] = 0.0
+        else:
+            # Sem alocação manual: todos usam a distribuição teórica sugerida
+            for it in itens_vinculados:
                 it["valor_efetivamente_reservado"] = it["distribuicao_sugerida_teorica"]
 
+        for it in itens_vinculados:
             it["falta_reservar"] = max(0.0, round(it["valor_alvo"] - it["valor_efetivamente_reservado"], 2))
 
-    # 2. Cálculo Real de Prazos e Oportunidades de Contribuição
+    # 2. Cálculo Real de Prazos, Datas Efetivas e Oportunidades de Contribuição
     for it in lista_despesas:
         if not it["cofrinho_id"]:
+            # Sem cofrinho: reserva manual fica limitada ao valor alvo
             it["valor_efetivamente_reservado"] = min(it["valor_alvo"], it["valor_reservado_manual"])
             it["falta_reservar"] = max(0.0, round(it["valor_alvo"] - it["valor_efetivamente_reservado"], 2))
 
@@ -924,51 +1101,60 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
 
         it["dias_restantes"] = dias_rest
 
-        # Tratamento de datas passadas, hoje e prazos reais
+        # Determina a data da primeira contribuição (se informada, usa; senão inicia hoje)
+        if it.get("primeira_contribuicao"):
+            try:
+                dt_inicio_contrib = datetime.datetime.strptime(it["primeira_contribuicao"], "%Y-%m-%d").date()
+            except Exception:
+                dt_inicio_contrib = hoje
+        else:
+            dt_inicio_contrib = hoje
+
+        # Gera as datas efetivas reais de contribuição
+        datas_efetivas = calcular_datas_contribuicao_efetivas(dt_inicio_contrib, dt_p, it["frequencia_contribuicao"])
+        it["datas_contribuicao"] = [d.strftime("%Y-%m-%d") for d in datas_efetivas]
+        qtd_op = len(datas_efetivas)
+        it["qtd_oportunidades"] = qtd_op
+
+        # Identifica a próxima contribuição
+        proximas = [d for d in datas_efetivas if d >= hoje]
+        it["proxima_contribuicao"] = proximas[0].strftime("%Y-%m-%d") if proximas else (dt_p.strftime("%Y-%m-%d") if dt_p >= hoje else None)
+
+        # Valor exato por contribuição
+        if it["falta_reservar"] > 0 and qtd_op > 0:
+            it["valor_por_contribuicao"] = round(it["falta_reservar"] / qtd_op, 2)
+        elif it["falta_reservar"] > 0 and qtd_op == 0:
+            it["valor_por_contribuicao"] = it["falta_reservar"]
+        else:
+            it["valor_por_contribuicao"] = 0.0
+
+        # Tratamento de status de prazo
         if dias_rest < 0:
             it["status_prazo"] = "vencido"
             it["status_prazo_label"] = f"Vencido há {abs(dias_rest)} dia(s)"
-            it["semanas_reais"] = 0
-            it["meses_reais"] = 0
-            it["sugestao_semanal"] = it["falta_reservar"]
             it["sugestao_mensal"] = it["falta_reservar"]
+            it["sugestao_semanal"] = it["falta_reservar"]
         elif dias_rest == 0:
             it["status_prazo"] = "hoje"
             it["status_prazo_label"] = "Vence Hoje"
-            it["semanas_reais"] = 0
-            it["meses_reais"] = 0
-            it["sugestao_semanal"] = it["falta_reservar"]
             it["sugestao_mensal"] = it["falta_reservar"]
+            it["sugestao_semanal"] = it["falta_reservar"]
+        elif dt_p < dt_inicio_contrib:
+            it["status_prazo"] = "antes_primeira_contribuicao"
+            it["status_prazo_label"] = "Vencimento anterior à 1ª contribuição"
+            it["sugestao_mensal"] = it["falta_reservar"]
+            it["sugestao_semanal"] = it["falta_reservar"]
         elif dias_rest <= 7:
             it["status_prazo"] = "imediato"
             it["status_prazo_label"] = f"Vencimento Imediato ({dias_rest} dias)"
-            it["semanas_reais"] = 1
-            it["meses_reais"] = 1
-            it["sugestao_semanal"] = it["falta_reservar"]
             it["sugestao_mensal"] = it["falta_reservar"]
+            it["sugestao_semanal"] = it["falta_reservar"]
         else:
             it["status_prazo"] = "no_prazo"
-            # Semanas reais inteiras até a data de vencimento
-            semanas_reais = max(1, dias_rest // 7)
-            it["semanas_reais"] = semanas_reais
-
-            # Meses reais inteiros (oportunidades mensais até o vencimento)
-            meses_diff = (dt_p.year - hoje.year) * 12 + (dt_p.month - hoje.month)
-            if dt_p.day < hoje.day and meses_diff > 0:
-                meses_diff -= 1
-            meses_reais = max(1, meses_diff)
-            it["meses_reais"] = meses_reais
-
-            it["status_prazo_label"] = f"Em {dias_rest} dias ({semanas_reais} semanas)"
-
-            if it["falta_reservar"] > 0:
-                # Contribuição semanal exata (sem aproximação de 4,33)
-                it["sugestao_semanal"] = round(it["falta_reservar"] / semanas_reais, 2)
-                # Contribuição mensal exata pelas oportunidades reais de ciclo
-                it["sugestao_mensal"] = round(it["falta_reservar"] / meses_reais, 2)
-            else:
-                it["sugestao_semanal"] = 0.0
-                it["sugestao_mensal"] = 0.0
+            freq_label = "contribuição" if it["frequencia_contribuicao"] == "mensal" else it["frequencia_contribuicao"]
+            it["status_prazo_label"] = f"Em {dias_rest} dias ({qtd_op} {freq_label}(ões))"
+            it["sugestao_mensal"] = it["valor_por_contribuicao"] if it["frequencia_contribuicao"] == "mensal" else round(it["falta_reservar"] / max(1, qtd_op), 2)
+            it["sugestao_semanal"] = it["valor_por_contribuicao"] if it["frequencia_contribuicao"] == "semanal" else round(it["falta_reservar"] / max(1, dias_rest // 7), 2)
 
         # Adiciona na linha do tempo mensal
         if it["mes_previsto"] in mapa_meses:
@@ -1025,6 +1211,7 @@ def criar_despesa_eventual(conn: sqlite3.Connection, dados: Dict[str, Any]) -> i
 
     val_res_manual = float(dados.get("valor_reservado_manual") or 0.0)
     freq = dados.get("frequencia_contribuicao") or "mensal"
+    dt_prim_contrib = dados.get("primeira_contribuicao") or None
     obs = dados.get("observacoes") or ""
     tx_id = dados.get("transacao_id")
     if tx_id in ("", None, "null"):
@@ -1032,16 +1219,34 @@ def criar_despesa_eventual(conn: sqlite3.Connection, dados: Dict[str, Any]) -> i
     else:
         tx_id = int(tx_id)
 
+    # Validação rigorosa de teto: a soma das reservas manuais não pode ultrapassar o saldo do cofrinho
+    if cof_id and val_res_manual > 0:
+        saldo_cof_disp = obter_saldo_disponivel_cofrinho(conn, cof_id)
+        cur.execute("""
+            SELECT COALESCE(SUM(valor_reservado_manual), 0)
+            FROM planejamento_despesas_eventuais
+            WHERE cofrinho_id = ? AND status != 'cancelada'
+        """, (cof_id,))
+        soma_atual = float(cur.fetchone()[0] or 0.0)
+        if round(soma_atual + val_res_manual, 2) > round(saldo_cof_disp, 2):
+            disponivel_livre = max(0.0, round(saldo_cof_disp - soma_atual, 2))
+            raise ValueError(
+                f"A soma das reservas manuais ultrapassa o saldo disponível do cofrinho "
+                f"(Saldo cofrinho: R$ {saldo_cof_disp:,.2f}, já atribuído: R$ {soma_atual:,.2f}, livre: R$ {disponivel_livre:,.2f})."
+            )
+
     cur.execute("""
         INSERT INTO planejamento_despesas_eventuais (
             nome, categoria, responsavel, data_prevista, mes_previsto,
             valor_estimado, valor_confirmado, recorrencia, status,
-            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao, observacoes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planejada', ?, ?, ?, ?, ?)
+            transacao_id, cofrinho_id, valor_reservado_manual, frequencia_contribuicao,
+            primeira_contribuicao, observacoes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'planejada', ?, ?, ?, ?, ?, ?)
     """, (
         nome, cat, resp, dt_prev, mes_prev,
         val_est, val_conf, recorr,
-        tx_id, cof_id, val_res_manual, freq, obs
+        tx_id, cof_id, val_res_manual, freq,
+        dt_prim_contrib, obs
     ))
     conn.commit()
     return cur.lastrowid
@@ -1074,19 +1279,38 @@ def atualizar_despesa_eventual(conn: sqlite3.Connection, despesa_id: int, dados:
 
     val_res_manual = float(dados.get("valor_reservado_manual") or 0.0)
     freq = dados.get("frequencia_contribuicao") or "mensal"
+    dt_prim_contrib = dados.get("primeira_contribuicao") or None
     obs = dados.get("observacoes") or ""
     status = dados.get("status") or "planejada"
+
+    # Validação rigorosa de teto na edição: a soma de outros itens + este não pode exceder o saldo do cofrinho
+    if cof_id and val_res_manual > 0:
+        saldo_cof_disp = obter_saldo_disponivel_cofrinho(conn, cof_id)
+        cur.execute("""
+            SELECT COALESCE(SUM(valor_reservado_manual), 0)
+            FROM planejamento_despesas_eventuais
+            WHERE cofrinho_id = ? AND id != ? AND status != 'cancelada'
+        """, (cof_id, despesa_id))
+        soma_outros = float(cur.fetchone()[0] or 0.0)
+        if round(soma_outros + val_res_manual, 2) > round(saldo_cof_disp, 2):
+            disponivel_livre = max(0.0, round(saldo_cof_disp - soma_outros, 2))
+            raise ValueError(
+                f"A soma das reservas manuais ultrapassa o saldo disponível do cofrinho "
+                f"(Saldo cofrinho: R$ {saldo_cof_disp:,.2f}, outros compromissos: R$ {soma_outros:,.2f}, livre: R$ {disponivel_livre:,.2f})."
+            )
 
     cur.execute("""
         UPDATE planejamento_despesas_eventuais
         SET nome = ?, categoria = ?, responsavel = ?, data_prevista = ?, mes_previsto = ?,
             valor_estimado = ?, valor_confirmado = ?, recorrencia = ?, status = ?,
-            cofrinho_id = ?, valor_reservado_manual = ?, frequencia_contribuicao = ?, observacoes = ?
+            cofrinho_id = ?, valor_reservado_manual = ?, frequencia_contribuicao = ?,
+            primeira_contribuicao = ?, observacoes = ?
         WHERE id = ?
     """, (
         nome, cat, resp, dt_prev, mes_prev,
         val_est, val_conf, recorr, status,
-        cof_id, val_res_manual, freq, obs, despesa_id
+        cof_id, val_res_manual, freq,
+        dt_prim_contrib, obs, despesa_id
     ))
     conn.commit()
     return cur.rowcount > 0

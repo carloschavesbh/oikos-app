@@ -693,8 +693,28 @@ def retirar_de_cofrinho(
 
     # Verifica saldo disponível no cofrinho
     res_origem = calcular_saldo_conta(conn, origem_id)
-    if Decimal(str(valor)) > res_origem["saldo_atual"]:
-        return False, f"Saldo insuficiente no {cof_nome} (Disponível: R$ {res_origem['saldo_atual']:,.2f})."
+    saldo_disponivel_cof = res_origem["saldo_atual"]
+    if Decimal(str(valor)) > saldo_disponivel_cof:
+        return False, f"Saldo insuficiente no {cof_nome} (Disponível: R$ {saldo_disponivel_cof:,.2f})."
+
+    # Validação de reservas comprometidas: a soma das reservas manuais não pode ficar maior que o novo saldo
+    cur.execute("""
+        SELECT name FROM sqlite_master WHERE type='table' AND name='planejamento_despesas_eventuais'
+    """)
+    if cur.fetchone():
+        cur.execute("""
+            SELECT COALESCE(SUM(valor_reservado_manual), 0)
+            FROM planejamento_despesas_eventuais
+            WHERE cofrinho_id = ? AND status != 'cancelada'
+        """, (cof_id,))
+        soma_reservada = Decimal(str(cur.fetchone()[0] or 0.0))
+        novo_saldo_projetado = saldo_disponivel_cof - Decimal(str(valor))
+        if novo_saldo_projetado < soma_reservada:
+            livre_para_resgate = max(Decimal("0.00"), saldo_disponivel_cof - soma_reservada)
+            return False, (
+                f"Resgate não permitido: R$ {soma_reservada:,.2f} deste cofrinho já estão atribuídos a compromissos anuais. "
+                f"Valor livre para resgate: R$ {livre_para_resgate:,.2f}."
+            )
 
     desc_final = descricao.strip() if descricao and descricao.strip() else f"Resgate {cof_nome}"
 

@@ -4699,10 +4699,14 @@ import patrimonio_service
 async def api_salvar_meses_amostra(request: Request):
     dados = await request.json()
     meses_ativos = dados.get("meses_ativos", [])
+    meses_confirmados = dados.get("meses_confirmados", [])
+    qualidade_map = dados.get("qualidade_map", {})
     conn = conectar_db()
     try:
         import planejamento_anual_service
-        ok = planejamento_anual_service.salvar_selecao_meses_amostra(conn, meses_ativos)
+        ok = planejamento_anual_service.salvar_selecao_meses_amostra(
+            conn, meses_ativos, meses_confirmados, qualidade_map
+        )
         return JSONResponse({"sucesso": ok})
     except Exception as e:
         return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
