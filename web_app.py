@@ -3206,9 +3206,9 @@ async def pagina_motorista(
     # Foco de Hoje unificado para o Oikos Drive
     foco_hoje = obter_foco_hoje(conn, hoje_str)
 
-    # Veículo associado ao Drive em Bens & Patrimônio
+    # Veículo associado ao Drive em Bens & Patrimônio (apenas se ativo)
     try:
-        cur.execute("SELECT id, nome, valor_atual_estimado FROM bens WHERE is_veiculo_drive = 1 LIMIT 1")
+        cur.execute("SELECT id, nome, valor_atual_estimado FROM bens WHERE is_veiculo_drive = 1 AND status = 'ativo' LIMIT 1")
         row_vb = cur.fetchone()
         veiculo_drive_bem = {
             "id": row_vb[0],

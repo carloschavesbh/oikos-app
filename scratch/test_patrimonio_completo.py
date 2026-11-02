@@ -1,17 +1,25 @@
 # Suite de Testes Completa - Módulo de Patrimônio & Bens e Integração Geral
 import sys
 import os
+import shutil
 import hashlib
 sys.path.insert(0, os.path.abspath("."))
 
+TEMP_DB = "temp_test_patrimonio_completo.db"
+if os.path.exists(TEMP_DB):
+    os.remove(TEMP_DB)
+
+shutil.copyfile("financas_remodelacao.db", TEMP_DB)
+os.environ["DB_PATH"] = TEMP_DB
+
+import web_app
+web_app.DB_PATH = TEMP_DB
 from starlette.testclient import TestClient
-from web_app import app, DB_PATH
-import saldo_service
-import patrimonio_service
 
-client = TestClient(app)
+client = TestClient(web_app.app)
 
-print(f"Banco ativo no web_app: {DB_PATH}")
+try:
+    print(f"Banco ativo no web_app: {web_app.DB_PATH}")
 assert "financas_remodelacao.db" in str(DB_PATH), f"ERRO: Banco incorreto! {DB_PATH}"
 
 # 1. Testar Rota /patrimonio (GET)
@@ -96,6 +104,13 @@ with open("financas_casa.db", "rb") as f:
     hash_prod = hashlib.sha256(f.read()).hexdigest()
 assert hash_prod == "a68d68388ad5fe14345370b7d62d6c2221fc40c18af9eef7dae76e3a7ddebf2f", f"ALERTA: financas_casa.db alterado! {hash_prod}"
 print(f"  [OK] financas_casa.db 100% íntegro (SHA-256: {hash_prod[:12]}...)")
+
+finally:
+    if os.path.exists(TEMP_DB):
+        try:
+            os.remove(TEMP_DB)
+        except Exception:
+            pass
 
 print("\nTODOS OS TESTES DE INTEGRAÇÃO PASSARAM COM 100% DE SUCESSO!")
 

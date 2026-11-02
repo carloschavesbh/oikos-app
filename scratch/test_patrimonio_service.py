@@ -1,21 +1,29 @@
 # Teste unitario e funcional de patrimonio_service.py
 import sys
 import os
+import shutil
 sys.path.insert(0, os.path.abspath("."))
 
 import sqlite3
 import patrimonio_service
 import saldo_service
 
-conn = sqlite3.connect("financas_remodelacao.db")
+# Banco temporario exclusivo para o teste (copiado do schema base)
+TEMP_DB = "temp_test_patrimonio_service.db"
+if os.path.exists(TEMP_DB):
+    os.remove(TEMP_DB)
 
-# 1. Obter saldo antes de qualquer operacao de bens
-saldo_antes = saldo_service.calcular_saldo_consolidado(conn)["saldo_consolidado"]
+shutil.copyfile("financas_remodelacao.db", TEMP_DB)
+conn = sqlite3.connect(TEMP_DB)
 
-# Contar transacoes antes
-cur = conn.cursor()
-cur.execute("SELECT COUNT(*) FROM transacoes")
-qtd_transacoes_antes = cur.fetchone()[0]
+try:
+    # 1. Obter saldo antes de qualquer operacao de bens
+    saldo_antes = saldo_service.calcular_saldo_consolidado(conn)["saldo_consolidado"]
+
+    # Contar transacoes antes
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM transacoes")
+    qtd_transacoes_antes = cur.fetchone()[0]
 
 # 2. Inicializar tabelas e cadastrar um bem antigo sem data nem preco de compra
 bem1_id = patrimonio_service.criar_bem(conn, {
@@ -82,5 +90,12 @@ print(f"  Patrimônio Líquido: R$ {resumo['patrimonio_liquido']:.2f}")
 if resumo["metricas_veiculo_drive"]:
     print(f"  Veículo Drive Vinculado: {resumo['metricas_veiculo_drive']['nome']} (KM total: {resumo['metricas_veiculo_drive']['km_total_rodado']} km)")
 
-conn.close()
+finally:
+    conn.close()
+    if os.path.exists(TEMP_DB):
+        try:
+            os.remove(TEMP_DB)
+        except Exception:
+            pass
+
 print("\nTODOS OS TESTES DE PATRIMONIO PASSARAM COM SUCESSO!")
