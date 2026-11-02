@@ -109,20 +109,35 @@ def conectar_db() -> sqlite3.Connection:
 
 
 def formatar_moeda_br(valor: Any) -> str:
-    """Formata qualquer valor decimal/numérico no padrão monetário brasileiro R$ 1.234,56."""
-    if valor is None:
+    """Formata qualquer valor decimal/numérico no padrão monetário brasileiro R$ 1.234,56 sem duplicar símbolos."""
+    if valor is None or valor == "":
         return "R$ 0,00"
-    try:
-        val = float(valor)
-        negativo = val < 0
-        val = abs(val)
-        partes = f"{val:,.2f}".split(".")
-        inteira = partes[0].replace(",", ".")
-        decimal = partes[1]
-        sinal = "-" if negativo else ""
-        return f"{sinal}R$ {inteira},{decimal}"
-    except Exception:
-        return f"R$ {valor}"
+    if isinstance(valor, str):
+        s_clean = valor.strip()
+        if s_clean.startswith("R$"):
+            s_num = s_clean.replace("R$", "").strip().replace(".", "").replace(",", ".")
+            try:
+                val = float(s_num)
+            except Exception:
+                return re.sub(r'^(?:R\$\s*)+', 'R$ ', s_clean)
+        else:
+            try:
+                val = float(s_clean.replace(".", "").replace(",", ".")) if ("," in s_clean and "." in s_clean) else float(s_clean.replace(",", "."))
+            except Exception:
+                return f"R$ {valor}"
+    else:
+        try:
+            val = float(valor)
+        except Exception:
+            return f"R$ {valor}"
+
+    negativo = val < 0
+    val = abs(val)
+    partes = f"{val:,.2f}".split(".")
+    inteira = partes[0].replace(",", ".")
+    decimal = partes[1]
+    sinal = "-" if negativo else ""
+    return f"{sinal}R$ {inteira},{decimal}"
 
 
 # Registrar filtros no Jinja2
@@ -130,27 +145,33 @@ templates.env.filters["moeda"] = formatar_moeda_br
 
 
 def formatar_horas_br(val) -> str:
-    """Formata valor numérico de horas no padrão brasileiro (ex: 6,0h ou 1,5h)."""
+    """Formata valor numérico de horas no padrão brasileiro: 4,0 h ou 1,5 h."""
     if val is None or val == "":
-        return "0,0h"
+        return "0,0 h"
     try:
         f = float(val)
-        return f"{f:.1f}".replace(".", ",") + "h"
+        return f"{f:.1f}".replace(".", ",") + " h"
     except Exception:
-        return f"{val}h"
+        s = str(val).strip()
+        if s.endswith("h") or s.endswith(" h"):
+            s_num = s.rstrip("h").strip().replace(".", ",")
+            return f"{s_num} h"
+        return f"{val} h"
 
 
 def formatar_pct_br(val) -> str:
-    """Formata valor percentual no padrão brasileiro (ex: 100% ou 85,5%)."""
+    """Formata valor percentual no padrão brasileiro: 100,0% ou 3,4%."""
     if val is None or val == "":
-        return "0%"
+        return "0,0%"
     try:
         f = float(val)
-        if f == int(f):
-            return f"{int(f)}%"
         return f"{f:.1f}".replace(".", ",") + "%"
     except Exception:
         return f"{val}%"
+
+
+templates.env.filters["horas_br"] = formatar_horas_br
+templates.env.filters["pct_br"] = formatar_pct_br
 
 
 def formatar_numero_br(val, casas: int = 1) -> str:

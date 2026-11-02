@@ -23,18 +23,15 @@
       {% endif %}
     </div>
 
-    <!-- Ações Compactas do Topo -->
+    <!-- Ações Rápidas do Topo (Sem duplicação do botão 'Nova Transação') -->
     <div class="flex items-center gap-2">
-      <button type="button" onclick="abrirModalTransacaoGlobal('despesa')"
-              class="touch-target px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-sm shadow-emerald-600/30 transition flex items-center gap-1.5 cursor-pointer">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
-        </svg>
-        <span>Nova Transação</span>
-      </button>
       <a href="/lancamentos"
-         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-        Lançamentos →
+         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5">
+        <span>Extrato Completo →</span>
+      </a>
+      <a href="/contas"
+         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5">
+        <span>Contas →</span>
       </a>
     </div>
   </div>
@@ -65,7 +62,7 @@
 
         <div class="flex items-baseline justify-between gap-2">
           <div class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            R$ {{ d.saldo_caixa | moeda }}
+            {{ d.saldo_caixa | moeda }}
           </div>
           <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             Base: {{ d.hoje_formatado }}
@@ -75,7 +72,7 @@
 
       <!-- Sparkline / Gráfico de Evolução (Histórico 7d Realizado + Projeção 7d Determinística) -->
       <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-        <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+        <div class="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-semibold mb-1">
           <span>Evolução do Saldo (15 dias)</span>
           <span class="flex items-center gap-2">
             <span class="flex items-center gap-1">
@@ -93,7 +90,7 @@
           {% set min_val = d.curva_saldo.min_saldo %}
           {% set max_val = d.curva_saldo.max_saldo %}
           {% set range_val = (max_val - min_val) if (max_val > min_val) else 1.0 %}
-          
+
           <svg class="w-full h-full overflow-visible" viewBox="0 0 280 60" preserveAspectRatio="none">
             <!-- Linha zero de referência se cruzar zero -->
             {% if min_val < 0 and max_val > 0 %}
@@ -136,7 +133,7 @@
           </svg>
         </div>
 
-        <div class="flex items-center justify-between text-[9px] text-slate-400 mt-1 font-mono">
+        <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
           <span>{{ pts[0].data }}</span>
           <span class="font-bold text-emerald-600 dark:text-emerald-400">Hoje ({{ pts[7].data }})</span>
           <span>{{ pts[14].data }}</span>
@@ -164,23 +161,23 @@
         </div>
 
         <div class="flex items-baseline justify-between gap-2">
-          <div class="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-            R$ {{ d.detalhes_entradas.total_recebido | moeda }}
+          <div class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            {{ d.detalhes_entradas.total_recebido | moeda }}
           </div>
-          <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-            Recebido
+          <span class="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            Recebido em Caixa
           </span>
         </div>
       </div>
 
-      <!-- Linhas menores com discriminação qualitativa real -->
+      <!-- Discriminação de Origem (Trabalho vs Empréstimos/Outras) -->
       <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
           <span class="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Renda do Trabalho:
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Trabalho / Operação:
           </span>
           <span class="font-bold text-slate-900 dark:text-white">
-            R$ {{ d.detalhes_entradas.trabalho_total | moeda }}
+            {{ d.detalhes_entradas.trabalho_total | moeda }}
           </span>
         </div>
 
@@ -189,14 +186,14 @@
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Outras / Empréstimos:
           </span>
           <span class="font-bold text-slate-900 dark:text-white">
-            R$ {{ d.detalhes_entradas.emprestimos_total | moeda }}
+            {{ d.detalhes_entradas.emprestimos_total | moeda }}
           </span>
         </div>
 
         {% if d.receita_prevista > 0 %}
         <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
           <span>Previsto a receber no mês:</span>
-          <span class="font-bold text-sky-600 dark:text-sky-400">R$ {{ d.receita_prevista | moeda }}</span>
+          <span class="font-bold text-sky-600 dark:text-sky-400">{{ d.receita_prevista | moeda }}</span>
         </div>
         {% endif %}
 
@@ -205,7 +202,7 @@
                   class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer flex items-center gap-1">
             <span>ⓘ Ver Composição e Produção 99</span>
           </button>
-          <a href="/planejamento" class="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          <a href="/planejamento" class="text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
             Planejamento →
           </a>
         </div>
@@ -233,7 +230,7 @@
 
         <div class="flex items-baseline justify-between gap-2">
           <div class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            R$ {{ d.despesa_mensal | moeda }}
+            {{ d.despesa_mensal | moeda }}
           </div>
           <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400">
             Pagas + Pendentes
@@ -248,7 +245,7 @@
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pagas no mês:
           </span>
           <span class="font-bold text-emerald-600 dark:text-emerald-400">
-            R$ {{ d.despesas_pagas | moeda }}
+            {{ d.despesas_pagas | moeda }}
           </span>
         </div>
 
@@ -257,7 +254,7 @@
             <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> A pagar / pendentes:
           </span>
           <span class="font-bold text-rose-600 dark:text-rose-400">
-            R$ {{ d.despesas_pendentes | moeda }}
+            {{ d.despesas_pendentes | moeda }}
           </span>
         </div>
 
@@ -268,7 +265,7 @@
         </div>
 
         <div class="pt-1 flex items-center justify-between text-[11px]">
-          <span class="text-slate-400 font-semibold">{{ pct_pago | round(1) }}% liquidado</span>
+          <span class="text-slate-500 dark:text-slate-400 font-semibold">{{ pct_pago | pct_br }} liquidado</span>
           <a href="/lancamentos" class="font-bold text-rose-600 dark:text-rose-400 hover:underline">
             Ver Lançamentos →
           </a>
@@ -285,6 +282,10 @@
           <div class="flex items-center gap-1.5">
             <span class="text-base">💎</span>
             <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Patrimônio Líquido</span>
+            <button type="button" onclick="abrirModalInfoPatrimonio()" aria-label="Informações sobre o cálculo do patrimônio"
+                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs cursor-pointer p-0.5 rounded transition">
+              ⓘ
+            </button>
           </div>
           <a href="/patrimonio" class="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline">
             Meu Patrimônio →
@@ -292,30 +293,31 @@
         </div>
 
         <div class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-          R$ {{ d.resumo_patrimonio.patrimonio_liquido | moeda if d.resumo_patrimonio else '0,00' }}
+          {{ d.resumo_patrimonio.patrimonio_liquido | moeda if d.resumo_patrimonio else '0,00' }}
         </div>
       </div>
 
-      <!-- Ativos e Passivos sem listar bens ou parcelas avulsas -->
+      <!-- Ativos e Passivos estruturais sem texto de implementação -->
       <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-slate-600 dark:text-slate-300">Ativos Totais:</span>
+          <span class="text-slate-600 dark:text-slate-300">Ativos Totais (Bens + Saldos):</span>
           <span class="font-bold text-emerald-600 dark:text-emerald-400">
-            R$ {{ d.resumo_patrimonio.total_ativos | moeda if d.resumo_patrimonio else '0,00' }}
+            {{ d.resumo_patrimonio.total_ativos | moeda if d.resumo_patrimonio else '0,00' }}
           </span>
         </div>
 
         <div class="flex items-center justify-between text-xs">
-          <span class="text-slate-600 dark:text-slate-300">Passivos Consolidados:</span>
+          <span class="text-slate-600 dark:text-slate-300">Passivos Consolidados (Dívidas):</span>
           <span class="font-bold text-rose-600 dark:text-rose-400">
-            R$ {{ d.resumo_patrimonio.total_passivos | moeda if d.resumo_patrimonio else '0,00' }}
+            {{ d.resumo_patrimonio.total_passivos | moeda if d.resumo_patrimonio else '0,00' }}
           </span>
         </div>
 
-        <div class="pt-1">
-          <p class="text-[10px] text-slate-400 leading-snug">
-            ✓ Exclui contas cotidianas do orçamento conforme regra aprovada.
-          </p>
+        <div class="pt-1 flex items-center justify-between text-[11px]">
+          <span class="text-slate-500 dark:text-slate-400">Estrutura Patrimonial</span>
+          <a href="/bens" class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+            Meus Bens →
+          </a>
         </div>
       </div>
     </div>
@@ -331,14 +333,14 @@
             <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Gastos por Categoria</span>
           </div>
 
-          <!-- Seletor Pagas / Cadastradas -->
+          <!-- Seletor Pagas / Todas -->
           <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold">
             <button type="button" onclick="alternarRoscaCategorias('pagas')" id="btn-rosca-pagas"
                     class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer">
               Pagas
             </button>
             <button type="button" onclick="alternarRoscaCategorias('todas')" id="btn-rosca-todas"
-                    class="px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 cursor-pointer">
+                    class="px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer">
               Todas
             </button>
           </div>
@@ -351,7 +353,6 @@
         <div id="visao-rosca-pagas" class="space-y-2">
           {% if d.gastos_categoria.pagas.tem_dados %}
           <div class="flex items-center gap-3">
-            <!-- Rosca SVG Simples -->
             <div class="w-20 h-20 shrink-0 relative flex items-center justify-center">
               <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-100 dark:stroke-slate-800" stroke-width="4"></circle>
@@ -374,7 +375,7 @@
                   <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ c.cor }};"></span>
                   <span class="truncate text-slate-700 dark:text-slate-300">{{ c.categoria }}</span>
                 </div>
-                <span class="font-bold shrink-0 text-slate-900 dark:text-white">R$ {{ c.valor | moeda }}</span>
+                <span class="font-bold shrink-0 text-slate-900 dark:text-white">{{ c.valor | moeda }}</span>
               </div>
               {% endfor %}
             </div>
@@ -409,7 +410,7 @@
                   <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ c.cor }};"></span>
                   <span class="truncate text-slate-700 dark:text-slate-300">{{ c.categoria }}</span>
                 </div>
-                <span class="font-bold shrink-0 text-slate-900 dark:text-white">R$ {{ c.valor | moeda }}</span>
+                <span class="font-bold shrink-0 text-slate-900 dark:text-white">{{ c.valor | moeda }}</span>
               </div>
               {% endfor %}
             </div>
@@ -420,109 +421,259 @@
         </div>
 
         <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-          <span class="text-slate-400">Total: R$ <span id="label-total-rosca">{{ d.gastos_categoria.pagas.total | moeda }}</span></span>
+          <span class="text-slate-500 dark:text-slate-400">Total: <span id="label-total-rosca" class="font-bold text-slate-800 dark:text-slate-200">{{ d.gastos_categoria.pagas.total | moeda }}</span></span>
           <a href="/planejamento" class="text-sky-600 dark:text-sky-400 font-bold hover:underline">
-            Ver Categorias →
+            Categorias →
           </a>
         </div>
       </div>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- CARD 6: CONTAS, CARTÕES & PAGA LEVE (LINHAS COMPACTAS)            -->
+    <!-- CARD 6: MINHAS CONTAS (SALDOS LIVRES DISPONÍVEIS) - INDEPENDENTE  -->
     <!-- ----------------------------------------------------------------- -->
     <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-1.5">
-            <span class="text-base">💳</span>
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Contas & Paga Leve</span>
+            <span class="text-base">🏦</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Minhas Contas</span>
           </div>
           <a href="/contas" class="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline">
             Gerenciar →
           </a>
         </div>
 
-        <!-- Linhas Compactas -->
-        <div class="space-y-2 mt-1">
-          <!-- Contas Bancárias -->
-          {% for c in d.contas %}
-          <div class="flex items-center justify-between text-xs">
+        <!-- Lista de Saldos Livres (Mercado Pago, Carteira, 99Pay) -->
+        <div class="space-y-2 mt-2">
+          <!-- Mercado Pago -->
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
             <div class="flex items-center gap-2 truncate">
-              <span>{{ c.icone }}</span>
-              <span class="truncate font-semibold text-slate-800 dark:text-slate-200">{{ c.nome }}</span>
+              <span class="text-sm">🌐</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">Mercado Pago</span>
             </div>
-            <span class="font-extrabold text-slate-900 dark:text-white">R$ {{ c.saldo_atual | moeda }}</span>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ d.mp_saldo | moeda }}</span>
           </div>
-          {% endfor %}
 
-          <!-- Cartão de Crédito -->
-          {% if d.cartao %}
-          <div class="pt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
+          <!-- Carteira / Dinheiro -->
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
             <div class="flex items-center gap-2 truncate">
-              <span>💳</span>
-              <span class="truncate font-semibold text-slate-800 dark:text-slate-200">{{ d.cartao.nome }}</span>
+              <span class="text-sm">💵</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">Carteira (Dinheiro)</span>
             </div>
-            <div class="text-right">
-              <span class="font-extrabold text-rose-600 dark:text-rose-400">R$ {{ (d.cartao.limite_total - d.cartao.limite_disponivel) | moeda }}</span>
-              <span class="text-[10px] text-slate-400 block font-normal">Disp: R$ {{ d.cartao.limite_disponivel | moeda }}</span>
-            </div>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ d.cart_saldo | moeda }}</span>
           </div>
-          {% endif %}
 
-          <!-- Paga Leve -->
-          <div class="pt-1 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
+          <!-- 99Pay -->
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
             <div class="flex items-center gap-2 truncate">
-              <span>⚡</span>
-              <span class="truncate font-semibold text-purple-600 dark:text-purple-400">Paga Leve</span>
+              <span class="text-sm">🚕</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">99Pay (Ganhos 99)</span>
             </div>
-            <div class="text-right">
-              <span class="font-extrabold text-purple-600 dark:text-purple-400">R$ {{ d.pagaleve_resumo.mes_valor | moeda }}</span>
-              <span class="text-[10px] text-slate-400 block font-normal">{{ d.pagaleve_resumo.mes_qtd }} parc. no mês</span>
-            </div>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ d.pay99_saldo | moeda }}</span>
           </div>
         </div>
       </div>
 
       <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-        <a href="/cartoes" class="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
-          Cartões →
-        </a>
-        <a href="/pagaleve" class="font-bold text-purple-600 dark:text-purple-400 hover:underline">
-          Acessar Paga Leve →
+        <span class="text-slate-500 dark:text-slate-400">Total em Contas:</span>
+        <span class="font-extrabold text-emerald-600 dark:text-emerald-400">{{ d.saldo_caixa | moeda }}</span>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- CARD 7: CARTÕES DE CRÉDITO (OBRIGAÇÕES & LIMITE) - INDEPENDENTE   -->
+    <!-- ----------------------------------------------------------------- -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">💳</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cartões de Crédito</span>
+          </div>
+          <a href="/cartoes" class="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline">
+            Ver Faturas →
+          </a>
+        </div>
+
+        {% if d.cartao %}
+        <div class="space-y-2 mt-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <span>💳</span> {{ d.cartao.nome }} ({{ d.cartao.bandeira }})
+            </span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Venc. dia {{ d.cartao.dia_vencimento }}</span>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-600 dark:text-slate-300">Gastos no Mês:</span>
+              <span class="font-bold text-rose-600 dark:text-rose-400">
+                {{ (d.cartao.limite_total - d.cartao.limite_disponivel) | moeda }}
+              </span>
+            </div>
+
+            <div class="flex items-center justify-between text-xs pt-1 border-t border-dashed border-slate-200 dark:border-slate-700/60">
+              <span class="text-slate-600 dark:text-slate-300">Limite Disponível:</span>
+              <span class="font-extrabold text-emerald-600 dark:text-emerald-400">
+                {{ d.cartao.limite_disponivel | moeda }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <p class="text-xs text-slate-400 py-4 text-center">Nenhum cartão cadastrado.</p>
+        {% endif %}
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+        <span class="text-slate-500 dark:text-slate-400">Limite Total: {{ d.cartao.limite_total | moeda if d.cartao else '0,00' }}</span>
+        <a href="/cartoes" class="font-bold text-sky-600 dark:text-sky-400 hover:underline">
+          Detalhes →
         </a>
       </div>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- CARD 7: CONTAS IMEDIATAS (HOJE + ATRASADAS COM AÇÕES COMPACTAS)   -->
+    <!-- CARD 8: PAGA LEVE (RESUMO PRÓPRIO E ACESSO DIRETO) - INDEPENDENTE  -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="col-span-1 md:col-span-2 lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">⚡</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Paga Leve</span>
+          </div>
+          <a href="/pagaleve" class="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline">
+            Acessar Aba →
+          </a>
+        </div>
+
+        <div class="space-y-2 mt-2">
+          <div class="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-700 dark:text-slate-300 font-medium">Parcelas deste Mês:</span>
+              <span class="font-extrabold text-purple-600 dark:text-purple-400">
+                {{ d.pagaleve_resumo.mes_valor | moeda }}
+              </span>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>Quantidade no mês:</span>
+              <span>{{ d.pagaleve_resumo.mes_qtd }} parcela(s)</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between text-xs px-1 text-slate-600 dark:text-slate-300">
+            <span>Total Geral a Pagar:</span>
+            <span class="font-bold text-slate-900 dark:text-white">{{ d.pagaleve_resumo.total_valor | moeda }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+        <span class="text-slate-500 dark:text-slate-400">Ref. Limite: {{ d.pagaleve_resumo.limite_carlos | moeda }}</span>
+        <a href="/pagaleve" class="font-bold text-purple-600 dark:text-purple-400 hover:underline">
+          Ver Compras →
+        </a>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- CARD 9: FOCO DO DIA & METAS (OIKOS DRIVE + MISSÃO)                -->
+    <!-- ----------------------------------------------------------------- -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">🎯</span>
+            <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Foco do Dia</h3>
+          </div>
+          <a href="/motorista" class="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline">
+            Oikos Drive →
+          </a>
+        </div>
+
+        <!-- Meta 99 Hoje com formatação em PT-BR -->
+        <div class="space-y-2">
+          <div class="flex items-baseline justify-between text-xs">
+            <span class="text-slate-600 dark:text-slate-300">Meta Bruta Hoje:</span>
+            <span class="font-extrabold text-slate-900 dark:text-white">
+              {{ d.meta_bruta_hoje | moeda }} ({{ d.horas_hoje_meta | horas_br }})
+            </span>
+          </div>
+
+          <div class="flex items-baseline justify-between text-xs">
+            <span class="text-slate-600 dark:text-slate-300">Produzido Hoje:</span>
+            <span class="font-extrabold text-amber-600 dark:text-amber-400">
+              {{ d.bruto_hoje | moeda }} ({{ d.horas_hoje_real | horas_br }})
+            </span>
+          </div>
+
+          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ [d.pct_meta_hoje, 100] | min }}%"></div>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+            <span>{{ d.pct_meta_hoje | pct_br }} da meta</span>
+            <span>Falta: {{ d.restante_meta_hoje | moeda }}</span>
+          </div>
+        </div>
+
+        <!-- Missão Ativa da Semana -->
+        {% if d.missao and d.missao.tem_missao %}
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+            <span class="flex items-center gap-1">
+              <span>🎯</span> {{ d.missao.nome }}
+            </span>
+            <span class="text-emerald-600 dark:text-emerald-400">{{ d.missao.valor_acumulado | moeda }}</span>
+          </div>
+          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ d.missao.percentual | default(0) }}%"></div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+        <a href="/missoes" class="font-bold text-sky-600 dark:text-sky-400 hover:underline">
+          Missões & Metas →
+        </a>
+        <a href="/objetivos" class="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
+          Cofrinhos →
+        </a>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------------------------- -->
+    <!-- CARD 10: CONTAS IMEDIATAS (HOJE + ATRASADAS COM AÇÕES COMPACTAS)  -->
+    <!-- ----------------------------------------------------------------- -->
+    <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
       <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">
         <div class="flex items-center gap-2">
           <span class="text-base">⏰</span>
           <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Contas Imediatas</h3>
-          <span class="text-xs text-slate-400">({{ d.vence_hoje | length + d.atrasadas | length }} pendentes)</span>
+          <span class="text-xs text-slate-500 dark:text-slate-400">({{ d.vence_hoje | length + d.atrasadas | length }} pendentes)</span>
         </div>
         <div class="flex items-center gap-2">
           {% if d.tot_atrasadas > 0 %}
           <span class="text-xs font-bold text-rose-600 dark:text-rose-400">
-            Atrasadas: R$ {{ d.tot_atrasadas | moeda }}
+            Atrasadas: {{ d.tot_atrasadas | moeda }}
           </span>
           {% endif %}
           <a href="/lancamentos" class="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline">
-            Todas →
+            Todas as Contas →
           </a>
         </div>
       </div>
 
       <!-- Lista de Contas Imediatas -->
-      <div class="space-y-2">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
         {% set todas_imediatas = d.atrasadas + d.vence_hoje %}
         {% if todas_imediatas %}
           {% for item in todas_imediatas[:6] %}
-          <div id="linha-conta-index-{{ item.id }}" class="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-            
+          <div id="linha-conta-index-{{ item.id }}" class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+
             <!-- Descrição e Vencimento -->
             <div class="flex items-center gap-2.5 truncate">
               {% if item.dias_atraso is defined and item.dias_atraso > 0 %}
@@ -536,13 +687,13 @@
               {% endif %}
               <div class="truncate">
                 <span class="font-bold text-xs text-slate-800 dark:text-slate-200 block truncate">{{ item.descricao }}</span>
-                <span class="text-[10px] text-slate-400">{{ item.categoria }} • Venc. {{ item.data }}</span>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ item.categoria }} • Venc. {{ item.data }}</span>
               </div>
             </div>
 
             <!-- Valor e Ações Compactas -->
             <div class="flex items-center gap-2 shrink-0">
-              <span class="font-extrabold text-xs text-slate-900 dark:text-white">R$ {{ item.valor | moeda }}</span>
+              <span class="font-extrabold text-xs text-slate-900 dark:text-white">{{ item.valor | moeda }}</span>
 
               <!-- Botão Compacto: Baixar / Pagar -->
               <button type="button"
@@ -580,79 +731,16 @@
           </div>
           {% endfor %}
         {% else %}
-          <div class="py-6 text-center text-slate-400">
+          <div class="col-span-2 py-6 text-center text-slate-400">
             <span class="text-2xl block mb-1">🎉</span>
-            <span class="text-xs font-semibold">Tudo em dia! Nenhuma conta pendente para hoje ou em atraso.</span>
+            <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">Tudo em dia! Nenhuma conta pendente para hoje ou em atraso.</span>
           </div>
         {% endif %}
       </div>
     </div>
 
     <!-- ----------------------------------------------------------------- -->
-    <!-- CARD 8: FOCO DO DIA & METAS (OIKOS DRIVE + MISSÃO)                -->
-    <!-- ----------------------------------------------------------------- -->
-    <div class="col-span-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-      <div>
-        <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
-          <div class="flex items-center gap-1.5">
-            <span class="text-base">🎯</span>
-            <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Foco do Dia</h3>
-          </div>
-          <a href="/motorista" class="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline">
-            Oikos Drive →
-          </a>
-        </div>
-
-        <!-- Meta 99 Hoje (Ref: R$ 35/h) -->
-        <div class="space-y-2">
-          <div class="flex items-baseline justify-between text-xs">
-            <span class="text-slate-600 dark:text-slate-300">Meta Bruta Hoje:</span>
-            <span class="font-extrabold text-slate-900 dark:text-white">R$ {{ d.meta_bruta_hoje | moeda }} ({{ d.horas_hoje_meta }}h)</span>
-          </div>
-
-          <div class="flex items-baseline justify-between text-xs">
-            <span class="text-slate-600 dark:text-slate-300">Produzido Hoje:</span>
-            <span class="font-extrabold text-amber-600 dark:text-amber-400">R$ {{ d.bruto_hoje | moeda }} ({{ d.horas_hoje_real }}h)</span>
-          </div>
-
-          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-            <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ [d.pct_meta_hoje, 100] | min }}%"></div>
-          </div>
-
-          <div class="flex items-center justify-between text-[11px] text-slate-400">
-            <span>{{ d.pct_meta_hoje }}% da meta</span>
-            <span>Falta: R$ {{ d.restante_meta_hoje | moeda }}</span>
-          </div>
-        </div>
-
-        <!-- Missão Ativa da Semana -->
-        {% if d.missao and d.missao.tem_missao %}
-        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-          <div class="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
-            <span class="flex items-center gap-1">
-              <span>🎯</span> {{ d.missao.nome }}
-            </span>
-            <span class="text-emerald-600 dark:text-emerald-400">R$ {{ d.missao.valor_acumulado | moeda }}</span>
-          </div>
-          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-            <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ d.missao.percentual | default(0) }}%"></div>
-          </div>
-        </div>
-        {% endif %}
-      </div>
-
-      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-        <a href="/missoes" class="font-bold text-sky-600 dark:text-sky-400 hover:underline">
-          Missões & Metas →
-        </a>
-        <a href="/objetivos" class="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">
-          Cofrinhos →
-        </a>
-      </div>
-    </div>
-
-    <!-- ----------------------------------------------------------------- -->
-    <!-- CARD 9: CALENDÁRIO ANUAL & RESERVAS (RECOLHÍVEL, COMPACTO)        -->
+    <!-- CARD 11: CALENDÁRIO ANUAL & RESERVAS (RECOLHÍVEL, COMPACTO)       -->
     <!-- ----------------------------------------------------------------- -->
     {% if d.resumo_despesas_anuais %}
     <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
@@ -661,7 +749,7 @@
           <span class="text-base">📅</span>
           <div>
             <h4 class="font-extrabold text-xs sm:text-sm text-slate-900 dark:text-white">Despesas Anuais & Cobertura de Reservas</h4>
-            <p class="text-[11px] text-slate-400">Taxa Global: {{ d.resumo_despesas_anuais.taxa_cobertura }}% • Previsto no Ano: R$ {{ d.resumo_despesas_anuais.total_previsto | moeda }}</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">Taxa Global: {{ d.resumo_despesas_anuais.taxa_cobertura | pct_br }} • Previsto no Ano: {{ d.resumo_despesas_anuais.total_previsto | moeda }}</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -675,11 +763,11 @@
           <div class="p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-xs">
             <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200 mb-1">
               <span class="truncate">{{ despesa.nome }}</span>
-              <span>R$ {{ despesa.valor_previsto | moeda }}</span>
+              <span>{{ despesa.valor_previsto | moeda }}</span>
             </div>
-            <div class="flex items-center justify-between text-[11px] text-slate-400">
+            <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
               <span>Mês {{ despesa.mes_alvo }}</span>
-              <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ despesa.taxa_cobertura }}% reservado</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-semibold">{{ despesa.taxa_cobertura | pct_br }} reservado</span>
             </div>
           </div>
           {% endfor %}
@@ -698,285 +786,380 @@
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
     <div class="text-center">
       <span class="text-3xl">💸</span>
-      <h3 class="font-extrabold text-base text-slate-900 dark:text-white mt-1">Registrar Pagamento</h3>
-      <p id="modal-desc" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">Deseja liquidar esta obrigação?</p>
-      <p id="modal-valor" class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">R$ 0,00</p>
+      <h3 class="text-base font-extrabold text-slate-900 dark:text-white mt-1">Registrar Pagamento</h3>
+      <p id="modal-baixa-desc" class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium"></p>
     </div>
 
-    <div>
-      <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta Debitada*</label>
-      <select id="modal-baixa-conta" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-        {% for c in d.contas %}
-        <option value="{{ c.id }}">{{ c.icone }} {{ c.nome }} (R$ {{ c.saldo_atual | moeda }})</option>
-        {% endfor %}
-      </select>
-    </div>
+    <form id="form-baixa-conta" onsubmit="submeterBaixaConta(event)" class="space-y-3">
+      <input type="hidden" id="modal-baixa-id" name="id">
 
-    <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-      <button type="button" onclick="fecharModalBaixa()" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300">
-        Cancelar
-      </button>
-      <button type="button" id="modal-btn-confirmar" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md">
-        Confirmar Pagamento
-      </button>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor Efetivamente Pago</label>
+        <div class="relative">
+          <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
+          <input type="text" id="modal-baixa-valor" name="valor" required
+                 oninput="mascaraMoedaModal(this)"
+                 class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data do Pagamento</label>
+        <input type="date" id="modal-baixa-data" name="data" required value="{{ d.hoje_str }}"
+               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta de Saída (Débito)</label>
+        <select id="modal-baixa-conta" name="conta" required
+                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          {% for c in d.contas %}
+          <option value="{{ c.nome }}" {% if 'mercado' in c.nome.lower() %}selected{% endif %}>
+            {{ c.icone }} {{ c.nome }} ({{ c.saldo_atual | moeda }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalBaixa()"
+                class="touch-target px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-confirmar-baixa"
+                class="touch-target px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md transition">
+          Confirmar Baixa
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL 2: INFORMAÇÕES DO SALDO E METODOLOGIA ]                      -->
+<!-- ===================================================================== -->
+<div id="modal-info-saldo" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+        <span>🏦</span> Metodologia do Saldo em Caixa
+      </h3>
+      <button onclick="fecharModalInfoSaldo()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-1">✕</button>
+    </div>
+    <div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+      <p>
+        O Saldo em Caixa Consolidado representa a soma do dinheiro líquido imediatamente disponível em suas contas correntes e carteira física:
+      </p>
+      <ul class="list-disc list-inside space-y-1 pl-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <li><strong>Mercado Pago:</strong> Conta corrente principal para despesas cotidianas.</li>
+        <li><strong>Carteira:</strong> Numerário em espécie livre.</li>
+        <li><strong>99Pay:</strong> Conta operacional para recebimento de corridas da 99.</li>
+      </ul>
+      <p class="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+        Valores alocados em cofrinhos e objetivos são reservas com finalidade e não entram no caixa de giro imediato.
+      </p>
+    </div>
+    <div class="pt-2 text-right">
+      <button onclick="fecharModalInfoSaldo()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
     </div>
   </div>
 </div>
 
 <!-- ===================================================================== -->
-<!-- [ MODAL 2: DETALHES DE COMPOSIÇÃO DE ENTRADAS ]                       -->
+<!-- [ MODAL 3: INFORMAÇÕES DE PATRIMÔNIO ]                                -->
+<!-- ===================================================================== -->
+<div id="modal-info-patrimonio" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+        <span>💎</span> Estrutura do Patrimônio Líquido
+      </h3>
+      <button onclick="fecharModalInfoPatrimonio()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-1">✕</button>
+    </div>
+    <div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+      <p>
+        O <strong>Patrimônio Líquido</strong> reflete sua solidez financeira estrutural (Total de Ativos menos Total de Passivos):
+      </p>
+      <ul class="list-disc list-inside space-y-1 pl-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <li><strong>Ativos Totais:</strong> Veículos, bens duráveis, saldos em contas e reservas alocadas.</li>
+        <li><strong>Passivos Estruturais:</strong> Financiamentos, empréstimos bancários e dívidas de longo prazo.</li>
+      </ul>
+      <p class="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+        Contas correntes de consumo mensal (água, luz, assinaturas e internet) pertencem exclusivamente ao orçamento e contas a pagar do mês, não depreciando sua riqueza estrutural.
+      </p>
+    </div>
+    <div class="pt-2 text-right">
+      <button onclick="fecharModalInfoPatrimonio()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL 4: INFORMAÇÕES DE DESPESAS ]                                  -->
+<!-- ===================================================================== -->
+<div id="modal-info-despesas" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+        <span>🔴</span> Critério de Despesas do Mês
+      </h3>
+      <button onclick="fecharModalInfoDespesas()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-1">✕</button>
+    </div>
+    <div class="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+      <p>
+        O total de despesas do mês soma todas as saídas liquidadas (já pagas) mais as despesas pendentes com vencimento previsto para o mês corrente.
+      </p>
+      <p class="text-[11px] text-slate-500 dark:text-slate-400">
+        A barra de execução indica a porcentagem das despesas previstas que já foram efetivamente baixadas.
+      </p>
+    </div>
+    <div class="pt-2 text-right">
+      <button onclick="fecharModalInfoDespesas()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL 5: COMPOSIÇÃO DE ENTRADAS & PRODUÇÃO 99 ]                    -->
 <!-- ===================================================================== -->
 <div id="modal-composicao-entradas" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-5 shadow-2xl space-y-4">
     <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">🟢</span>
-        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Composição de Entradas ({{ d.mes_nome }}/{{ d.ano }})</h3>
-      </div>
-      <button type="button" onclick="fecharModalComposicaoEntradas()" class="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-    </div>
-
-    <!-- Resumo dos Totais -->
-    <div class="grid grid-cols-2 gap-2 text-xs">
-      <div class="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60">
-        <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold block uppercase">Renda Trabalho</span>
-        <span class="font-black text-sm text-emerald-700 dark:text-emerald-300">R$ {{ d.detalhes_entradas.trabalho_total | moeda }}</span>
-      </div>
-      <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60">
-        <span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold block uppercase">Empréstimos / Outras</span>
-        <span class="font-black text-sm text-amber-700 dark:text-amber-300">R$ {{ d.detalhes_entradas.emprestimos_total | moeda }}</span>
-      </div>
-    </div>
-
-    <!-- Produção Oikos Drive -->
-    <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 text-xs flex items-center justify-between">
       <div>
-        <span class="font-bold text-slate-800 dark:text-slate-200 block">Produção Operacional Oikos Drive</span>
-        <span class="text-[10px] text-slate-400">Atividade bruta acumulada no mês</span>
+        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+          <span>🟢</span> Composição das Entradas do Mês
+        </h3>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400">Discriminação detalhada de receitas e atividade operacional</p>
       </div>
-      <span class="font-black text-amber-600 dark:text-amber-400">R$ {{ d.fat_99_mes | moeda }}</span>
+      <button onclick="fecharModalComposicaoEntradas()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs font-bold p-1">✕</button>
     </div>
 
-    <!-- Lista de Entradas Recebidas -->
-    <div>
-      <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Lançamentos Financeiros Recebidos:</h4>
-      <div class="max-h-40 overflow-y-auto space-y-1 pr-1">
-        {% if d.detalhes_entradas.itens %}
-          {% for r in d.detalhes_entradas.itens %}
-          <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-            <div class="truncate">
-              <span class="font-bold text-slate-800 dark:text-slate-200 block truncate">{{ r.descricao }}</span>
-              <span class="text-[10px] text-slate-400">{{ r.data }} • {{ r.categoria }}</span>
-            </div>
-            <span class="font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">R$ {{ r.valor | moeda }}</span>
+    <div class="space-y-3">
+      <!-- Bloco 1: Receitas Financeiras Reais -->
+      <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2">
+        <div class="flex items-center justify-between font-bold text-xs text-slate-800 dark:text-slate-200">
+          <span>Entradas em Conta Recebidas:</span>
+          <span class="text-emerald-600 dark:text-emerald-400 font-extrabold">{{ d.detalhes_entradas.total_recebido | moeda }}</span>
+        </div>
+        <div class="space-y-1 text-xs">
+          <div class="flex items-center justify-between text-slate-600 dark:text-slate-300 pl-2 border-l-2 border-emerald-500">
+            <span>Trabalho / Remuneração:</span>
+            <span class="font-semibold">{{ d.detalhes_entradas.trabalho_total | moeda }}</span>
           </div>
+          <div class="flex items-center justify-between text-slate-600 dark:text-slate-300 pl-2 border-l-2 border-amber-500">
+            <span>Empréstimos / Outras Entradas:</span>
+            <span class="font-semibold">{{ d.detalhes_entradas.emprestimos_total | moeda }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloco 2: Atividade Operacional Oikos Drive (99) -->
+      <div class="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 space-y-2">
+        <div class="flex items-center justify-between font-bold text-xs text-amber-900 dark:text-amber-300">
+          <span class="flex items-center gap-1.5">
+            <span>🚕</span> Produção Bruta 99 (Atividade Operacional):
+          </span>
+          <span class="font-extrabold text-amber-600 dark:text-amber-400">{{ d.fat_99_mes | moeda }}</span>
+        </div>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+          Os ganhos de corridas no app 99 são registrados como produção de trabalho no Oikos Drive e ingressam no caixa à medida em que são transferidos ou compensados.
+        </p>
+      </div>
+
+      <!-- Lista das Últimas Entradas Cadastradas -->
+      <div>
+        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Lançamentos de Entrada no Mês:</h4>
+        <div class="max-h-40 overflow-y-auto space-y-1.5 custom-scroll pr-1">
+          {% for r in d.detalhes_entradas.itens %}
+          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs">
+            <div>
+              <span class="font-bold text-slate-800 dark:text-slate-200 block">{{ r.descricao }}</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ r.categoria }} • {{ r.data }}</span>
+            </div>
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ r.valor | moeda }}</span>
+          </div>
+          {% else %}
+          <p class="text-xs text-slate-400 py-3 text-center">Nenhuma entrada registrada no mês corrente.</p>
           {% endfor %}
-        {% else %}
-          <p class="text-xs text-slate-400 py-3 text-center">Nenhuma receita externa recebida registrada no mês.</p>
-        {% endif %}
+        </div>
       </div>
     </div>
 
-    <p class="text-[10px] text-slate-400 leading-snug">
-      * Transferências internas entre contas não são consideradas novas receitas.
-    </p>
-
-    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-      <button type="button" onclick="fecharModalComposicaoEntradas()" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
+    <div class="pt-2 text-right">
+      <button onclick="fecharModalComposicaoEntradas()" class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition">
         Fechar
       </button>
     </div>
   </div>
 </div>
 
-<!-- ===================================================================== -->
-<!-- [ MODAL 3: INFORMAÇÕES SOBRE O SALDO E PROJEÇÃO ]                     -->
-<!-- ===================================================================== -->
-<div id="modal-info-saldo" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-3">
-    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-      <div class="flex items-center gap-2">
-        <span class="text-xl">🏦</span>
-        <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Critério de Saldo & Projeção</h3>
-      </div>
-      <button type="button" onclick="fecharModalInfoSaldo()" class="text-slate-400 hover:text-slate-600 text-sm">✕</button>
-    </div>
-
-    <div class="space-y-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-      <p>
-        <strong>Saldo Atual:</strong> R$ {{ d.saldo_caixa | moeda }} consolidado de todas as contas ativas livres na data-base de {{ d.hoje_formatado }}.
-      </p>
-      <p>
-        <strong>Histórico Realizado:</strong> Calculado rigorosamente dia a dia a partir dos saldos conciliados e transações liquidadas.
-      </p>
-      <p>
-        <strong>Projeção Futura (7 dias):</strong> Aplica exclusivamente despesas e receitas pendentes cadastradas para datas futuras, sem descontar pagamentos já refletidos no saldo atual.
-      </p>
-    </div>
-
-    <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-      <button type="button" onclick="fecharModalInfoSaldo()" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300">
-        Entendido
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ===================================================================== -->
-<!-- [ SCRIPTS JS ESPECÍFICOS DA VISÃO GERAL ]                             -->
-<!-- ===================================================================== -->
 <script>
-  let modalBaixaId = null;
+  // Controle da Rosca de Categorias (Pagas vs Todas)
+  function alternarRoscaCategorias(tipo) {
+    const vPagas = document.getElementById('visao-rosca-pagas');
+    const vTodas = document.getElementById('visao-rosca-todas');
+    const btnPagas = document.getElementById('btn-rosca-pagas');
+    const btnTodas = document.getElementById('btn-rosca-todas');
+    const lblTotal = document.getElementById('label-total-rosca');
 
+    if (tipo === 'pagas') {
+      vPagas.classList.remove('hidden');
+      vTodas.classList.add('hidden');
+      btnPagas.className = 'px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
+      btnTodas.className = 'px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer';
+      if (lblTotal) lblTotal.textContent = '{{ d.gastos_categoria.pagas.total | moeda }}';
+    } else {
+      vPagas.classList.add('hidden');
+      vTodas.classList.remove('hidden');
+      btnTodas.className = 'px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
+      btnPagas.className = 'px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer';
+      if (lblTotal) lblTotal.textContent = '{{ d.gastos_categoria.todas.total | moeda }}';
+    }
+  }
+
+  // Modais Informativos
+  function abrirModalInfoSaldo() {
+    document.getElementById('modal-info-saldo').classList.remove('hidden');
+  }
+  function fecharModalInfoSaldo() {
+    document.getElementById('modal-info-saldo').classList.add('hidden');
+  }
+
+  function abrirModalInfoPatrimonio() {
+    document.getElementById('modal-info-patrimonio').classList.remove('hidden');
+  }
+  function fecharModalInfoPatrimonio() {
+    document.getElementById('modal-info-patrimonio').classList.add('hidden');
+  }
+
+  function abrirModalInfoDespesas() {
+    document.getElementById('modal-info-despesas').classList.remove('hidden');
+  }
+  function fecharModalInfoDespesas() {
+    document.getElementById('modal-info-despesas').classList.add('hidden');
+  }
+
+  function abrirModalComposicaoEntradas() {
+    document.getElementById('modal-composicao-entradas').classList.remove('hidden');
+  }
+  function fecharModalComposicaoEntradas() {
+    document.getElementById('modal-composicao-entradas').classList.add('hidden');
+  }
+
+  // Seção Anual
+  function alternarSecaoAnual() {
+    const corpo = document.getElementById('corpo-secao-anual');
+    const chevron = document.getElementById('icone-chevron-anual');
+    if (corpo.classList.contains('hidden')) {
+      corpo.classList.remove('hidden');
+      chevron.style.transform = 'rotate(180deg)';
+    } else {
+      corpo.classList.add('hidden');
+      chevron.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  // Modal de Baixa de Conta
   function abrirModalBaixa(id, desc, val, contaNome, contaId) {
-    modalBaixaId = id;
-    const mDesc = document.getElementById('modal-desc');
-    const mVal = document.getElementById('modal-valor');
-    const mConta = document.getElementById('modal-baixa-conta');
-    if (mDesc) mDesc.textContent = desc;
-    if (mVal) mVal.textContent = 'R$ ' + parseFloat(val).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-    if (mConta && contaId) mConta.value = contaId;
+    document.getElementById('modal-baixa-id').value = id;
+    document.getElementById('modal-baixa-desc').textContent = desc;
 
-    const btn = document.getElementById('modal-btn-confirmar');
-    if (btn) {
-      btn.onclick = () => executarBaixaContaIndex(id, desc, val);
+    let v = parseFloat(val) || 0;
+    let partes = v.toFixed(2).split('.');
+    let inteiro = partes[0].replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    document.getElementById('modal-baixa-valor').value = inteiro + ',' + partes[1];
+
+    if (contaNome) {
+      const sel = document.getElementById('modal-baixa-conta');
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === contaNome) {
+          sel.selectedIndex = i;
+          break;
+        }
+      }
     }
     document.getElementById('modal-baixa').classList.remove('hidden');
   }
 
   function fecharModalBaixa() {
     document.getElementById('modal-baixa').classList.add('hidden');
-    modalBaixaId = null;
   }
 
-  async function executarBaixaContaIndex(id, desc, val) {
-    const btn = document.getElementById('modal-btn-confirmar');
-    btn.disabled = true;
-    btn.textContent = 'Processando...';
+  function mascaraMoedaModal(input) {
+    let v = input.value.replace(/\D/g, '');
+    v = (v / 100).toFixed(2) + '';
+    v = v.replace('.', ',');
+    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+    input.value = v;
+  }
 
-    const cid = document.getElementById('modal-baixa-conta').value;
+  async function submeterBaixaConta(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-confirmar-baixa');
+    btn.disabled = true;
+    btn.textContent = 'Baixando...';
+
+    const id = document.getElementById('modal-baixa-id').value;
+    const valorStr = document.getElementById('modal-baixa-valor').value.replace(/\./g, '').replace(',', '.');
+    const data = document.getElementById('modal-baixa-data').value;
+    const conta = document.getElementById('modal-baixa-conta').value;
+
     const fd = new FormData();
-    fd.append('conta_id', cid);
+    fd.append('valor_pago', valorStr);
+    fd.append('data_pagamento', data);
+    fd.append('conta', conta);
 
     try {
-      const res = await fetch(`/api/baixa/${id}`, { method: 'POST', body: fd });
-      const json = await res.json();
-      if (json.sucesso) {
+      const res = await fetch(`/api/lancamentos/${id}/baixar`, {
+        method: 'POST',
+        body: fd
+      });
+      const dataJson = await res.json();
+      if (dataJson.sucesso) {
+        showToast('Sucesso', dataJson.mensagem || 'Pagamento registrado com sucesso!');
         fecharModalBaixa();
-        const linha = document.getElementById(`linha-conta-index-${id}`);
-        if (linha) linha.style.display = 'none';
-
-        showToast(
-          'Pagamento Registrado',
-          `"${desc}" liquidado com sucesso!`,
-          false,
-          'Desfazer',
-          () => executarReversaoPagamentoIndex(id, desc, val)
-        );
+        setTimeout(() => location.reload(), 800);
       } else {
-        showToast('Erro no Pagamento', json.erro || 'Falha ao registrar pagamento', true);
+        showToast('Erro', dataJson.erro || 'Falha ao registrar pagamento', true);
       }
     } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
+      showToast('Erro', err.message, true);
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Confirmar Pagamento';
+      btn.textContent = 'Confirmar Baixa';
     }
   }
 
-  async function executarReversaoPagamentoIndex(id, desc, val) {
-    try {
-      const res = await fetch(`/api/pagamento/desfazer/${id}`, { method: 'POST' });
-      const json = await res.json();
-      if (json.sucesso) {
-        showToast('Pagamento Desfeito', `Lançamento "${desc}" retornado para pendente.`);
-        const linha = document.getElementById(`linha-conta-index-${id}`);
-        if (linha) linha.style.display = 'flex';
-      } else {
-        showToast('Erro ao Reverter', json.erro || 'Não foi possível reverter', true);
-      }
-    } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
-    }
-  }
-
+  // Dropdown de Ações '⋯'
   function toggleDropdownAcoesIndex(e, id) {
     e.stopPropagation();
-    const dropdown = document.getElementById(`dropdown-index-${id}`);
+    const menu = document.getElementById(`dropdown-index-${id}`);
     document.querySelectorAll('[id^="dropdown-index-"]').forEach(d => {
-      if (d !== dropdown) d.classList.add('hidden');
+      if (d !== menu) d.classList.add('hidden');
     });
-    if (dropdown) dropdown.classList.toggle('hidden');
+    if (menu) {
+      menu.classList.toggle('hidden');
+    }
   }
+
+  document.addEventListener('click', () => {
+    document.querySelectorAll('[id^="dropdown-index-"]').forEach(d => d.classList.add('hidden'));
+  });
 
   async function confirmarExclusaoIndex(id, desc, val, data) {
-    if (!confirm(`Deseja excluir "${desc}"?`)) return;
+    if (!confirm(`Deseja realmente cancelar ou excluir '${desc}' no valor de ${val}?`)) return;
     try {
-      const res = await fetch('/contas/excluir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transacao_id: id, escopo: 'pontual' })
-      });
-      const json = await res.json();
-      if (json.sucesso) {
-        showToast('Lançamento Excluído', json.mensagem);
-        const linha = document.getElementById(`linha-conta-index-${id}`);
-        if (linha) linha.remove();
+      const res = await fetch(`/api/lancamentos/${id}/excluir`, { method: 'POST' });
+      const dataJson = await res.json();
+      if (dataJson.sucesso) {
+        showToast('Excluído', dataJson.mensagem || 'Lançamento cancelado com sucesso!');
+        setTimeout(() => location.reload(), 800);
       } else {
-        showToast('Erro ao Excluir', json.erro || 'Falha na exclusão', true);
+        showToast('Erro', dataJson.erro || 'Não foi possível excluir', true);
       }
     } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
+      showToast('Erro', err.message, true);
     }
-  }
-
-  function alternarRoscaCategorias(tipo) {
-    const vPagas = document.getElementById('visao-rosca-pagas');
-    const vTodas = document.getElementById('visao-rosca-todas');
-    const bPagas = document.getElementById('btn-rosca-pagas');
-    const bTodas = document.getElementById('btn-rosca-todas');
-    const lblTot = document.getElementById('label-total-rosca');
-
-    if (tipo === 'todas') {
-      vPagas.classList.add('hidden');
-      vTodas.classList.remove('hidden');
-      bTodas.className = 'px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
-      bPagas.className = 'px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 cursor-pointer';
-      if (lblTot) lblTot.textContent = '{{ d.gastos_categoria.todas.total | moeda }}';
-    } else {
-      vTodas.classList.add('hidden');
-      vPagas.classList.remove('hidden');
-      bPagas.className = 'px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer';
-      bTodas.className = 'px-2 py-0.5 rounded-md text-slate-500 dark:text-slate-400 hover:text-slate-800 cursor-pointer';
-      if (lblTot) lblTot.textContent = '{{ d.gastos_categoria.pagas.total | moeda }}';
-    }
-  }
-
-  function alternarSecaoAnual() {
-    const corpo = document.getElementById('corpo-secao-anual');
-    const icone = document.getElementById('icone-chevron-anual');
-    if (corpo) {
-      corpo.classList.toggle('hidden');
-      if (icone) {
-        icone.style.transform = corpo.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
-      }
-    }
-  }
-
-  function abrirModalComposicaoEntradas() {
-    document.getElementById('modal-composicao-entradas').classList.remove('hidden');
-  }
-
-  function fecharModalComposicaoEntradas() {
-    document.getElementById('modal-composicao-entradas').classList.add('hidden');
-  }
-
-  function abrirModalInfoSaldo() {
-    document.getElementById('modal-info-saldo').classList.remove('hidden');
-  }
-
-  function fecharModalInfoSaldo() {
-    document.getElementById('modal-info-saldo').classList.add('hidden');
   }
 </script>
 {% endblock %}
