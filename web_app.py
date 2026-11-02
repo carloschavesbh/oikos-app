@@ -1391,6 +1391,15 @@ async def api_remover_conta(request: Request, conta_id: Optional[int] = None):
             target_id = target_id or int(form.get("id") or form.get("conta_id") or 0)
 
         if not target_id:
+            # Se for exclusão de transação/conta a pagar enviada para /contas/excluir
+            tem_transacao = False
+            if "application/json" in content_type and payload.get("transacao_id"):
+                tem_transacao = True
+            elif "form" in content_type and form.get("transacao_id"):
+                tem_transacao = True
+            if tem_transacao:
+                conn.close()
+                return await api_excluir_conta(request)
             raise HTTPException(status_code=400, detail="ID da conta não informado.")
 
         conta_id = int(target_id)
@@ -5146,6 +5155,72 @@ async def api_atualizar_finalidade_cofrinho(cofrinho_id: int, request: Request):
     try:
         objetivos_service.atualizar_finalidade_cofrinho(conn, cofrinho_id, finalidade)
         return JSONResponse({"sucesso": True, "finalidade": finalidade})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+
+@app.post("/api/pagamento/desfazer/{transacao_id}")
+@app.post("/api/contas_pagar/desfazer/{transacao_id}")
+@app.post("/api/estorno/{transacao_id}")
+async def api_desfazer_pagamento(transacao_id: int, request: Request):
+    """
+    Reverte o pagamento de uma conta de forma auditável e segura:
+    - Retorna a transação para o status 'pendente' (pago = 0)
+    - Limpa data_liquidacao
+    - Cancela o registro de pagamento em pagamentos_despesas (cancelado = 1)
+    - Recompõe o saldo bancário da conta debitada
+    - Recalcula e retorna os novos totais e saldos para atualização reativa da UI
+    """
+    conn = conectar_db()
+    try:
+        motivo = "Desfazer pagamento solicitado pelo usuário"
+        try:
+            payload = await request.json()
+            if payload.get("motivo"):
+                motivo = str(payload["motivo"]).strip()
+        except Exception:
+            pass
+
+        res = saldo_service.desfazer_pagamento_transacao(conn, transacao_id, motivo=motivo)
+        
+        # Recalcular saldos e métricas consolidadas após a reversão
+        dados = coletar_dados_dashboard()
+        contas_atualizadas = [
+            {
+                "id": c["id"],
+                "nome": c["nome"],
+                "saldo_atual": c["saldo_atual"],
+                "saldo_formatado": formatar_moeda_br(c["saldo_atual"])
+            }
+            for c in dados["contas"]
+        ]
+
+        return {
+            "sucesso": True,
+            "mensagem": f"Pagamento de '{res['descricao']}' revertido com sucesso! O valor de {formatar_moeda_br(res['valor_estornado'])} foi recomposto.",
+            "transacao_id": transacao_id,
+            "status": "pendente",
+            "valor_estornado": res["valor_estornado"],
+            "conta_id": res["conta_id"],
+            "novo_saldo_caixa": formatar_moeda_br(dados["saldo_caixa"]),
+            "contas": contas_atualizadas,
+            "novos_totais": {
+                "despesa_mensal": formatar_moeda_br(dados["despesa_mensal"]),
+                "despesas_pagas": formatar_moeda_br(dados["despesas_pagas"]),
+                "despesas_pendentes": formatar_moeda_br(dados["despesas_pendentes"]),
+                "saldo_caixa": formatar_moeda_br(dados["saldo_caixa"]),
+                "tot_vence_hoje": formatar_moeda_br(dados["tot_vence_hoje"]),
+                "qtd_vence_hoje": len(dados["vence_hoje"]),
+                "tot_atrasadas": formatar_moeda_br(dados["tot_atrasadas"]),
+                "qtd_atrasadas": len(dados["atrasadas"]),
+                "tot_prox7": formatar_moeda_br(dados["tot_prox7"]),
+                "qtd_prox7": dados["qtd_prox7"],
+                "contas": contas_atualizadas
+            }
+        }
     except Exception as e:
         return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
     finally:

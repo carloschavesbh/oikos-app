@@ -505,11 +505,11 @@ def calcular_saldo_conta(
     params = [conta_id, conta_id, conta_nome]
 
     if data_inicio:
-        query += " AND data >= ?"
+        query += " AND COALESCE(data_liquidacao, data) >= ?"
         params.append(data_inicio)
 
     if data_referencia:
-        query += " AND data <= ?"
+        query += " AND COALESCE(data_liquidacao, data) <= ?"
         params.append(data_referencia)
 
     query += " ORDER BY data ASC, id ASC"
@@ -1050,6 +1050,79 @@ def registrar_pagamento(
         "saldo_devedor": saldo_devedor,
         "status_pagamento": novo_status,
         "pago_flag": novo_pago
+    }
+
+
+
+def desfazer_pagamento_transacao(
+    conn: sqlite3.Connection,
+    transacao_id: int,
+    motivo: str = "Desfazer pagamento solicitado pelo usuário"
+) -> Dict[str, Any]:
+    """
+    Reverte/estorna o pagamento de uma despesa ou obrigação de forma auditável e segura:
+    - Valida idempotência: se o lançamento já estiver pendente (pago = 0), impede duplicação.
+    - Localiza o último pagamento ativo em pagamentos_despesas e estorna-o com cancelado = 1.
+    - Atualiza a transação para status 'pendente' (pago = 0) e limpa data_liquidacao.
+    - Recompõe o saldo bancário da conta debitada.
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, descricao, valor, data, pago, status_pagamento, conta, conta_id, tipo
+        FROM transacoes
+        WHERE id = ?
+    """, (transacao_id,))
+    t = cur.fetchone()
+    if not t:
+        raise ValueError(f"Lançamento #{transacao_id} não encontrado.")
+
+    tid, desc, valor, data_venc, pago, status_pag, conta_nome, conta_id, tipo = t
+
+    if pago != 1:
+        raise ValueError(f"O lançamento '{desc}' (#{transacao_id}) já se encontra pendente ou não possui pagamento ativo para desfazer.")
+
+    # Busca o último pagamento não cancelado
+    cur.execute("""
+        SELECT id, valor_pago, conta_id, data_pagamento
+        FROM pagamentos_despesas
+        WHERE transacao_id = ? AND (cancelado = 0 OR cancelado IS NULL)
+        ORDER BY id DESC
+        LIMIT 1
+    """, (transacao_id,))
+    row_pag = cur.fetchone()
+
+    valor_estornado = float(valor or 0.0)
+    cid_debitada = conta_id
+    if row_pag:
+        pag_id = row_pag[0]
+        valor_estornado = float(row_pag[1] or valor or 0.0)
+        cid_debitada = row_pag[2] or conta_id
+        estornar_pagamento(conn, pag_id, motivo=motivo)
+    else:
+        # Fallback de auditoria para transações legadas sem pagamentos_despesas
+        cur.execute("""
+            INSERT INTO pagamentos_despesas
+            (transacao_id, data_pagamento, valor_pago, valor_pago_centavos, conta_id, cancelado, cancelado_em, motivo_cancelamento)
+            VALUES (?, CURRENT_DATE, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)
+        """, (transacao_id, float(valor_estornado), decimal_to_cents(to_decimal(valor_estornado)), conta_id, motivo))
+
+    hoje_iso = date.today().isoformat()
+    novo_status = 'atrasada' if (data_venc and str(data_venc) < hoje_iso) else 'pendente'
+
+    cur.execute("""
+        UPDATE transacoes
+        SET pago = 0, status_pagamento = ?, data_liquidacao = NULL
+        WHERE id = ?
+    """, (novo_status, transacao_id))
+    conn.commit()
+
+    return {
+        "transacao_id": transacao_id,
+        "descricao": desc,
+        "valor_estornado": valor_estornado,
+        "data_vencimento": str(data_venc),
+        "conta_id": cid_debitada,
+        "status": novo_status
     }
 
 

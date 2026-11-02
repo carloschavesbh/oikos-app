@@ -256,16 +256,51 @@
               </span>
             </td>
 
-            <!-- Ações -->
+            <!-- Ações Compactas -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
               <div class="inline-flex items-center gap-1.5">
-                <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
-                        title="Dar baixa imediata nesta conta passada" 
-                        id="btn-baixa-{{ t.id }}"
-                        class="touch-target inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-sm transition cursor-pointer">
-                  <span>⚡</span> Baixar
-                </button>
+                <!-- Botão Compacto: Registrar Pagamento -->
                 <button type="button"
+                        onclick="baixarConta({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')" 
+                        id="btn-acao-{{ t.id }}"
+                        title="Registrar pagamento"
+                        aria-label="Registrar pagamento de {{ t.descricao }}"
+                        class="touch-target w-8 h-8 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-white border border-emerald-500/30 flex items-center justify-center transition active:scale-95 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                </button>
+
+                <!-- Menu de Ações Secundárias ⋯ -->
+                <div class="relative dropdown-acoes-menu inline-block">
+                  <button type="button" 
+                          onclick="toggleMenuAcoes(event, 'menu-lanc-{{ t.id }}')"
+                          title="Mais opções"
+                          aria-label="Mais opções para {{ t.descricao }}"
+                          aria-haspopup="true"
+                          class="touch-target w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                  </button>
+
+                  <div id="menu-lanc-{{ t.id }}" 
+                       class="menu-dropdown-conteudo hidden absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
+                    <button type="button"
+                            onclick="fecharTodosMenusAcoes(); abrirModalEditarLancamentoDireto({{ t.id }})"
+                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                      <span>Editar Lançamento</span>
+                    </button>
+                    <button type="button"
+                            onclick="fecharTodosMenusAcoes(); excluirLancamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')"
+                            class="w-full flex items-center gap-2 px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border-t border-slate-100 dark:border-slate-800/80">
+                      <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+                      <span>Excluir Lançamento</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Botão oculto com atributos para abrir modal de edição -->
+                <button type="button"
+                        id="btn-edit-trigger-{{ t.id }}"
+                        class="hidden"
                         onclick="abrirModalEditarLancamento(this)"
                         data-id="{{ t.id }}"
                         data-data="{{ t.data }}"
@@ -278,11 +313,7 @@
                         data-pago="{{ t.pago }}"
                         data-juros="{{ t.juros }}"
                         data-desconto="{{ t.desconto }}"
-                        data-motivo="{{ t.motivo_ajuste }}"
-                        title="Editar lançamento"
-                        class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
-                  ✏️
-                </button>
+                        data-motivo="{{ t.motivo_ajuste }}"></button>
               </div>
             </td>
           </tr>
@@ -399,18 +430,81 @@
               {% endif %}
             </td>
 
-            <!-- Ações -->
+            <!-- Ações Compactas -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
               <div class="inline-flex items-center gap-1.5">
-                {% if t.tipo == 'despesa' and t.pago != 1 %}
-                <button onclick="baixarConta({{ t.id }}, '{{ t.descricao }}')" 
-                        title="Dar baixa nesta conta" 
-                        id="btn-baixa-{{ t.id }}"
-                        class="touch-target inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition active:scale-95 cursor-pointer">
-                  <span>⚡</span> Baixar
+                <!-- Ação Primária Compacta (Pagar ou Desfazer) -->
+                {% if t.tipo == 'despesa' and t.pago == 1 %}
+                <button type="button"
+                        onclick="confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}', '{{ t.valor | moeda }}')" 
+                        id="btn-acao-{{ t.id }}"
+                        title="Desfazer pagamento (reverter para pendente)"
+                        aria-label="Desfazer pagamento de {{ t.descricao }}"
+                        class="touch-target w-8 h-8 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 flex items-center justify-center transition active:scale-95 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
+                </button>
+                {% elif t.tipo == 'despesa' %}
+                <button type="button"
+                        onclick="baixarConta({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')" 
+                        id="btn-acao-{{ t.id }}"
+                        title="Registrar pagamento"
+                        aria-label="Registrar pagamento de {{ t.descricao }}"
+                        class="touch-target w-8 h-8 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-white border border-emerald-500/30 flex items-center justify-center transition active:scale-95 shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
                 </button>
                 {% endif %}
+
+                <!-- Menu de Ações Secundárias ⋯ -->
+                <div class="relative dropdown-acoes-menu inline-block">
+                  <button type="button" 
+                          onclick="toggleMenuAcoes(event, 'menu-lanc-{{ t.id }}')"
+                          title="Mais opções"
+                          aria-label="Mais opções para {{ t.descricao }}"
+                          aria-haspopup="true"
+                          class="touch-target w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                  </button>
+
+                  <div id="menu-lanc-{{ t.id }}" 
+                       class="menu-dropdown-conteudo hidden absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
+                    <button type="button"
+                            onclick="fecharTodosMenusAcoes(); abrirModalEditarLancamentoDireto({{ t.id }})"
+                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
+                      <span>Editar Lançamento</span>
+                    </button>
+
+                    <div id="item-menu-desfazer-container-{{ t.id }}">
+                      {% if t.pago == 1 %}
+                      <button type="button"
+                              onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}', '{{ t.valor | moeda }}')"
+                              class="w-full flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
+                        <span>Desfazer Pagamento</span>
+                      </button>
+                      {% elif t.tipo == 'despesa' %}
+                      <button type="button"
+                              onclick="fecharTodosMenusAcoes(); baixarConta({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')"
+                              class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                        <span>Registrar Pagamento</span>
+                      </button>
+                      {% endif %}
+                    </div>
+
+                    <button type="button"
+                            onclick="fecharTodosMenusAcoes(); excluirLancamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')"
+                            class="w-full flex items-center gap-2 px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border-t border-slate-100 dark:border-slate-800/80">
+                      <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+                      <span>Excluir Lançamento</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Botão oculto com atributos para abrir modal de edição -->
                 <button type="button"
+                        id="btn-edit-trigger-{{ t.id }}"
+                        class="hidden"
                         onclick="abrirModalEditarLancamento(this)"
                         data-id="{{ t.id }}"
                         data-data="{{ t.data }}"
@@ -423,11 +517,7 @@
                         data-pago="{{ t.pago }}"
                         data-juros="{{ t.juros }}"
                         data-desconto="{{ t.desconto }}"
-                        data-motivo="{{ t.motivo_ajuste }}"
-                        title="Editar lançamento"
-                        class="touch-target inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition cursor-pointer">
-                  ✏️
-                </button>
+                        data-motivo="{{ t.motivo_ajuste }}"></button>
               </div>
             </td>
           </tr>
@@ -792,12 +882,19 @@
     }
   }
 
-  // Baixa Imediata
+  function abrirModalEditarLancamentoDireto(id) {
+    const trigger = document.getElementById(`btn-edit-trigger-${id}`);
+    if (trigger) {
+      abrirModalEditarLancamento(trigger);
+    }
+  }
+
+  // Baixa Imediata com Toast e botão [Desfazer]
   async function baixarConta(id, desc) {
-    const btn = document.getElementById(`btn-baixa-${id}`);
+    const btn = document.getElementById(`btn-acao-${id}`);
     if (btn) {
       btn.disabled = true;
-      btn.innerHTML = '⏳ Processando...';
+      btn.classList.add('opacity-50');
     }
 
     try {
@@ -805,8 +902,16 @@
       const data = await res.json();
 
       if (data.sucesso) {
-        showToast('Baixa Concluída!', data.mensagem);
-        // Atualizar linha visualmente
+        // Exibe Toast temporário com opção de [Desfazer]
+        showToast(
+          'Baixa Concluída!', 
+          data.mensagem, 
+          false, 
+          '↩️ Desfazer', 
+          () => confirmarDesfazerPagamento(id, desc, data.valor_baixado ? 'R$ ' + Number(data.valor_baixado).toFixed(2) : '')
+        );
+
+        // Atualizar linha visualmente para PAGA
         const linha = document.getElementById(`linha-tr-${id}`);
         if (linha) {
           linha.setAttribute('data-pago', '1');
@@ -817,21 +922,151 @@
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pago
             </span>`;
           }
-          if (btn) btn.outerHTML = '<span class="text-slate-400 dark:text-slate-600 text-xs">—</span>';
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'bg-emerald-500/15', 'text-emerald-600', 'border-emerald-500/30', 'hover:bg-emerald-500');
+            btn.classList.add('bg-amber-500/15', 'text-amber-600', 'dark:text-amber-400', 'border-amber-500/30', 'hover:bg-amber-500', 'hover:text-white');
+            btn.title = 'Desfazer pagamento (reverter para pendente)';
+            btn.setAttribute('aria-label', `Desfazer pagamento de ${desc}`);
+            btn.onclick = () => confirmarDesfazerPagamento(id, desc, '');
+            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>`;
+          }
+
+          // Atualizar opção no menu ⋯
+          const menuContainer = document.getElementById(`item-menu-desfazer-container-${id}`);
+          if (menuContainer) {
+            menuContainer.innerHTML = `<button type="button"
+                    onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento(${id}, '${desc.replace(/'/g, "\\'")}', '')"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
+              <span>Desfazer Pagamento</span>
+            </button>`;
+          }
         }
       } else {
         showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = '⚡ Baixar';
+          btn.classList.remove('opacity-50');
         }
       }
     } catch (err) {
       showToast('Erro de Conexão', err.message, true);
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = '⚡ Baixar';
+        btn.classList.remove('opacity-50');
       }
+    }
+  }
+
+  // Desfazer Pagamento com Confirmação e Restauração de Linha
+  async function confirmarDesfazerPagamento(id, desc, val) {
+    const msg = val ? `Deseja realmente desfazer o pagamento de "${desc}" (${val}) e retornar a conta para pendente?` : `Deseja desfazer o pagamento de "${desc}" e retornar a conta para pendente?`;
+    if (!confirm(msg)) return;
+
+    const btn = document.getElementById(`btn-acao-${id}`);
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+    }
+
+    try {
+      const res = await fetch(`/api/pagamento/desfazer/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motivo: 'Desfazer pagamento solicitado pelo usuário em Lançamentos' })
+      });
+      const data = await res.json();
+
+      if (data.sucesso) {
+        showToast('Pagamento Desfeito!', data.mensagem);
+
+        // Atualizar linha visualmente para PENDENTE / ATRASADA
+        const linha = document.getElementById(`linha-tr-${id}`);
+        if (linha) {
+          linha.setAttribute('data-pago', '0');
+          const tdStatus = linha.querySelector('.badge-status-pago') || linha.querySelector('.badge-status-pendente');
+          
+          // Verificar se a data original já venceu
+          const dataVenc = data.data_vencimento || '';
+          const hojeStr = new Date().toISOString().slice(0, 10);
+          const ehAtrasada = dataVenc && dataVenc < hojeStr;
+
+          if (ehAtrasada) {
+            linha.setAttribute('data-atrasada', '1');
+            if (tdStatus) {
+              tdStatus.outerHTML = `<span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Atrasada
+              </span>`;
+            }
+          } else {
+            linha.setAttribute('data-atrasada', '0');
+            if (tdStatus) {
+              tdStatus.outerHTML = `<span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pendente
+              </span>`;
+            }
+          }
+
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'bg-amber-500/15', 'text-amber-600', 'border-amber-500/30', 'hover:bg-amber-500');
+            btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30', 'hover:bg-emerald-500', 'hover:text-white');
+            btn.title = 'Registrar pagamento';
+            btn.setAttribute('aria-label', `Registrar pagamento de ${desc}`);
+            btn.onclick = () => baixarConta(id, desc);
+            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
+          }
+
+          // Atualizar opção no menu ⋯
+          const menuContainer = document.getElementById(`item-menu-desfazer-container-${id}`);
+          if (menuContainer) {
+            menuContainer.innerHTML = `<button type="button"
+                    onclick="fecharTodosMenusAcoes(); baixarConta(${id}, '${desc.replace(/'/g, "\\'")}')"
+                    class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span>Registrar Pagamento</span>
+            </button>`;
+          }
+        }
+      } else {
+        showToast('Erro ao Desfazer', data.erro || 'Falha na reversão', true);
+        if (btn) {
+          btn.disabled = false;
+          btn.classList.remove('opacity-50');
+        }
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+      }
+    }
+  }
+
+  // Excluir Lançamento com Confirmação
+  async function excluirLancamento(id, desc) {
+    if (!confirm(`Deseja realmente excluir o lançamento "${desc}"? Esta ação removerá o registro.`)) return;
+
+    try {
+      const res = await fetch('/contas/excluir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transacao_id: id, escopo: 'pontual' })
+      });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Lançamento Excluído', data.mensagem);
+        const linha = document.getElementById(`linha-tr-${id}`);
+        if (linha) {
+          linha.remove();
+        }
+      } else {
+        showToast('Erro ao Excluir', data.erro || 'Falha na exclusão', true);
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
     }
   }
 

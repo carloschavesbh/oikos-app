@@ -395,13 +395,16 @@
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-white pb-16 md:pb-0">
 
-  <!-- TOAST NOTIFICATION -->
-  <div id="toast" class="fixed top-4 right-4 z-50 transform -translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-900 border border-emerald-500/50 text-white shadow-2xl backdrop-blur-md">
-    <span class="text-xl">✅</span>
-    <div>
-      <p id="toast-title" class="font-bold text-sm text-emerald-400">Sucesso</p>
-      <p id="toast-msg" class="text-xs text-slate-300">Operação realizada com sucesso.</p>
+  <!-- TOAST NOTIFICATION COM SUPORTE A AÇÃO (DESFAZER) -->
+  <div id="toast" class="fixed top-4 right-4 z-50 transform -translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900/95 border border-emerald-500/50 text-white shadow-2xl backdrop-blur-md max-w-sm sm:max-w-md">
+    <span id="toast-icon" class="text-xl shrink-0">✅</span>
+    <div class="flex-1 min-w-0">
+      <p id="toast-title" class="font-bold text-sm text-emerald-400 truncate">Sucesso</p>
+      <p id="toast-msg" class="text-xs text-slate-300 leading-snug">Operação realizada com sucesso.</p>
     </div>
+    <button id="toast-action-btn" type="button" class="hidden pointer-events-auto ml-2 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs transition shadow-sm cursor-pointer whitespace-nowrap">
+      Desfazer
+    </button>
   </div>
 
   <!-- PWA INSTALL PROMPT BANNER (Mobile Xiaomi 12) -->
@@ -893,30 +896,97 @@
       });
     }
 
-    // Toast de Notificação
-    function showToast(title, message, isError = false) {
+    // Toast de Notificação com suporte a ação (ex: Desfazer)
+    let toastTimeoutId = null;
+    function showToast(title, message, isError = false, actionText = null, actionCallback = null) {
       const toast = document.getElementById('toast');
       const tTitle = document.getElementById('toast-title');
       const tMsg = document.getElementById('toast-msg');
+      const tIcon = document.getElementById('toast-icon');
+      const tActionBtn = document.getElementById('toast-action-btn');
+
+      if (!toast || !tTitle || !tMsg) return;
+
+      if (toastTimeoutId) {
+        clearTimeout(toastTimeoutId);
+        toastTimeoutId = null;
+      }
 
       tTitle.textContent = title;
       tMsg.textContent = message;
+
       if (isError) {
-        tTitle.className = 'font-bold text-sm text-rose-400';
+        tTitle.className = 'font-bold text-sm text-rose-400 truncate';
+        if (tIcon) tIcon.textContent = '⚠️';
         toast.className = toast.className.replace('border-emerald-500/50', 'border-rose-500/50');
       } else {
-        tTitle.className = 'font-bold text-sm text-emerald-400';
+        tTitle.className = 'font-bold text-sm text-emerald-400 truncate';
+        if (tIcon) tIcon.textContent = '✅';
         toast.className = toast.className.replace('border-rose-500/50', 'border-emerald-500/50');
       }
 
-      toast.classList.remove('-translate-y-20', 'opacity-0');
-      toast.classList.add('translate-y-0', 'opacity-100');
+      // Configuração de botão de ação (ex: Desfazer)
+      if (actionText && typeof actionCallback === 'function' && tActionBtn) {
+        tActionBtn.textContent = actionText;
+        tActionBtn.classList.remove('hidden');
+        tActionBtn.onclick = () => {
+          try {
+            actionCallback();
+          } finally {
+            esconderToast();
+          }
+        };
+      } else if (tActionBtn) {
+        tActionBtn.classList.add('hidden');
+        tActionBtn.onclick = null;
+      }
 
-      setTimeout(() => {
-        toast.classList.remove('translate-y-0', 'opacity-100');
-        toast.classList.add('-translate-y-20', 'opacity-0');
-      }, 3500);
+      toast.classList.remove('-translate-y-20', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+
+      const duracao = actionText ? 8000 : 3500;
+      toastTimeoutId = setTimeout(esconderToast, duracao);
     }
+
+    function esconderToast() {
+      const toast = document.getElementById('toast');
+      if (!toast) return;
+      toast.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+      toast.classList.add('-translate-y-20', 'opacity-0', 'pointer-events-none');
+      const tActionBtn = document.getElementById('toast-action-btn');
+      if (tActionBtn) tActionBtn.classList.add('hidden');
+    }
+
+    // Fechamento global de menus dropdown de ações
+    function fecharTodosMenusAcoes() {
+      document.querySelectorAll('.menu-dropdown-conteudo').forEach(m => m.classList.add('hidden'));
+    }
+
+    function toggleMenuAcoes(event, menuId) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      const menu = document.getElementById(menuId);
+      if (!menu) return;
+      const estaAberto = !menu.classList.contains('hidden');
+      fecharTodosMenusAcoes();
+      if (!estaAberto) {
+        menu.classList.remove('hidden');
+      }
+    }
+
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.dropdown-acoes-menu')) {
+        fecharTodosMenusAcoes();
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        fecharTodosMenusAcoes();
+      }
+    });
 
     // --- GESTÃO DA SIDEBAR RECOLHÍVEL (EXPANDIR / RECOLHER) ---
     function updateSidebarUI() {
