@@ -337,6 +337,183 @@ def obter_foco_hoje(conn: sqlite3.Connection, hoje_str: Optional[str] = None) ->
     }
 
 
+PALETA_CORES_CATEGORIA = [
+    "#0284c7", "#0d9488", "#10b981", "#f59e0b", "#f97316",
+    "#ef4444", "#8b5cf6", "#ec4899", "#64748b", "#a855f7"
+]
+
+def calcular_curva_saldo_dashboard(conn: sqlite3.Connection, hoje: date) -> Dict[str, Any]:
+    hoje_str = hoje.strftime("%Y-%m-%d")
+    res_hoje = saldo_service.calcular_saldo_consolidado(conn, data_referencia=hoje_str)
+    saldo_hoje = float(res_hoje.get("saldo_consolidado", 0.0))
+    
+    pontos = []
+    # 7 dias de histórico
+    for i in range(7, 0, -1):
+        dt = hoje - timedelta(days=i)
+        dt_s = dt.strftime("%Y-%m-%d")
+        try:
+            s = float(saldo_service.calcular_saldo_consolidado(conn, data_referencia=dt_s).get("saldo_consolidado", 0.0))
+        except Exception:
+            s = saldo_hoje
+        pontos.append({
+            "data": dt.strftime("%d/%m"),
+            "data_completa": dt_s,
+            "saldo": s,
+            "tipo": "realizado"
+        })
+    
+    # Ponto de Hoje
+    pontos.append({
+        "data": hoje.strftime("%d/%m"),
+        "data_completa": hoje_str,
+        "saldo": saldo_hoje,
+        "tipo": "hoje"
+    })
+    
+    # 7 dias de Projeção
+    cur = conn.cursor()
+    limite_proj = hoje + timedelta(days=7)
+    cur.execute("""
+        SELECT data, tipo, valor FROM transacoes
+        WHERE data > ? AND data <= ? AND (pago = 0 OR pago IS NULL)
+        ORDER BY data ASC
+    """, (hoje_str, limite_proj.strftime("%Y-%m-%d")))
+    pendentes = cur.fetchall()
+    
+    saldo_acum = saldo_hoje
+    for i in range(1, 8):
+        df = hoje + timedelta(days=i)
+        df_s = df.strftime("%Y-%m-%d")
+        movs = [p for p in pendentes if p[0] == df_s]
+        for m in movs:
+            v = float(m[2] or 0.0)
+            if m[1] == "receita":
+                saldo_acum += v
+            elif m[1] == "despesa":
+                saldo_acum -= v
+        pontos.append({
+            "data": df.strftime("%d/%m"),
+            "data_completa": df_s,
+            "saldo": round(saldo_acum, 2),
+            "tipo": "projetado"
+        })
+        
+    valores = [p["saldo"] for p in pontos]
+    min_v = min(valores) if valores else 0.0
+    max_v = max(valores) if valores else 100.0
+    
+    return {
+        "pontos": pontos,
+        "saldo_hoje": saldo_hoje,
+        "min_saldo": min_v,
+        "max_saldo": max_v,
+        "tem_historico": len(pontos) > 1
+    }
+
+def calcular_gastos_categoria_rosca(conn: sqlite3.Connection, inicio_mes: str, fim_mes: str) -> Dict[str, Any]:
+    cur = conn.cursor()
+    
+    def apurar(filtro_pago=None):
+        sql = """
+            SELECT categoria, SUM(valor) as total, COUNT(*) as qtd
+            FROM transacoes
+            WHERE tipo = 'despesa' AND data >= ? AND data <= ?
+        """
+        params = [inicio_mes, fim_mes]
+        if filtro_pago is not None:
+            sql += " AND pago = ?"
+            params.append(filtro_pago)
+        sql += " GROUP BY categoria ORDER BY total DESC"
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        tot = sum(float(r[1] or 0.0) for r in rows)
+        
+        categorias = []
+        acum_pct = 0.0
+        
+        for i, r in enumerate(rows):
+            val = float(r[1] or 0.0)
+            pct = round((val / tot * 100.0), 1) if tot > 0 else 0.0
+            cor = PALETA_CORES_CATEGORIA[i % len(PALETA_CORES_CATEGORIA)]
+            
+            start_angle = acum_pct * 3.6
+            acum_pct += pct
+            end_angle = min(360.0, acum_pct * 3.6)
+            
+            categorias.append({
+                "categoria": r[0] or "Sem Categoria",
+                "valor": val,
+                "pct": pct,
+                "qtd": r[2],
+                "cor": cor,
+                "start_angle": start_angle,
+                "end_angle": end_angle
+            })
+            
+        return {
+            "total": tot,
+            "categorias": categorias,
+            "tem_dados": len(categorias) > 0
+        }
+
+    return {
+        "pagas": apurar(filtro_pago=1),
+        "todas": apurar(filtro_pago=None)
+    }
+
+def calcular_detalhamento_entradas_dashboard(conn: sqlite3.Connection, inicio_mes: str, fim_mes: str) -> Dict[str, Any]:
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, data, descricao, categoria, valor, conta
+        FROM transacoes
+        WHERE tipo = 'receita' AND pago = 1 AND data >= ? AND data <= ?
+        ORDER BY data DESC
+    """, (inicio_mes, fim_mes))
+    rows = cur.fetchall()
+    
+    tot_rec = 0.0
+    trabalho = 0.0
+    emprestimos = 0.0
+    outras = 0.0
+    itens = []
+    
+    for r in rows:
+        v = float(r[4] or 0.0)
+        tot_rec += v
+        desc = (r[2] or "").lower()
+        cat = (r[3] or "").lower()
+        
+        if any(k in desc or k in cat for k in ["salário", "salario", "pró-labore", "pro-labore", "99", "uber", "turno", "chave"]):
+            tp = "trabalho"
+            trabalho += v
+        elif any(k in desc or k in cat for k in ["empréstimo", "emprestimo", "financiamento", "crédito", "credito"]):
+            tp = "emprestimo"
+            emprestimos += v
+        else:
+            tp = "outras"
+            outras += v
+            
+        itens.append({
+            "id": r[0],
+            "data": r[1],
+            "descricao": r[2],
+            "categoria": r[3],
+            "valor": v,
+            "conta": r[5],
+            "tipo_classificacao": tp
+        })
+        
+    return {
+        "total_recebido": tot_rec,
+        "trabalho_total": trabalho,
+        "emprestimos_total": emprestimos,
+        "outras_total": outras,
+        "itens": itens,
+        "qtd_itens": len(itens)
+    }
+
+
 def coletar_dados_dashboard() -> Dict[str, Any]:
     """Coleta e calcula todos os dados essenciais da Visão Geral de forma centralizada e performática."""
     conn = conectar_db()
@@ -547,6 +724,40 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     except Exception:
         resumo_despesas_anuais = None
 
+    # 12. Curva de Saldo (Histórico 7d + Projeção 7d)
+    curva_saldo = calcular_curva_saldo_dashboard(conn, hoje)
+
+    # 13. Gastos por Categoria (Rosca interativa Pagas vs Todas)
+    gastos_categoria = calcular_gastos_categoria_rosca(conn, inicio_mes_str, fim_mes_str)
+
+    # 14. Detalhamento e Segregação de Entradas Externas
+    detalhes_entradas = calcular_detalhamento_entradas_dashboard(conn, inicio_mes_str, fim_mes_str)
+
+    # 15. Resumo Consolidado Paga Leve
+    try:
+        cur.execute("""
+            SELECT COALESCE(SUM(valor), 0), COUNT(*)
+            FROM transacoes
+            WHERE grupo_parcelamento IS NOT NULL AND (pago = 0 OR pago IS NULL) AND data >= ? AND data <= ?
+        """, (inicio_mes_str, fim_mes_str))
+        r_pl_mes = cur.fetchone()
+        cur.execute("""
+            SELECT COALESCE(SUM(valor), 0), COUNT(*)
+            FROM transacoes
+            WHERE grupo_parcelamento IS NOT NULL AND (pago = 0 OR pago IS NULL)
+        """, ())
+        r_pl_tot = cur.fetchone()
+        pagaleve_resumo = {
+            "mes_valor": float(r_pl_mes[0] or 0.0),
+            "mes_qtd": int(r_pl_mes[1] or 0),
+            "total_valor": float(r_pl_tot[0] or 0.0),
+            "total_qtd": int(r_pl_tot[1] or 0),
+            "limite_carlos": 300.0,
+            "tem_compras": int(r_pl_tot[1] or 0) > 0
+        }
+    except Exception:
+        pagaleve_resumo = {"mes_valor": 0.0, "mes_qtd": 0, "total_valor": 0.0, "total_qtd": 0, "limite_carlos": 300.0, "tem_compras": False}
+
     conn.close()
 
     dias_semana_pt = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
@@ -593,7 +804,11 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         "missao": missao,
         "cartao": cartao_info,
         "resumo_patrimonio": resumo_patrimonio,
-        "resumo_despesas_anuais": resumo_despesas_anuais
+        "resumo_despesas_anuais": resumo_despesas_anuais,
+        "curva_saldo": curva_saldo,
+        "gastos_categoria": gastos_categoria,
+        "detalhes_entradas": detalhes_entradas,
+        "pagaleve_resumo": pagaleve_resumo
     }
 
 
@@ -5231,3 +5446,206 @@ if __name__ == "__main__":
     import uvicorn
     print("🚀 Iniciando Servidor Web PWA em http://localhost:8000 ...")
     uvicorn.run("web_app:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# =============================================================================
+# ROTAS DO BOTÃO GLOBAL "+": TRANSFERÊNCIAS E RECORRÊNCIAS
+# =============================================================================
+
+@app.post("/api/transferencias")
+async def api_criar_transferencia(
+    conta_origem_id: int = Form(...),
+    conta_destino_id: int = Form(...),
+    valor: Any = Form(...),
+    data: str = Form(...),
+    descricao: Optional[str] = Form("")
+):
+    """
+    Executa transferência financeira interna entre contas de saldo:
+    - Debita a conta de origem e credita a conta de destino.
+    - Afeta o saldo bancário de cada conta, mas anula-se no saldo consolidado livre.
+    - Não gera duplicidade de receita ou despesa externa.
+    """
+    valor_num = converter_valor_monetario(valor)
+    if valor_num <= 0:
+        return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
+    if int(conta_origem_id) == int(conta_destino_id):
+        return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Conta de origem e conta de destino não podem ser a mesma."})
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_origem_id,))
+        r_orig = cur.fetchone()
+        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_destino_id,))
+        r_dest = cur.fetchone()
+        if not r_orig or not r_dest:
+            return JSONResponse(status_code=404, content={"status": "erro", "sucesso": False, "erro": "Conta de origem ou destino não encontrada."})
+
+        desc = (descricao or f"Transferência de {r_orig['nome']} para {r_dest['nome']}").strip()
+        data_efetiva = str(data)[:10]
+
+        cur.execute("""
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, conta_destino_id, pago, afeta_saldo_bancario, data_liquidacao)
+            VALUES (?, ?, ?, 'transferencia', 'Transferência Interna', ?, ?, ?, 1, 1, ?)
+        """, (data_efetiva, desc, valor_num, r_orig["nome"], conta_origem_id, conta_destino_id, data_efetiva))
+        conn.commit()
+
+        res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+        return {
+            "status": "sucesso",
+            "sucesso": True,
+            "mensagem": f"Transferência de {formatar_moeda_br(valor_num)} de {r_orig['nome']} para {r_dest['nome']} realizada com sucesso!",
+            "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
+        }
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"status": "erro", "sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/recorrencias")
+async def api_criar_recorrencia(
+    descricao: str = Form(...),
+    categoria: str = Form(...),
+    valor: Any = Form(...),
+    dia_vencimento: int = Form(...),
+    conta: str = Form("Mercado Pago"),
+    meses_duracao: int = Form(12),
+    data_inicio: Optional[str] = Form(None)
+):
+    """
+    Cadastra uma despesa recorrente mensal com vencimentos programados para os próximos meses:
+    - Gera as ocorrências pendentes na tabela transações.
+    - Permite controle determinístico sem estimativas fictícias.
+    """
+    valor_num = converter_valor_monetario(valor)
+    if valor_num <= 0:
+        return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
+
+    dia = max(1, min(31, int(dia_vencimento)))
+    meses = max(1, min(36, int(meses_duracao)))
+
+    hoje = date.today()
+    if data_inicio and len(str(data_inicio).strip()) >= 7:
+        try:
+            p = str(data_inicio).strip().split("-")
+            ano_ini = int(p[0])
+            mes_ini = int(p[1])
+        except Exception:
+            ano_ini, mes_ini = hoje.year, hoje.month
+    else:
+        ano_ini, mes_ini = hoje.year, hoje.month
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome FROM contas_config WHERE nome = ? OR id = ?", (conta, conta))
+        r_c = cur.fetchone()
+        cid = r_c["id"] if r_c else 1
+        cnome = r_c["nome"] if r_c else "Mercado Pago"
+
+        inseridas = 0
+        ano_corrente, mes_corrente = ano_ini, mes_ini
+
+        for _ in range(meses):
+            ultimo_d = calendar.monthrange(ano_corrente, mes_corrente)[1]
+            d_efetivo = min(dia, ultimo_d)
+            dt_str = f"{ano_corrente}-{mes_corrente:02d}-{d_efetivo:02d}"
+
+            # Verifica se já existe transação idêntica no mês para evitar duplicação
+            cur.execute("""
+                SELECT COUNT(*) FROM transacoes
+                WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
+                  AND tipo = 'despesa'
+                  AND data LIKE ?
+            """, (descricao.strip(), f"{ano_corrente}-{mes_corrente:02d}-%"))
+            if cur.fetchone()[0] == 0:
+                cur.execute("""
+                    INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, status_pagamento)
+                    VALUES (?, ?, ?, 'despesa', ?, ?, ?, 0, 'pendente')
+                """, (dt_str, descricao.strip(), valor_num, categoria.strip(), cnome, cid))
+                inseridas += 1
+
+            # Avança mês
+            if mes_corrente == 12:
+                mes_corrente = 1
+                ano_corrente += 1
+            else:
+                mes_corrente += 1
+
+        conn.commit()
+        return {
+            "status": "sucesso",
+            "sucesso": True,
+            "mensagem": f"Regra recorrente '{descricao.strip()}' cadastrada com sucesso! {inseridas} parcelas mensais programadas.",
+            "qtd_inseridas": inseridas
+        }
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"status": "erro", "sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.get("/api/recorrencias/listar")
+async def api_listar_recorrencias():
+    """Retorna lista de despesas recorrentes ativas baseada em descrições repetidas em meses futuros."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        hoje_str = date.today().strftime("%Y-%m-%d")
+        cur.execute("""
+            SELECT descricao, categoria, valor, conta, COUNT(*) as qtd_futuras, MIN(data) as proximo_vencimento
+            FROM transacoes
+            WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data >= ?
+            GROUP BY LOWER(TRIM(descricao)), valor
+            HAVING COUNT(*) >= 1
+            ORDER BY proximo_vencimento ASC
+        """, (hoje_str,))
+        rows = cur.fetchall()
+        recorrencias = [
+            {
+                "descricao": r["descricao"],
+                "categoria": r["categoria"],
+                "valor": float(r["valor"] or 0.0),
+                "conta": r["conta"],
+                "qtd_futuras": r["qtd_futuras"],
+                "proximo_vencimento": r["proximo_vencimento"]
+            }
+            for r in rows
+        ]
+        return {"sucesso": True, "recorrencias": recorrencias}
+    finally:
+        conn.close()
+
+
+@app.get("/api/opcoes-transacao-global")
+async def api_opcoes_transacao_global():
+    """Retorna as opções reais e ativas para alimentar o modal global de transações."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, tipo, cor, COALESCE(icone, '🏦') as icone FROM contas_config WHERE id NOT IN (SELECT id FROM contas_config WHERE tipo = 'investimento') ORDER BY nome ASC")
+        contas = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'despesa' AND categoria IS NOT NULL ORDER BY categoria ASC")
+        cats_desp = [r[0] for r in cur.fetchall() if r[0]]
+
+        cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'receita' AND categoria IS NOT NULL ORDER BY categoria ASC")
+        cats_rec = [r[0] for r in cur.fetchall() if r[0]]
+
+        cur.execute("SELECT id, nome, bandeira, limite_total FROM cartoes ORDER BY nome ASC")
+        cartoes = [dict(r) for r in cur.fetchall()]
+
+        return {
+            "sucesso": True,
+            "hoje": date.today().strftime("%Y-%m-%d"),
+            "contas": contas,
+            "categorias_despesa": cats_desp,
+            "categorias_receita": cats_rec,
+            "cartoes": cartoes
+        }
+    finally:
+        conn.close()
