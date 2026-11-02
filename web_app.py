@@ -13,7 +13,6 @@ import sqlite3
 import calendar
 import asyncio
 import datetime
-import unicodedata
 from datetime import date, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from decimal import Decimal
@@ -338,39 +337,6 @@ def obter_foco_hoje(conn: sqlite3.Connection, hoje_str: Optional[str] = None) ->
     }
 
 
-def classificar_categoria_cerbasi(categoria: str) -> str:
-    """
-    Classifica categorias na Tríade Cerbasi conforme Gustavo Cerbasi:
-    - 'estrutura': Estrutura Básica (Moradia, Alimentação, Saúde, Contas, Empréstimos, Transporte de trabalho)
-    - 'qualidade': Qualidade de Vida (Lazer, Restaurantes, Educação/Pós, Streaming, Cuidados Pessoais)
-    - 'investimentos': Investimentos & Reservas (Aportes em Cofrinhos, Poupança, Investimentos, Patrimônio)
-    Aplica normalização case-insensitive e remoção de acentos para unificação de grafias divergentes.
-    """
-    if not categoria:
-        return "estrutura"
-    txt = unicodedata.normalize("NFKD", str(categoria))
-    cat_norm = "".join(c for c in txt if not unicodedata.combining(c)).strip().lower()
-
-    # 1. Investimentos & Reservas (Aportes, Cofrinhos, Investimentos, etc.)
-    if any(k in cat_norm for k in [
-        "investimento", "reserva", "cofrinho", "poupanca", "patrimonio",
-        "aporte", "tesouro", "previdencia", "acoes", "renda fixa"
-    ]):
-        return "investimentos"
-
-    # 2. Qualidade de Vida (Estilo de Vida, Lazer, Educação, Streaming, Restaurantes, etc.)
-    if any(k in cat_norm for k in [
-        "lazer", "restaurante", "bar", "cinema", "streaming", "netflix",
-        "spotify", "pessoal", "carlos", "barbearia", "salao", "estetica",
-        "academia", "wellhub", "gympass", "educacao", "curso", "faculdade",
-        "pos", "eletrodomestico", "eletronico", "decoracao", "taxi", "uber", "viagem"
-    ]):
-        return "qualidade"
-
-    # 3. Estrutura Básica (Moradia, Alimentação, Saúde, Contas, Empréstimos, etc.)
-    return "estrutura"
-
-
 def coletar_dados_dashboard() -> Dict[str, Any]:
     """Coleta e calcula todos os dados essenciais da Visão Geral de forma centralizada e performática."""
     conn = conectar_db()
@@ -581,76 +547,6 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     except Exception:
         resumo_despesas_anuais = None
 
-    # 12. Tríade Cerbasi & Sobrevivência (Meses Garantidos)
-    cur.execute("""
-        SELECT categoria, SUM(valor) as total
-        FROM transacoes
-        WHERE tipo = 'despesa' AND data >= ? AND data <= ?
-        GROUP BY categoria
-    """, (inicio_mes_str, fim_mes_str))
-    rows_triade = cur.fetchall()
-
-    triade_totais = {"estrutura": 0.0, "qualidade": 0.0, "investimentos": 0.0}
-    triade_itens = {"estrutura": [], "qualidade": [], "investimentos": []}
-
-    for r in rows_triade:
-        cat_nome = r["categoria"] or "Outras Despesas"
-        val = float(r["total"] or 0.0)
-        pilar = classificar_categoria_cerbasi(cat_nome)
-        triade_totais[pilar] += val
-        triade_itens[pilar].append({"categoria": cat_nome, "valor": val})
-
-    # Aportes em cofrinhos no mês entram como Investimentos & Reservas
-    cur.execute("""
-        SELECT COALESCE(SUM(valor), 0) FROM transacoes
-        WHERE tipo = 'transferencia' AND data >= ? AND data <= ?
-          AND (descricao LIKE '%cofrinho%' OR categoria LIKE '%cofrinho%')
-    """, (inicio_mes_str, fim_mes_str))
-    aportes_cof = float(cur.fetchone()[0] or 0.0)
-    if aportes_cof > 0:
-        triade_totais["investimentos"] += aportes_cof
-        triade_itens["investimentos"].append({"categoria": "Aportes em Cofrinhos", "valor": aportes_cof})
-
-    triade_total_geral = sum(triade_totais.values())
-    triade_pcts = {
-        k: (round((v / triade_total_geral) * 100, 1) if triade_total_geral > 0 else 0.0)
-        for k, v in triade_totais.items()
-    }
-
-    # Sobrevivência (Meses Garantidos): Caixa Livre / Despesas Básicas do Mês
-    total_despesas_basicas = triade_totais["estrutura"]
-    if total_despesas_basicas > 0:
-        meses_sobrevivencia_val = round(saldo_caixa / total_despesas_basicas, 1)
-        meses_sobrevivencia_str = f"{meses_sobrevivencia_val:.1f} meses"
-    else:
-        meses_sobrevivencia_val = 99.0 if saldo_caixa > 0 else 0.0
-        meses_sobrevivencia_str = "> 12 meses" if saldo_caixa > 0 else "0 meses"
-
-    dados_triade = {
-        "total_geral": round(triade_total_geral, 2),
-        "estrutura": {
-            "nome": "Estrutura Básica",
-            "total": round(triade_totais["estrutura"], 2),
-            "pct": triade_pcts["estrutura"],
-            "meta_ideal": "50-60%",
-            "itens": sorted(triade_itens["estrutura"], key=lambda x: x["valor"], reverse=True)
-        },
-        "qualidade": {
-            "nome": "Qualidade de Vida",
-            "total": round(triade_totais["qualidade"], 2),
-            "pct": triade_pcts["qualidade"],
-            "meta_ideal": "25-30%",
-            "itens": sorted(triade_itens["qualidade"], key=lambda x: x["valor"], reverse=True)
-        },
-        "investimentos": {
-            "nome": "Investimentos & Reservas",
-            "total": round(triade_totais["investimentos"], 2),
-            "pct": triade_pcts["investimentos"],
-            "meta_ideal": "10-20%",
-            "itens": sorted(triade_itens["investimentos"], key=lambda x: x["valor"], reverse=True)
-        }
-    }
-
     conn.close()
 
     dias_semana_pt = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
@@ -697,12 +593,7 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         "missao": missao,
         "cartao": cartao_info,
         "resumo_patrimonio": resumo_patrimonio,
-        "resumo_despesas_anuais": resumo_despesas_anuais,
-        # Tríade Cerbasi & Sobrevivência
-        "triade_cerbasi": dados_triade,
-        "meses_sobrevivencia": meses_sobrevivencia_str,
-        "meses_sobrevivencia_num": meses_sobrevivencia_val,
-        "despesas_basicas_mes": total_despesas_basicas
+        "resumo_despesas_anuais": resumo_despesas_anuais
     }
 
 
