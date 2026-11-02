@@ -131,6 +131,19 @@
             </div>
           </div>
 
+          <!-- Finalidade do Cofrinho -->
+          <div class="mt-2 flex items-center justify-between">
+            <span class="text-[9px] px-2 py-0.5 rounded-full font-semibold border {% if cof.finalidade == 'envelope' %}bg-blue-500/10 text-blue-400 border-blue-500/20{% elif cof.finalidade == 'reserva_seguranca' %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% elif cof.finalidade == 'objetivo' %}bg-amber-500/10 text-amber-400 border-amber-500/20{% else %}bg-slate-800 text-slate-400 border-slate-700{% endif %}">
+              {% if cof.finalidade == 'envelope' %}✉️ Envelope
+              {% elif cof.finalidade == 'reserva_seguranca' %}🛡️ Reserva de Segurança
+              {% elif cof.finalidade == 'objetivo' %}🎯 Objetivo
+              {% else %}📦 Outro / Não Definida{% endif %}
+            </span>
+            <a href="/objetivos#secao-finalidades-cofrinhos" title="Alterar finalidade em Objetivos" class="text-[10px] text-slate-400 hover:text-amber-400 transition">
+              Alterar ➔
+            </a>
+          </div>
+
           <!-- Métricas de Saldo e Meta -->
           <div class="mt-3 space-y-2">
             <div class="flex items-end justify-between">

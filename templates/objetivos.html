@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Objetivos & Metas{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+  <!-- ===================================================================== -->
+  <!-- [ CABEÇALHO DA TELA: OBJETIVOS ]                                      -->
+  <!-- ===================================================================== -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl shrink-0">
+        🎯
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight">Objetivos Financeiros</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400">Planejamento e acompanhamento de metas, reservas e quitações com controle integrado aos cofrinhos</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button type="button" 
+              onclick="abrirModalNovoObjetivo()"
+              class="touch-target inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-xs font-bold text-white shadow-sm shadow-emerald-500/20 transition cursor-pointer">
+        <span>+</span> <span>Novo Objetivo</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 1. CARDS DE RESUMO DE OBJETIVOS ]                                   -->
+  <!-- ===================================================================== -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    
+    <!-- CARD 1: OBJETIVOS ATIVOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-1">🎯 Objetivos Ativos</span>
+      <span class="text-2xl font-black text-slate-900 dark:text-white">{{ total_objetivos_ativos }}</span>
+      <span class="text-[10px] text-slate-400 block mt-1">Em andamento</span>
+    </div>
+
+    <!-- CARD 2: SALDO DESTINADO -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-1">🏦 Saldo Destinado</span>
+      <span class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ total_destinado | moeda }}</span>
+      <span class="text-[10px] text-slate-400 block mt-1">Nos cofrinhos vinculados</span>
+    </div>
+
+    <!-- CARD 3: TOTAL DE METAS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-1">🏁 Total das Metas</span>
+      <span class="text-2xl font-black text-slate-900 dark:text-white">{{ total_alvo | moeda }}</span>
+      <span class="text-[10px] text-slate-400 block mt-1">Valores-alvo somados</span>
+    </div>
+
+    <!-- CARD 4: ALVOS ALCANÇADOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+      <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-1">🎉 Alvos Alcançados</span>
+      <span class="text-2xl font-black text-amber-500">{{ total_alcancados }}</span>
+      <span class="text-[10px] text-slate-400 block mt-1">100% acumulado</span>
+    </div>
+
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 2. FILTROS DE STATUS E NAVEGAÇÃO ]                                  -->
+  <!-- ===================================================================== -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:px-4 shadow-sm">
+    <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0 text-xs">
+      <a href="/objetivos?status=todos" 
+         class="px-3 py-1.5 rounded-lg transition font-semibold whitespace-nowrap {% if status_filtro == 'todos' %}bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-bold{% else %}text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}">
+        Todos ({{ objetivos | length }})
+      </a>
+      <a href="/objetivos?status=ativo" 
+         class="px-3 py-1.5 rounded-lg transition font-semibold whitespace-nowrap {% if status_filtro == 'ativo' %}bg-emerald-600 text-white font-bold{% else %}text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}">
+        Ativos ({{ total_objetivos_ativos }})
+      </a>
+      <a href="/objetivos?status=pausado" 
+         class="px-3 py-1.5 rounded-lg transition font-semibold whitespace-nowrap {% if status_filtro == 'pausado' %}bg-amber-600 text-white font-bold{% else %}text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}">
+        Pausados
+      </a>
+      <a href="/objetivos?status=concluido" 
+         class="px-3 py-1.5 rounded-lg transition font-semibold whitespace-nowrap {% if status_filtro == 'concluido' %}bg-blue-600 text-white font-bold{% else %}text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}">
+        Concluídos
+      </a>
+    </div>
+
+    <a href="#secao-finalidades-cofrinhos" class="text-xs font-semibold text-emerald-500 hover:underline inline-flex items-center gap-1">
+      <span>🏦 Gerenciar Finalidades dos Cofrinhos</span> <span>↓</span>
+    </a>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 3. LISTA DE OBJETIVOS (CARDS COMPACTOS) ]                           -->
+  <!-- ===================================================================== -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+    {% for obj in objetivos %}
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between transition hover:border-slate-300 dark:hover:border-slate-700 relative overflow-hidden">
+      
+      <!-- Topo do Card -->
+      <div>
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2 truncate">
+            <span class="text-xl shrink-0">{{ obj.tipo_icone }}</span>
+            <div class="truncate">
+              <h2 class="text-sm font-bold text-slate-900 dark:text-white truncate leading-tight">{{ obj.nome }}</h2>
+              <span class="text-[10px] text-slate-400 font-medium">{{ obj.tipo_nome }}</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-1 shrink-0">
+            <!-- Badge Prioridade -->
+            {% if obj.prioridade == 'alta' %}
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-500/10 text-rose-500 border border-rose-500/20">Alta</span>
+            {% elif obj.prioridade == 'media' %}
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-500 border border-amber-500/20">Média</span>
+            {% else %}
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-slate-100 dark:bg-slate-800 text-slate-500">Baixa</span>
+            {% endif %}
+
+            <!-- Badge Responsável -->
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+              {{ obj.responsavel }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Valores e Métricas -->
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+          <div class="flex items-end justify-between">
+            <div>
+              <span class="text-[10px] text-slate-400 uppercase font-semibold block">Destinado</span>
+              <span class="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{{ obj.saldo_destinado | moeda }}</span>
+            </div>
+            {% if obj.valor_alvo %}
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 uppercase font-semibold block">Meta / Alvo</span>
+              <span class="text-sm font-bold text-slate-700 dark:text-slate-200">{{ obj.valor_alvo | moeda }}</span>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- Barra de Progresso (se houver valor alvo) -->
+          {% if obj.valor_alvo and obj.valor_alvo > 0 %}
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+              <span>Progresso</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-bold">{{ obj.progresso_pct }}%</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+              <div class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width: {{ obj.progresso_pct }}%;"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+              <span>Falta acumular: <strong class="text-slate-700 dark:text-slate-300">{{ obj.falta_acumular | moeda }}</strong></span>
+              {% if obj.prazo %}
+              <span>Prazo: <strong>{{ obj.prazo }}</strong></span>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- ALERTA DE META ALCANÇADA COM BOTÃO MANUAL DE CONCLUSÃO -->
+          {% if obj.atingiu_alvo %}
+          <div class="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 space-y-1.5">
+            <div class="flex items-center justify-between text-xs font-bold">
+              <span>🎉 Valor-alvo alcançado!</span>
+              <span class="text-[10px] bg-emerald-500/20 px-1.5 py-0.5 rounded">100%</span>
+            </div>
+            <p class="text-[10px] text-emerald-600 dark:text-emerald-400 leading-tight">
+              O montante necessário já foi acumulado no cofrinho. Você decide quando realizar o gasto ou concluir o objetivo.
+            </p>
+            <div class="flex items-center gap-1.5 pt-1">
+              <button type="button" 
+                      onclick="alterarStatusObjetivo({{ obj.id }}, 'concluido')"
+                      class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold transition">
+                Marcar como Realizado / Concluído
+              </button>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- VÍNCULO COM DÍVIDA FORMAL -->
+          {% if obj.divida_id %}
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 space-y-1">
+            <div class="flex items-center justify-between text-[11px] font-bold text-slate-900 dark:text-white">
+              <span>🤝 Quitação: {{ obj.divida_credor }}</span>
+              <span class="text-rose-500">{{ obj.divida_saldo | moeda }}</span>
+            </div>
+            <p class="text-[9px] text-slate-400 leading-tight">
+              * O dinheiro guardado no cofrinho <strong>NÃO diminui a dívida no passivo</strong> até a liquidação real ao credor.
+            </p>
+          </div>
+          {% endif %}
+
+          <!-- VÍNCULO COM COFRINHO -->
+          <div class="text-[10px] text-slate-400 pt-1 flex items-center justify-between">
+            {% if obj.cofrinho_id %}
+            <span class="truncate">🏦 Cofrinho: <strong class="text-slate-700 dark:text-slate-300">{{ obj.cofrinho_nome }}</strong></span>
+            {% else %}
+            <span class="text-amber-500 italic">⚠️ Sem cofrinho vinculado</span>
+            {% endif %}
+
+            {% if obj.status == 'pausado' %}
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500">Pausado</span>
+            {% elif obj.status == 'concluido' %}
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500">Concluído</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Rodapé do Card: Ações -->
+      <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-1 text-[11px]">
+        <button type="button" 
+                onclick="abrirModalEditarObjetivo({{ obj.id }})"
+                class="px-2 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition">
+          ✏️ Editar
+        </button>
+
+        <div class="flex items-center gap-1">
+          {% if obj.status == 'ativo' %}
+          <button type="button" 
+                  onclick="alterarStatusObjetivo({{ obj.id }}, 'pausado')"
+                  class="px-2 py-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition text-[10px]">
+            ⏸️ Pausar
+          </button>
+          {% elif obj.status == 'pausado' %}
+          <button type="button" 
+                  onclick="alterarStatusObjetivo({{ obj.id }}, 'ativo')"
+                  class="px-2 py-1 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition text-[10px] font-bold">
+            ▶️ Reativar
+          </button>
+          {% endif %}
+
+          <button type="button" 
+                  onclick="excluirObjetivo({{ obj.id }})"
+                  class="px-2 py-1 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition text-[10px]">
+            🗑️
+          </button>
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+
+    {% if not objetivos %}
+    <div class="col-span-full p-8 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+      <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-2xl mx-auto">
+        🎯
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">Nenhum objetivo cadastrado nesta visão</h3>
+        <p class="text-xs text-slate-400 max-w-md mx-auto mt-1">
+          Cadastre viagens, compras de bens, reserva de segurança ou projetos e vincule-os a cofrinhos para acompanhar o progresso real sem duplicidade.
+        </p>
+      </div>
+      <button type="button" 
+              onclick="abrirModalNovoObjetivo()"
+              class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer">
+        + Cadastrar Primeiro Objetivo
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 4. SEÇÃO: GERENCIAMENTO DE FINALIDADES DOS COFRINHOS ]               -->
+  <!-- ===================================================================== -->
+  <div id="secao-finalidades-cofrinhos" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <div>
+        <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+          <span>🏦</span> <span>Finalidades dos Cofrinhos Cadastrados</span>
+        </h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          Classifique o papel de cada cofrinho no seu planejamento financeiro. Cofrinhos existentes iniciam como "Outro / Não Definida".
+        </p>
+      </div>
+      <a href="/contas" class="text-xs font-semibold text-emerald-500 hover:underline">
+        Ir para Contas & Cofrinhos ➔
+      </a>
+    </div>
+
+    <!-- Grid dos Cofrinhos com Seletor de Finalidade -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {% for cof in cofrinhos %}
+      <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 flex flex-col justify-between gap-3">
+        <div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-900 dark:text-white">{{ cof.nome }}</span>
+            <span class="text-xs font-black text-amber-500">{{ cof.saldo_confirmado | moeda }}</span>
+          </div>
+          <span class="text-[10px] text-slate-400 block mt-0.5">{{ cof.objetivo or 'Sem descrição' }}</span>
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Finalidade:</label>
+          <select onchange="atualizarFinalidadeCofrinho({{ cof.id }}, this.value)" 
+                  class="w-full text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            <option value="envelope" {% if cof.finalidade == 'envelope' %}selected{% endif %}>✉️ Envelope de Despesas</option>
+            <option value="reserva_seguranca" {% if cof.finalidade == 'reserva_seguranca' %}selected{% endif %}>🛡️ Reserva de Segurança</option>
+            <option value="objetivo" {% if cof.finalidade == 'objetivo' %}selected{% endif %}>🎯 Objetivo / Acumulação</option>
+            <option value="outro" {% if cof.finalidade == 'outro' %}selected{% endif %}>📦 Outro / Não Definida</option>
+          </select>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ MODAL: NOVO / EDITAR OBJETIVO ]                                     -->
+<!-- ===================================================================== -->
+<div id="modal-objetivo" class="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+      <h3 id="modal-objetivo-titulo" class="text-sm font-bold text-slate-900 dark:text-white">Novo Objetivo</h3>
+      <button type="button" onclick="fecharModalObjetivo()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-base">✕</button>
+    </div>
+
+    <form id="form-objetivo" onsubmit="salvarObjetivo(event)" class="space-y-3.5 text-xs">
+      <input type="hidden" id="obj-id" name="id" value="">
+
+      <!-- Nome -->
+      <div>
+        <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Nome do Objetivo *</label>
+        <input type="text" id="obj-nome" name="nome" required placeholder="Ex.: Viagem de Férias, Quitar Empréstimo BV" 
+               class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+
+      <!-- Tipo e Responsável -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Tipo de Objetivo</label>
+          <select id="obj-tipo" name="tipo" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="viagem">✈️ Viagem</option>
+            <option value="compra_bem">🛍️ Compra de Bem</option>
+            <option value="estudos">📚 Estudos & Capacitação</option>
+            <option value="reserva_seguranca">🛡️ Reserva de Segurança</option>
+            <option value="quitacao_divida">🤝 Quitação de Dívida</option>
+            <option value="aposentadoria">🏖️ Aposentadoria / Futuro</option>
+            <option value="outro" selected>🎯 Outro Projeto</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Responsável</label>
+          <select id="obj-responsavel" name="responsavel" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="Carlos" selected>Carlos</option>
+            <option value="Fernanda">Fernanda</option>
+            <option value="Família">Família</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Valor-Alvo e Prazo -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Valor-Alvo (R$) (Opcional)</label>
+          <input type="number" step="0.01" id="obj-valor-alvo" name="valor_alvo" placeholder="0.00" 
+                 class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Prazo Desejado (Opcional)</label>
+          <input type="date" id="obj-prazo" name="prazo" 
+                 class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+      </div>
+
+      <!-- Prioridade e Cofrinho Vinculado -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Prioridade</label>
+          <select id="obj-prioridade" name="prioridade" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="baixa">Baixa</option>
+            <option value="media" selected>Média</option>
+            <option value="alta">Alta</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Vincular a Cofrinho (Opcional)</label>
+          <select id="obj-cofrinho-id" name="cofrinho_id" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <option value="">-- Nenhum cofrinho vinculado --</option>
+            {% for cof in cofrinhos %}
+            <option value="{{ cof.id }}">{{ cof.nome }} (Saldo: {{ cof.saldo_confirmado | moeda }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Dívida Vinculada (se for quitação de dívida) -->
+      <div>
+        <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Vincular a Dívida Formal (Opcional)</label>
+        <select id="obj-divida-id" name="divida_id" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          <option value="">-- Nenhuma dívida vinculada --</option>
+          {% for div in dividas %}
+          <option value="{{ div.id }}">{{ div.credor }} - Saldo: {{ div.saldo_atual | moeda }}</option>
+          {% endfor %}
+        </select>
+        <p class="text-[10px] text-slate-400 mt-1">
+          O dinheiro reservado no cofrinho não diminui a dívida no passivo até o pagamento real.
+        </p>
+      </div>
+
+      <!-- Observações -->
+      <div>
+        <label class="block font-bold text-slate-700 dark:text-slate-300 mb-1">Observações</label>
+        <textarea id="obj-observacoes" name="observacoes" rows="2" placeholder="Detalhes, justificativa ou anotações..."
+                  class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+      </div>
+
+      <!-- Botões de Ação -->
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+        <button type="button" onclick="fecharModalObjetivo()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold transition">
+          Cancelar
+        </button>
+        <button type="submit" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition shadow-sm">
+          Salvar Objetivo
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- [ JAVASCRIPT: CONTROLES DE OBJETIVOS E COFRINHOS ]                    -->
+<!-- ===================================================================== -->
+<script>
+  function abrirModalNovoObjetivo() {
+    document.getElementById('modal-objetivo-titulo').innerText = 'Novo Objetivo';
+    document.getElementById('form-objetivo').reset();
+    document.getElementById('obj-id').value = '';
+    document.getElementById('modal-objetivo').classList.remove('hidden');
+  }
+
+  function fecharModalObjetivo() {
+    document.getElementById('modal-objetivo').classList.add('hidden');
+  }
+
+  async function abrirModalEditarObjetivo(id) {
+    try {
+      const resp = await fetch('/api/objetivos/' + id);
+      if (!resp.ok) throw new Error('Não foi possível carregar os dados do objetivo');
+      const obj = await resp.json();
+
+      document.getElementById('modal-objetivo-titulo').innerText = 'Editar Objetivo: ' + obj.nome;
+      document.getElementById('obj-id').value = obj.id;
+      document.getElementById('obj-nome').value = obj.nome;
+      document.getElementById('obj-tipo').value = obj.tipo;
+      document.getElementById('obj-responsavel').value = obj.responsavel;
+      document.getElementById('obj-valor-alvo').value = obj.valor_alvo || '';
+      document.getElementById('obj-prazo').value = obj.prazo || '';
+      document.getElementById('obj-prioridade').value = obj.prioridade;
+      document.getElementById('obj-cofrinho-id').value = obj.cofrinho_id || '';
+      document.getElementById('obj-divida-id').value = obj.divida_id || '';
+      document.getElementById('obj-observacoes').value = obj.observacoes || '';
+
+      document.getElementById('modal-objetivo').classList.remove('hidden');
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function salvarObjetivo(ev) {
+    ev.preventDefault();
+    const id = document.getElementById('obj-id').value;
+    const dados = {
+      nome: document.getElementById('obj-nome').value,
+      tipo: document.getElementById('obj-tipo').value,
+      responsavel: document.getElementById('obj-responsavel').value,
+      valor_alvo: document.getElementById('obj-valor-alvo').value ? parseFloat(document.getElementById('obj-valor-alvo').value) : null,
+      prazo: document.getElementById('obj-prazo').value || null,
+      prioridade: document.getElementById('obj-prioridade').value,
+      cofrinho_id: document.getElementById('obj-cofrinho-id').value ? parseInt(document.getElementById('obj-cofrinho-id').value) : null,
+      divida_id: document.getElementById('obj-divida-id').value ? parseInt(document.getElementById('obj-divida-id').value) : null,
+      observacoes: document.getElementById('obj-observacoes').value
+    };
+
+    try {
+      let resp;
+      if (id) {
+        resp = await fetch('/api/objetivos/' + id + '/editar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        });
+      } else {
+        resp = await fetch('/api/objetivos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        });
+      }
+
+      const res = await resp.json();
+      if (!res.sucesso) throw new Error(res.erro || 'Falha ao salvar');
+      window.location.reload();
+    } catch (e) {
+      alert('Erro ao salvar objetivo: ' + e.message);
+    }
+  }
+
+  async function alterarStatusObjetivo(id, status) {
+    if (!confirm('Deseja alterar o status deste objetivo para "' + status + '"?')) return;
+    try {
+      const resp = await fetch('/api/objetivos/' + id + '/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: status })
+      });
+      const res = await resp.json();
+      if (!res.sucesso) throw new Error(res.erro || 'Falha ao alterar status');
+      window.location.reload();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function excluirObjetivo(id) {
+    if (!confirm('Tem certeza que deseja excluir este objetivo? O cofrinho e as dívidas não serão afetados.')) return;
+    try {
+      const resp = await fetch('/api/objetivos/' + id + '/excluir', {
+        method: 'POST'
+      });
+      const res = await resp.json();
+      if (!res.sucesso) throw new Error(res.erro || 'Falha ao excluir');
+      window.location.reload();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  async function atualizarFinalidadeCofrinho(cofrinhoId, finalidade) {
+    try {
+      const resp = await fetch('/api/cofrinhos/' + cofrinhoId + '/finalidade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ finalidade: finalidade })
+      });
+      const res = await resp.json();
+      if (!res.sucesso) throw new Error(res.erro || 'Falha ao atualizar finalidade');
+    } catch (e) {
+      alert('Erro ao atualizar finalidade: ' + e.message);
+    }
+  }
+</script>
+{% endblock %}

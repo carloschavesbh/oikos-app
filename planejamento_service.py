@@ -1138,6 +1138,7 @@ def obter_cofrinhos(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
     cols = [r[1] for r in cur.fetchall()]
     tem_cc = "conta_config_id" in cols
     tem_inc = "incluir_saldo_consolidado" in cols
+    tem_fin = "finalidade" in cols
 
     query = "SELECT id, conta_pai_id, nome, saldo_confirmado, meta_valor, objetivo, data_atualizacao, observacoes"
     if tem_cc:
@@ -1148,6 +1149,10 @@ def obter_cofrinhos(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
         query += ", incluir_saldo_consolidado"
     else:
         query += ", 0 as incluir_saldo_consolidado"
+    if tem_fin:
+        query += ", finalidade"
+    else:
+        query += ", 'outro' as finalidade"
     query += " FROM cofrinhos ORDER BY id ASC"
 
     cur.execute(query)
@@ -1174,6 +1179,7 @@ def obter_cofrinhos(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             except Exception:
                 saldo_real = s_conf
 
+        fin = r[10] if len(r) > 10 and r[10] else "outro"
         res.append({
             "id": cof_id,
             "conta_pai_id": c_pai_id,
@@ -1184,7 +1190,8 @@ def obter_cofrinhos(conn: sqlite3.Connection) -> List[Dict[str, Any]]:
             "data_atualizacao": dt_at,
             "observacoes": obs,
             "conta_config_id": cc_id,
-            "incluir_saldo_consolidado": inc_cons
+            "incluir_saldo_consolidado": inc_cons,
+            "finalidade": fin
         })
     return res
 

@@ -5032,6 +5032,126 @@ async def api_nova_avaliacao_bem(bem_id: int, request: Request):
         conn.close()
 
 
+
+# =====================================================================
+# ROTAS DE OBJETIVOS E FINALIDADES DOS COFRINHOS (ETAPA 2)
+# =====================================================================
+import objetivos_service
+
+
+@app.get("/objetivos", response_class=HTMLResponse)
+async def pagina_objetivos(request: Request, status: Optional[str] = None):
+    conn = conectar_db()
+    try:
+        filtro = status if status and status != "todos" else None
+        objetivos = objetivos_service.listar_objetivos(conn, status_filtro=filtro)
+        cofrinhos = objetivos_service.listar_cofrinhos(conn)
+        dividas = objetivos_service.listar_dividas_disponiveis(conn)
+        
+        obj_ativos = [o for o in objetivos if o["status"] == "ativo"]
+        total_destinado = sum(o["saldo_destinado"] for o in obj_ativos)
+        total_alvo = sum(o["valor_alvo"] for o in obj_ativos if o["valor_alvo"])
+        total_alcancados = len([o for o in objetivos if o["atingiu_alvo"] or o["status"] == "alcancado"])
+        
+        return templates.TemplateResponse(
+            request=request,
+            name="objetivos.html",
+            context={
+                "active_tab": "objetivos",
+                "objetivos": objetivos,
+                "cofrinhos": cofrinhos,
+                "dividas": dividas,
+                "status_filtro": status or "todos",
+                "total_objetivos_ativos": len(obj_ativos),
+                "total_destinado": total_destinado,
+                "total_alvo": total_alvo,
+                "total_alcancados": total_alcancados,
+                "tipos_objetivo": objetivos_service.TIPOS_OBJETIVO,
+                "finalidades_cofrinho": objetivos_service.FINALIDADES_COFRINHO,
+            },
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/api/objetivos/{objetivo_id}")
+async def api_obter_objetivo(objetivo_id: int):
+    conn = conectar_db()
+    try:
+        obj = objetivos_service.obter_objetivo(conn, objetivo_id)
+        if not obj:
+            return JSONResponse(status_code=404, content={"erro": "Objetivo não encontrado"})
+        return JSONResponse(obj)
+    finally:
+        conn.close()
+
+
+@app.post("/api/objetivos")
+async def api_criar_objetivo(request: Request):
+    dados = await request.json()
+    conn = conectar_db()
+    try:
+        novo_id = objetivos_service.criar_objetivo(conn, dados)
+        return JSONResponse({"sucesso": True, "id": novo_id})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/objetivos/{objetivo_id}/editar")
+async def api_editar_objetivo(objetivo_id: int, request: Request):
+    dados = await request.json()
+    conn = conectar_db()
+    try:
+        objetivos_service.atualizar_objetivo(conn, objetivo_id, dados)
+        return JSONResponse({"sucesso": True})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/objetivos/{objetivo_id}/status")
+async def api_alterar_status_objetivo(objetivo_id: int, request: Request):
+    dados = await request.json()
+    novo_status = dados.get("status", "ativo")
+    conn = conectar_db()
+    try:
+        objetivos_service.alterar_status_objetivo(conn, objetivo_id, novo_status)
+        return JSONResponse({"sucesso": True})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/objetivos/{objetivo_id}/excluir")
+async def api_excluir_objetivo(objetivo_id: int):
+    conn = conectar_db()
+    try:
+        objetivos_service.excluir_objetivo(conn, objetivo_id)
+        return JSONResponse({"sucesso": True})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/cofrinhos/{cofrinho_id}/finalidade")
+async def api_atualizar_finalidade_cofrinho(cofrinho_id: int, request: Request):
+    dados = await request.json()
+    finalidade = dados.get("finalidade", "outro")
+    conn = conectar_db()
+    try:
+        objetivos_service.atualizar_finalidade_cofrinho(conn, cofrinho_id, finalidade)
+        return JSONResponse({"sucesso": True, "finalidade": finalidade})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Iniciando Servidor Web PWA em http://localhost:8000 ...")
