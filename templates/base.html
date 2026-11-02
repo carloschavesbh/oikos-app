@@ -450,8 +450,8 @@
       </button>
     </div>
 
-    <!-- NAVEGAÇÃO: LISTA DE ITENS -->
-    <nav class="flex-1 py-3 px-2 space-y-1 overflow-y-auto custom-scroll" aria-label="Links do Sistema">
+    <!-- NAVEGAÇÃO: LISTA DE ITENS (7 ITENS OFICIAIS SAAS) -->
+    <nav class="flex-1 py-3 px-2 space-y-1.5 overflow-y-auto custom-scroll" aria-label="Links do Sistema">
       
       <!-- 1. VISÃO GERAL -->
       <div class="sidebar-nav-item relative group">
@@ -464,14 +464,14 @@
         </div>
       </div>
 
-      <!-- 2. PLANEJAMENTO -->
+      <!-- 2. OIKOS DRIVE -->
       <div class="sidebar-nav-item relative group">
-        <a href="/planejamento" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'planejamento' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🎯</span>
-          <span class="sidebar-text truncate">Planejamento</span>
+        <a href="/motorista" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🚕</span>
+          <span class="sidebar-text truncate">Oikos Drive</span>
         </a>
         <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Planejamento
+          Oikos Drive
         </div>
       </div>
 
@@ -489,7 +489,7 @@
       <!-- 4. CONTAS & COFRINHOS -->
       <div class="sidebar-nav-item relative group">
         <a href="/contas" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'contas' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🏦</span>
+          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🏛️</span>
           <span class="sidebar-text truncate">Contas & Cofrinhos</span>
         </a>
         <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
@@ -497,44 +497,20 @@
         </div>
       </div>
 
-      <!-- 5. CARTÕES -->
+      <!-- 5. CARTÕES & PAGA LEVE -->
       <div class="sidebar-nav-item relative group">
-        <a href="/cartoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'cartoes' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/cartoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['cartoes', 'pagaleve'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">💳</span>
-          <span class="sidebar-text truncate">Cartões</span>
+          <span class="sidebar-text truncate">Cartões & Paga Leve</span>
         </a>
         <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Cartões
+          Cartões & Paga Leve
         </div>
       </div>
 
-      <!-- 6. PAGA LEVE -->
+      <!-- 6. MISSÕES & METAS -->
       <div class="sidebar-nav-item relative group">
-        <a href="/pagaleve" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'pagaleve' %}bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="w-6 h-6 flex items-center justify-center shrink-0">
-            <img src="/imagem/unnamed.png" class="w-5 h-5 rounded-md object-contain" alt="Paga Leve">
-          </span>
-          <span class="sidebar-text truncate">Paga Leve</span>
-        </a>
-        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Paga Leve
-        </div>
-      </div>
-
-      <!-- 7. OIKOS DRIVE -->
-      <div class="sidebar-nav-item relative group">
-        <a href="/motorista" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🚗</span>
-          <span class="sidebar-text truncate">Oikos Drive</span>
-        </a>
-        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Oikos Drive
-        </div>
-      </div>
-
-      <!-- 8. MISSÕES & METAS -->
-      <div class="sidebar-nav-item relative group">
-        <a href="/missoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'missoes' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/missoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['missoes', 'planejamento'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">🎯</span>
           <span class="sidebar-text truncate">Missões & Metas</span>
         </a>
@@ -543,25 +519,14 @@
         </div>
       </div>
 
-          <!-- 9. MEU PATRIMÔNIO -->
+      <!-- 7. PATRIMÔNIO & BENS -->
       <div class="sidebar-nav-item relative group">
-        <a href="/patrimonio" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'patrimonio' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/patrimonio" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['patrimonio', 'bens'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">💎</span>
-          <span class="sidebar-text truncate">Meu Patrimônio</span>
+          <span class="sidebar-text truncate">Patrimônio & Bens</span>
         </a>
         <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Meu Patrimônio
-        </div>
-      </div>
-
-      <!-- 10. MEUS BENS -->
-      <div class="sidebar-nav-item relative group">
-        <a href="/bens" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'bens' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">📦</span>
-          <span class="sidebar-text truncate">Meus Bens</span>
-        </a>
-        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
-          Meus Bens
+          Patrimônio & Bens
         </div>
       </div>
 
@@ -666,47 +631,35 @@
         </button>
       </div>
 
-      <!-- Navegação Completa no Mobile -->
+      <!-- Navegação Completa no Mobile (7 Itens Oficiais) -->
       <nav class="flex-1 p-3 space-y-1.5 overflow-y-auto custom-scroll">
         <a href="/" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'visao_geral' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">🏠</span>
           <span>Visão Geral</span>
         </a>
-        <a href="/planejamento" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'planejamento' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="text-xl">🎯</span>
-          <span>Planejamento</span>
+        <a href="/motorista" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <span class="text-xl">🚕</span>
+          <span>Oikos Drive</span>
         </a>
         <a href="/lancamentos" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'lancamentos' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">📋</span>
           <span>Lançamentos</span>
         </a>
         <a href="/contas" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'contas' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="text-xl">🏦</span>
+          <span class="text-xl">🏛️</span>
           <span>Contas & Cofrinhos</span>
         </a>
-        <a href="/cartoes" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'cartoes' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/cartoes" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab in ['cartoes', 'pagaleve'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">💳</span>
-          <span>Cartões</span>
+          <span>Cartões & Paga Leve</span>
         </a>
-        <a href="/pagaleve" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'pagaleve' %}bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <img src="/imagem/unnamed.png" class="w-6 h-6 rounded-md object-contain" alt="Paga Leve">
-          <span>Paga Leve</span>
-        </a>
-        <a href="/motorista" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="text-xl">🚗</span>
-          <span>Oikos Drive</span>
-        </a>
-        <a href="/missoes" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'missoes' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/missoes" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab in ['missoes', 'planejamento'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">🎯</span>
           <span>Missões & Metas</span>
         </a>
-              <a href="/patrimonio" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'patrimonio' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/patrimonio" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab in ['patrimonio', 'bens'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">💎</span>
-          <span>Meu Patrimônio</span>
-        </a>
-        <a href="/bens" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'bens' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
-          <span class="text-xl">📦</span>
-          <span>Meus Bens</span>
+          <span>Patrimônio & Bens</span>
         </a>
       </nav>
 
@@ -727,7 +680,7 @@
   <!-- ===================================================================== -->
   <!-- [ CONTAINER PRINCIPAL COM OFFSET DINÂMICO PARA SIDEBAR ]               -->
   <!-- ===================================================================== -->
-  <div id="main-wrapper" class="min-h-screen flex flex-col justify-between w-full">
+  <div id="main-wrapper" class="min-h-screen flex flex-col justify-between w-full bg-slate-50 dark:bg-slate-950 transition-colors">
     
     <!-- CONTEÚDO PRINCIPAL INJETADO -->
     <main class="flex-grow max-w-6xl w-full mx-auto px-3 sm:px-6 py-4 md:py-6">
