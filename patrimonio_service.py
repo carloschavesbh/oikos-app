@@ -537,6 +537,127 @@ def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
     # 4. PATRIMÔNIO LÍQUIDO CONSOLIDADO
     patrimonio_liquido = round(total_ativos - total_passivos, 2)
 
+    # 4.1 RESUMO COMPACTO DE CARTÕES E PAGA LEVE (SEM LISTAR ITENS SOLTOS NA TELA INICIAL)
+    cartoes_resumo_dict = {}
+    for t in transacoes_cartao:
+        c_nome = t["cartao"] or "Cartão Geral"
+        if c_nome not in cartoes_resumo_dict:
+            cartoes_resumo_dict[c_nome] = {"nome": c_nome, "total": 0.0, "qtd_obrigacoes": 0}
+        cartoes_resumo_dict[c_nome]["total"] += t["valor"]
+        cartoes_resumo_dict[c_nome]["qtd_obrigacoes"] += 1
+
+    cartoes_resumo = [
+        {
+            "nome": k,
+            "total": round(v["total"], 2),
+            "qtd_obrigacoes": v["qtd_obrigacoes"]
+        }
+        for k, v in cartoes_resumo_dict.items()
+    ]
+    cartoes_resumo.sort(key=lambda x: x["total"], reverse=True)
+
+    pagaleve_resumo = {
+        "total": round(total_pagaleve, 2),
+        "qtd_parcelas": len(transacoes_pagaleve)
+    }
+
+    # 4.2 CÁLCULO DAS FATIAS PARA OS GRÁFICOS DE ROSCA (DONUT CHARTS SVG)
+    import math
+    raio_donut = 50
+    circunf_donut = 2 * math.pi * raio_donut  # ~314.159
+
+    # Fatias Ativos (Bens vs Caixa/Contas) - Cofrinhos NÃO geram fatia separada (evita duplicidade)
+    fatias_ativos = []
+    offset_ativos = 0.0
+    if total_ativos > 0:
+        if total_bens > 0:
+            pct_b = round((total_bens / total_ativos) * 100, 1)
+            dash_len_b = (pct_b / 100.0) * circunf_donut
+            fatias_ativos.append({
+                "label": "Bens Físicos",
+                "icone": "🚗",
+                "valor": round(total_bens, 2),
+                "pct": pct_b,
+                "cor": "#3b82f6",  # blue-500
+                "dasharray": f"{dash_len_b:.2f} {circunf_donut - dash_len_b:.2f}",
+                "dashoffset": f"{-offset_ativos:.2f}"
+            })
+            offset_ativos += dash_len_b
+        
+        if saldo_caixa > 0:
+            pct_c = round((saldo_caixa / total_ativos) * 100, 1)
+            dash_len_c = (pct_c / 100.0) * circunf_donut
+            fatias_ativos.append({
+                "label": "Caixa & Contas",
+                "icone": "💵",
+                "valor": round(saldo_caixa, 2),
+                "pct": pct_c,
+                "cor": "#10b981",  # emerald-500
+                "dasharray": f"{dash_len_c:.2f} {circunf_donut - dash_len_c:.2f}",
+                "dashoffset": f"{-offset_ativos:.2f}"
+            })
+            offset_ativos += dash_len_c
+
+    # Fatias Passivos (Cartões, Paga Leve, Dívidas Formais, Outros) - apenas se valor > 0
+    fatias_passivos = []
+    offset_passivos = 0.0
+    if total_passivos > 0:
+        if total_cartao > 0:
+            pct_ct = round((total_cartao / total_passivos) * 100, 1)
+            dash_len_ct = (pct_ct / 100.0) * circunf_donut
+            fatias_passivos.append({
+                "label": "Cartões de Crédito",
+                "icone": "💳",
+                "valor": round(total_cartao, 2),
+                "pct": pct_ct,
+                "cor": "#ef4444",  # rose-500
+                "dasharray": f"{dash_len_ct:.2f} {circunf_donut - dash_len_ct:.2f}",
+                "dashoffset": f"{-offset_passivos:.2f}"
+            })
+            offset_passivos += dash_len_ct
+
+        if total_pagaleve > 0:
+            pct_pl = round((total_pagaleve / total_passivos) * 100, 1)
+            dash_len_pl = (pct_pl / 100.0) * circunf_donut
+            fatias_passivos.append({
+                "label": "Paga Leve",
+                "icone": "⚡",
+                "valor": round(total_pagaleve, 2),
+                "pct": pct_pl,
+                "cor": "#f59e0b",  # amber-500
+                "dasharray": f"{dash_len_pl:.2f} {circunf_donut - dash_len_pl:.2f}",
+                "dashoffset": f"{-offset_passivos:.2f}"
+            })
+            offset_passivos += dash_len_pl
+
+        if total_outros_parc > 0:
+            pct_op = round((total_outros_parc / total_passivos) * 100, 1)
+            dash_len_op = (pct_op / 100.0) * circunf_donut
+            fatias_passivos.append({
+                "label": "Outros Parcelamentos",
+                "icone": "📋",
+                "valor": round(total_outros_parc, 2),
+                "pct": pct_op,
+                "cor": "#8b5cf6",  # purple-500
+                "dasharray": f"{dash_len_op:.2f} {circunf_donut - dash_len_op:.2f}",
+                "dashoffset": f"{-offset_passivos:.2f}"
+            })
+            offset_passivos += dash_len_op
+
+        if total_dividas_formais > 0:
+            pct_df = round((total_dividas_formais / total_passivos) * 100, 1)
+            dash_len_df = (pct_df / 100.0) * circunf_donut
+            fatias_passivos.append({
+                "label": "Dívidas Formais",
+                "icone": "📁",
+                "valor": round(total_dividas_formais, 2),
+                "pct": pct_df,
+                "cor": "#ec4899",  # pink-500
+                "dasharray": f"{dash_len_df:.2f} {circunf_donut - dash_len_df:.2f}",
+                "dashoffset": f"{-offset_passivos:.2f}"
+            })
+            offset_passivos += dash_len_df
+
     # 5. DADOS DO VEÍCULO DRIVE (SE CADASTRADO)
     veiculo_drive = next((b for b in bens_ativos if b["is_veiculo_drive"]), None)
     metricas_veiculo_drive = None
@@ -581,15 +702,20 @@ def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
         "por_tipo": por_tipo,
         "por_proprietario": por_proprietario,
         "bens": bens_ativos,
+        "investimentos": [],  # Espaço preparado para produtos futuros
+        "fatias_ativos": fatias_ativos,
         # Composição Passivos
         "total_dividas_formais": round(total_dividas_formais, 2),
         "dividas_formais": dividas_formais,
         "total_cartao": round(total_cartao, 2),
         "transacoes_cartao": transacoes_cartao,
+        "cartoes_resumo": cartoes_resumo,
         "total_pagaleve": round(total_pagaleve, 2),
         "transacoes_pagaleve": transacoes_pagaleve,
+        "pagaleve_resumo": pagaleve_resumo,
         "total_outros_parc": round(total_outros_parc, 2),
         "transacoes_outros_parc": transacoes_outros_parc,
+        "fatias_passivos": fatias_passivos,
         # Veículo Drive
         "veiculo_drive": veiculo_drive,
         "metricas_veiculo_drive": metricas_veiculo_drive

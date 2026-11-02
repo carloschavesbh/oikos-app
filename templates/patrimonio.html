@@ -29,7 +29,7 @@
   </div>
 
   <!-- ===================================================================== -->
-  <!-- [ VISÃO GERAL: PATRIMÔNIO LÍQUIDO, ATIVOS E PASSIVOS ]                 -->
+  <!-- [ 1. RESUMO COMPACTO: PATRIMÔNIO LÍQUIDO, ATIVOS E PASSIVOS ]         -->
   <!-- ===================================================================== -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
     
@@ -88,66 +88,277 @@
   </div>
 
   <!-- ===================================================================== -->
-  <!-- [ EXPLICAÇÃO TRANSPARENTE DO CÁLCULO PATRIMONIAL ]                    -->
+  <!-- [ 2. ACCORDION: COMO ESTE CÁLCULO É COMPOSTO ]                         -->
   <!-- ===================================================================== -->
-  <div class="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-xs text-slate-600 dark:text-slate-300 space-y-2.5">
-    <div class="flex items-center justify-between font-bold text-slate-900 dark:text-white">
+  <details id="detalhe-explicacao-patrimonio" class="group bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden transition">
+    <summary class="flex items-center justify-between p-3.5 sm:p-4 cursor-pointer select-none font-bold text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition">
       <div class="flex items-center gap-2">
         <span>ℹ️</span>
-        <span>Visão Patrimonial Pessoal do Oikos (Critério de Passivos)</span>
+        <span>Como este cálculo é composto</span>
       </div>
-      <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-        Passivo Parcial / Estimado
-      </span>
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          Passivo Parcial / Estimado
+        </span>
+        <span class="text-slate-400 group-open:rotate-180 transition-transform duration-200 text-xs">▼</span>
+      </div>
+    </summary>
+    <div class="p-4 pt-1 border-t border-slate-200/50 dark:border-slate-800/50 text-xs text-slate-600 dark:text-slate-300 space-y-2.5 leading-relaxed">
+      <p class="text-[11px]">
+        <strong>Fórmula:</strong> Patrimônio Líquido = (Bens Físicos Estimados + Saldo em Contas e Carteira) - (Dívidas Formais + Obrigações de Compras em Cartão + Parcelas Futuras do Paga Leve + Financiamentos Cadastrados).
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <div>
+          <strong class="text-emerald-600 dark:text-emerald-400">Passivos Patrimoniais:</strong>
+          Dívidas formais ativas somadas às parcelas futuras de compras realizadas em Cartão de Crédito e Paga Leve, contadas estritamente uma única vez.
+        </div>
+        <div>
+          <strong class="text-rose-500">Contas Orçamentárias do Cotidiano:</strong>
+          Contas de consumo contínuo (telefonia, internet, luz, água e assinaturas) pertencem ao fluxo de caixa, orçamento mensal e contas a pagar. Não reduzem o patrimônio líquido acumulado.
+        </div>
+      </div>
+      <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
+        <strong>Garantia Anti-Duplicidade:</strong>
+        Cofrinhos não são somados em duplicidade aos ativos (já fazem parte do saldo em conta). Limites de crédito não são ativos. Apresentado como <strong>visão patrimonial gerencial estimada</strong> para acompanhamento pessoal.
+      </div>
     </div>
-    <p class="leading-relaxed text-[11px]">
-      <strong>Fórmula:</strong> Patrimônio Líquido = (Bens Físicos Estimados + Saldo em Contas e Carteira) - (Dívidas Formais + Obrigações de Compras em Cartão + Parcelas Futuras do Paga Leve + Financiamentos/Carnês Cadastrados).
-    </p>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-      <div>
-        <strong class="text-emerald-600 dark:text-emerald-400">Passivos Patrimoniais:</strong>
-        Dívidas e acordos formais cadastrados pelo saldo devedor conhecido, somados às parcelas futuras de compras realizadas em Cartão de Crédito e Paga Leve, contadas estritamente uma única vez.
-      </div>
-      <div>
-        <strong class="text-rose-500">Contas Orçamentárias do Cotidiano:</strong>
-        Contas de consumo contínuo (telefonia, internet, luz, água e assinaturas) pertencem ao fluxo de caixa, orçamento mensal e contas a pagar. Não reduzem o patrimônio líquido acumulado.
-      </div>
+  </details>
+
+  <!-- ===================================================================== -->
+  <!-- [ 3. BARRA DE CONTROLE: ALTERNÂNCIA GRÁFICOS / LISTA RESUMIDA ]       -->
+  <!-- ===================================================================== -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:px-4 shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="text-sm font-bold text-slate-900 dark:text-white">Distribuição Patrimonial</span>
     </div>
-    <div class="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px] text-slate-500 dark:text-slate-400">
-      <strong>Garantia Anti-Duplicidade & Limitações:</strong>
-      Cofrinhos não são somados em duplicidade (já fazem parte do saldo em conta). Limites de crédito não são ativos. Na ausência de contratos de financiamento bancário formalizados com taxa de juros futuros, o passivo reflete o saldo nominal das parcelas contratadas, sendo apresentado como <strong>visão patrimonial gerencial estimada</strong> (sem pretensão de balanço contábil formal).
+
+    <div class="flex items-center gap-2">
+      <!-- Toggle Segmentado: Gráficos vs Lista Resumida -->
+      <div class="inline-flex p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-semibold">
+        <button id="btn-view-graficos" 
+                onclick="definirModoVisualizacao('graficos')"
+                class="px-3 py-1.5 rounded-lg transition text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-sm font-bold flex items-center gap-1.5">
+          <span>📊</span> <span>Gráficos</span>
+        </button>
+        <button id="btn-view-lista" 
+                onclick="definirModoVisualizacao('lista')"
+                class="px-3 py-1.5 rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5">
+          <span>📋</span> <span>Lista Resumida</span>
+        </button>
+      </div>
+
+      <!-- Botões de Ação para Grupos -->
+      <div class="hidden sm:flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-800">
+        <button onclick="alternarTodosGrupos(true)" 
+                title="Expandir todos os grupos"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 transition">
+          Expandir todos
+        </button>
+        <button onclick="alternarTodosGrupos(false)" 
+                title="Recolher todos os grupos"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-semibold text-slate-600 dark:text-slate-300 transition">
+          Recolher todos
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ===================================================================== -->
-  <!-- [ DUAS COLUNAS: COMPOSIÇÃO DOS ATIVOS VS COMPOSIÇÃO DOS PASSIVOS ]    -->
+  <!-- [ 4. CONTAINER DE GRÁFICOS DE ROSCA (DONUT CHARTS SVG) ]               -->
+  <!-- ===================================================================== -->
+  <div id="container-graficos-patrimonio" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- ROSCA 1: COMPOSIÇÃO DOS ATIVOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <span>📈</span> <span>Composição dos Ativos</span>
+        </h2>
+        <span class="text-xs font-black text-slate-900 dark:text-white">{{ resumo.total_ativos | moeda }}</span>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center gap-5 justify-center py-1">
+        <!-- SVG Donut Chart -->
+        <div class="relative w-36 h-36 shrink-0 flex items-center justify-center">
+          <svg viewBox="0 0 140 140" class="w-full h-full transform -rotate-90">
+            <!-- Anel de Fundo Neutro -->
+            <circle cx="70" cy="70" r="50" fill="transparent" stroke="currentColor" stroke-width="16" class="text-slate-100 dark:text-slate-800" />
+            <!-- Fatias Dinâmicas de Ativos -->
+            {% for f in resumo.fatias_ativos %}
+            <circle cx="70" cy="70" r="50" fill="transparent" 
+                    stroke="{{ f.cor }}" 
+                    stroke-width="16" 
+                    stroke-dasharray="{{ f.dasharray }}" 
+                    stroke-dashoffset="{{ f.dashoffset }}"
+                    class="transition-all duration-500 ease-out" />
+            {% endfor %}
+          </svg>
+          <!-- Centro do Donut -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Ativos</span>
+            <span class="text-xs font-black text-slate-800 dark:text-slate-100">{{ resumo.total_ativos | moeda }}</span>
+          </div>
+        </div>
+
+        <!-- Legenda Detalhada dos Ativos -->
+        <div class="flex-1 w-full space-y-2">
+          {% for f in resumo.fatias_ativos %}
+          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 text-xs">
+            <div class="flex items-center gap-2 truncate">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ f.cor }};"></span>
+              <span class="font-medium text-slate-700 dark:text-slate-300 truncate">{{ f.icone }} {{ f.label }}</span>
+            </div>
+            <div class="text-right shrink-0 pl-2">
+              <span class="font-bold text-slate-900 dark:text-white">{{ f.valor | moeda }}</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">{{ f.pct }}%</span>
+            </div>
+          </div>
+          {% endfor %}
+          <p class="text-[10px] text-slate-400 italic pt-1">
+            * Cofrinhos ({{ resumo.total_reservas_cofrinhos | moeda }}) já compõem o saldo em conta, sem duplicidade.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROSCA 2: COMPOSIÇÃO DOS PASSIVOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <span>📉</span> <span>Composição dos Passivos</span>
+        </h2>
+        <span class="text-xs font-black text-rose-500 dark:text-rose-400">- {{ resumo.total_passivos | moeda }}</span>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center gap-5 justify-center py-1">
+        <!-- SVG Donut Chart -->
+        <div class="relative w-36 h-36 shrink-0 flex items-center justify-center">
+          <svg viewBox="0 0 140 140" class="w-full h-full transform -rotate-90">
+            <!-- Anel de Fundo Neutro -->
+            <circle cx="70" cy="70" r="50" fill="transparent" stroke="currentColor" stroke-width="16" class="text-slate-100 dark:text-slate-800" />
+            <!-- Fatias Dinâmicas de Passivos -->
+            {% for f in resumo.fatias_passivos %}
+            <circle cx="70" cy="70" r="50" fill="transparent" 
+                    stroke="{{ f.cor }}" 
+                    stroke-width="16" 
+                    stroke-dasharray="{{ f.dasharray }}" 
+                    stroke-dashoffset="{{ f.dashoffset }}"
+                    class="transition-all duration-500 ease-out" />
+            {% endfor %}
+          </svg>
+          <!-- Centro do Donut -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Passivos</span>
+            <span class="text-xs font-black text-rose-500 dark:text-rose-400">{{ resumo.total_passivos | moeda }}</span>
+          </div>
+        </div>
+
+        <!-- Legenda Detalhada dos Passivos -->
+        <div class="flex-1 w-full space-y-2">
+          {% for f in resumo.fatias_passivos %}
+          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 text-xs">
+            <div class="flex items-center gap-2 truncate">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ f.cor }};"></span>
+              <span class="font-medium text-slate-700 dark:text-slate-300 truncate">{{ f.icone }} {{ f.label }}</span>
+            </div>
+            <div class="text-right shrink-0 pl-2">
+              <span class="font-bold text-rose-500 dark:text-rose-400">{{ f.valor | moeda }}</span>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">{{ f.pct }}%</span>
+            </div>
+          </div>
+          {% endfor %}
+          {% if not resumo.fatias_passivos %}
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400 italic">
+            Nenhuma obrigação ou passivo pendente no momento.
+          </div>
+          {% endif %}
+          <p class="text-[10px] text-slate-400 italic pt-1">
+            * Não inclui contas de consumo cotidiano, que pertencem ao orçamento mensal.
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 5. CONTAINER DE LISTA RESUMIDA (MODO TEXTUAL COMPACTO) ]             -->
+  <!-- ===================================================================== -->
+  <div id="container-lista-resumida-patrimonio" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- RESUMO DE ATIVOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Resumo de Ativos</h2>
+        <span class="text-xs font-black text-slate-900 dark:text-white">{{ resumo.total_ativos | moeda }}</span>
+      </div>
+      <div class="space-y-2">
+        {% for f in resumo.fatias_ativos %}
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-slate-700 dark:text-slate-300">{{ f.icone }} {{ f.label }}</span>
+            <span class="font-bold text-slate-900 dark:text-white">{{ f.valor | moeda }} ({{ f.pct }}%)</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div class="h-full rounded-full" style="width: {{ f.pct }}%; background-color: {{ f.cor }};"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- RESUMO DE PASSIVOS -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Resumo de Passivos</h2>
+        <span class="text-xs font-black text-rose-500 dark:text-rose-400">- {{ resumo.total_passivos | moeda }}</span>
+      </div>
+      <div class="space-y-2">
+        {% for f in resumo.fatias_passivos %}
+        <div class="space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-slate-700 dark:text-slate-300">{{ f.icone }} {{ f.label }}</span>
+            <span class="font-bold text-rose-500 dark:text-rose-400">{{ f.valor | moeda }} ({{ f.pct }}%)</span>
+          </div>
+          <div class="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div class="h-full rounded-full" style="width: {{ f.pct }}%; background-color: {{ f.cor }};"></div>
+          </div>
+        </div>
+        {% endfor %}
+        {% if not resumo.fatias_passivos %}
+        <p class="text-xs text-slate-400 italic">Nenhum passivo pendente.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- [ 6. GRUPOS COMPACTOS E RECOLHÍVEIS (ATIVOS VS PASSIVOS) ]             -->
   <!-- ===================================================================== -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-    <!-- COLUNA 1: DETALHAMENTO DOS ATIVOS -->
-    <section class="space-y-4">
-      <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+    <!-- COLUNA 1: ATIVOS RECOLHÍVEIS -->
+    <div class="space-y-3">
+      
+      <!-- GRUPO 1: BENS & ATIVOS FÍSICOS -->
+      <div id="card-grupo-bens" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-bens')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
           <div class="flex items-center gap-2">
-            <span class="text-base">📈</span>
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Composição dos Ativos</h2>
-          </div>
-          <span class="text-xs font-black text-slate-900 dark:text-white">{{ resumo.total_ativos | moeda }}</span>
-        </div>
-
-        <!-- 1.1 BENS FÍSICOS -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>🚗</span> <span>Bens & Ativos Físicos ({{ resumo.total_bens_count }})</span>
+            <span class="text-base">🚗</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Bens & Ativos Físicos ({{ resumo.total_bens_count }})
             </span>
-            <div class="flex items-center gap-2">
-              <strong class="text-slate-900 dark:text-white">{{ resumo.total_bens | moeda }}</strong>
-              <a href="/bens" class="text-[11px] text-blue-500 hover:underline">Ver Bens ➔</a>
-            </div>
           </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-black text-slate-900 dark:text-white">{{ resumo.total_bens | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
 
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-2">
           <div class="space-y-1.5">
             {% for b in resumo.bens %}
             <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs">
@@ -167,20 +378,32 @@
             </div>
             {% endfor %}
           </div>
-        </div>
-
-        <!-- 1.2 CONTAS BANCÁRIAS E DINHEIRO -->
-        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>💵</span> <span>Caixa & Contas Bancárias</span>
-            </span>
-            <div class="flex items-center gap-2">
-              <strong class="text-emerald-600 dark:text-emerald-400">{{ resumo.saldo_caixa | moeda }}</strong>
-              <a href="/contas" class="text-[11px] text-emerald-500 hover:underline">Ver Contas ➔</a>
-            </div>
+          <div class="pt-2 flex justify-end">
+            <a href="/bens" class="text-[11px] font-semibold text-blue-500 hover:underline inline-flex items-center gap-1">
+              <span>Gerenciar detalhes dos bens</span> <span>➔</span>
+            </a>
           </div>
+        </div>
+      </div>
 
+      <!-- GRUPO 2: CAIXA E CONTAS BANCÁRIAS -->
+      <div id="card-grupo-contas" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-contas')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">💵</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Caixa & Contas Bancárias ({{ resumo.contas_ativas | length }})
+            </span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-black text-emerald-600 dark:text-emerald-400">{{ resumo.saldo_caixa | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
+
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-2">
           <div class="space-y-1.5">
             {% for c in resumo.contas_ativas %}
             <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs">
@@ -189,134 +412,208 @@
             </div>
             {% endfor %}
           </div>
-        </div>
-
-        <!-- 1.3 RESERVAS E COFRINHOS (INFORMATIVO) -->
-        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>🏦</span> <span>Reservas & Cofrinhos</span>
-              <span class="text-[10px] text-slate-400 font-normal">(Subdivisão do Mercado Pago)</span>
-            </span>
-            <span class="text-xs font-bold text-slate-600 dark:text-slate-300">{{ resumo.total_reservas_cofrinhos | moeda }}</span>
+          <div class="pt-2 flex justify-end">
+            <a href="/contas" class="text-[11px] font-semibold text-emerald-500 hover:underline inline-flex items-center gap-1">
+              <span>Gerenciar contas e saldos</span> <span>➔</span>
+            </a>
           </div>
+        </div>
+      </div>
 
-          <div class="grid grid-cols-2 gap-2 text-xs">
+      <!-- GRUPO 3: INVESTIMENTOS (ESPAÇO PREPARADO) -->
+      <div id="card-grupo-investimentos" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-investimentos')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🌱</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Investimentos (0)
+            </span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-semibold text-slate-400">R$ 0,00</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
+
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          <p class="p-2.5 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800 text-[11px]">
+            Nenhum investimento registrado no momento. Esta área está preparada para integração com fundos, renda fixa e ações futuras.
+          </p>
+        </div>
+      </div>
+
+      <!-- GRUPO 4: RESERVAS E COFRINHOS (DETALHAMENTO SEM DUPLICIDADE) -->
+      <div id="card-grupo-cofrinhos" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-cofrinhos')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🏦</span>
+            <div class="text-left">
+              <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
+                Reservas & Cofrinhos ({{ resumo.cofrinhos_reserva | length }})
+              </span>
+              <span class="text-[10px] text-slate-400 font-normal">Subdivisão do saldo do Mercado Pago</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-bold text-slate-600 dark:text-slate-300">{{ resumo.total_reservas_cofrinhos | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
+
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            Valores já incorporados ao saldo em conta. Não somam duas vezes aos ativos.
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {% for cof in resumo.cofrinhos_reserva %}
-            <div class="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800">
+            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800">
               <span class="text-[11px] text-slate-500 dark:text-slate-400 block truncate">{{ cof.nome }}</span>
               <span class="font-bold text-slate-800 dark:text-slate-200">{{ cof.saldo | moeda }}</span>
             </div>
             {% endfor %}
           </div>
         </div>
-
       </div>
-    </section>
 
-    <!-- COLUNA 2: DETALHAMENTO DOS PASSIVOS (OBRIGAÇÕES) -->
-    <section class="space-y-4">
-      <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-        
-        <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+    </div>
+
+    <!-- COLUNA 2: PASSIVOS RECOLHÍVEIS -->
+    <div class="space-y-3">
+
+      <!-- GRUPO 5: CARTÕES DE CRÉDITO (CONSOLIDADO POR CARTÃO) -->
+      <div id="card-grupo-cartoes" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-cartoes')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
           <div class="flex items-center gap-2">
-            <span class="text-base">📉</span>
-            <h2 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Composição dos Passivos</h2>
-          </div>
-          <span class="text-xs font-black text-rose-500 dark:text-rose-400">- {{ resumo.total_passivos | moeda }}</span>
-        </div>
-
-        <!-- 2.1 CARTÕES DE CRÉDITO A VENCER -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>💳</span> <span>Cartões de Crédito (Compras & Fatura)</span>
+            <span class="text-base">💳</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Cartões de Crédito ({{ resumo.cartoes_resumo | length }})
             </span>
-            <div class="flex items-center gap-2">
-              <strong class="text-rose-500">{{ resumo.total_cartao | moeda }}</strong>
-              <a href="/cartoes" class="text-[11px] text-blue-500 hover:underline">Ver Cartões ➔</a>
-            </div>
           </div>
-          
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-black text-rose-500">{{ resumo.total_cartao | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
+
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-2">
           <div class="space-y-1.5">
-            {% for item in resumo.transacoes_cartao %}
+            {% for c in resumo.cartoes_resumo %}
             <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs">
-              <div class="truncate pr-2">
-                <p class="font-medium text-slate-900 dark:text-white truncate">{{ item.descricao }}</p>
-                <p class="text-[10px] text-slate-400">{{ item.cartao }} • Vencimento: {{ item.data }}</p>
+              <div>
+                <p class="font-medium text-slate-900 dark:text-white">{{ c.nome }}</p>
+                <p class="text-[10px] text-slate-400 font-semibold">{{ c.qtd_obrigacoes }} obrigação(ões) pendente(s)</p>
               </div>
-              <span class="font-bold text-rose-500 shrink-0">{{ item.valor | moeda }}</span>
+              <span class="font-bold text-rose-500 shrink-0">{{ c.total | moeda }}</span>
             </div>
             {% endfor %}
-            {% if not resumo.transacoes_cartao %}
-            <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">Nenhuma fatura de cartão pendente.</p>
+            {% if not resumo.cartoes_resumo %}
+            <p class="text-xs text-slate-400 italic p-2.5 bg-slate-50 dark:bg-slate-800/30 rounded-xl">Nenhum saldo pendente de cartão.</p>
             {% endif %}
           </div>
-        </div>
-
-        <!-- 2.2 PAGA LEVE (PARCELAS A VENCER) -->
-        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>⚡</span> <span>Obrigações Paga Leve ({{ resumo.transacoes_pagaleve | length }} parcelas)</span>
-            </span>
-            <div class="flex items-center gap-2">
-              <strong class="text-amber-500">{{ resumo.total_pagaleve | moeda }}</strong>
-              <a href="/pagaleve" class="text-[11px] text-amber-500 hover:underline">Ver Paga Leve ➔</a>
-            </div>
-          </div>
-
-          <div class="space-y-1 max-h-48 overflow-y-auto custom-scroll pr-1">
-            {% for item in resumo.transacoes_pagaleve %}
-            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800 text-xs">
-              <div class="truncate pr-2">
-                <span class="font-medium text-slate-800 dark:text-slate-200 truncate block">{{ item.descricao }}</span>
-                <span class="text-[10px] text-slate-400">Vencimento: {{ item.data }}</span>
-              </div>
-              <span class="font-bold text-amber-600 dark:text-amber-400 shrink-0">{{ item.valor | moeda }}</span>
-            </div>
-            {% endfor %}
-            {% if not resumo.transacoes_pagaleve %}
-            <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">Nenhuma parcela do Paga Leve pendente.</p>
-            {% endif %}
+          <div class="pt-2 flex justify-end">
+            <a href="/cartoes" class="text-[11px] font-semibold text-blue-500 hover:underline inline-flex items-center gap-1">
+              <span>Ver faturas e compras detalhadas em Cartões</span> <span>➔</span>
+            </a>
           </div>
         </div>
+      </div>
 
-        <!-- 2.3 OUTROS PARCELAMENTOS E FINANCIAMENTOS -->
-        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>📋</span> <span>Outros Parcelamentos (Carnês, Empréstimos ou Financiamentos)</span>
+      <!-- GRUPO 6: PAGA LEVE (CONSOLIDADO EM LINHA ÚNICA) -->
+      <div id="card-grupo-pagaleve" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-pagaleve')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">⚡</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Paga Leve ({{ resumo.pagaleve_resumo.qtd_parcelas }} parcelas)
             </span>
-            <strong class="text-slate-800 dark:text-slate-200">{{ resumo.total_outros_parc | moeda }}</strong>
           </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-black text-amber-500">{{ resumo.total_pagaleve | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
 
-          <div class="space-y-1 max-h-36 overflow-y-auto custom-scroll pr-1">
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 space-y-2">
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-xs">
+            <div>
+              <p class="font-medium text-slate-900 dark:text-white">Obrigações Parceladas Paga Leve</p>
+              <p class="text-[10px] text-slate-400 font-semibold">{{ resumo.pagaleve_resumo.qtd_parcelas }} parcelas a vencer cadastradas</p>
+            </div>
+            <span class="font-bold text-amber-600 dark:text-amber-400 shrink-0">{{ resumo.total_pagaleve | moeda }}</span>
+          </div>
+          <div class="pt-2 flex justify-end">
+            <a href="/pagaleve" class="text-[11px] font-semibold text-amber-500 hover:underline inline-flex items-center gap-1">
+              <span>Ver todas as parcelas e compras em Paga Leve</span> <span>➔</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- GRUPO 7: OUTROS PARCELAMENTOS -->
+      <div id="card-grupo-outros-parc" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-outros-parc')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">📋</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Outros Parcelamentos
+            </span>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">{{ resumo.total_outros_parc | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
+
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+          {% if resumo.transacoes_outros_parc %}
+          <div class="space-y-1.5">
             {% for item in resumo.transacoes_outros_parc %}
-            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800 text-xs">
-              <span class="font-medium text-slate-800 dark:text-slate-200 truncate">{{ item.descricao }} ({{ item.data }})</span>
-              <span class="font-bold text-slate-700 dark:text-slate-300 shrink-0">{{ item.valor | moeda }}</span>
+            <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30 text-xs">
+              <span class="font-medium text-slate-800 dark:text-slate-200 truncate">{{ item.descricao }}</span>
+              <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.valor | moeda }}</span>
             </div>
             {% endfor %}
-            {% if not resumo.transacoes_outros_parc %}
-            <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">Nenhum registro cadastrado nesta área.</p>
-            {% endif %}
           </div>
+          {% else %}
+          <p class="p-2.5 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-slate-400 italic">
+            Nenhum outro parcelamento de bens cadastrado.
+          </p>
+          {% endif %}
         </div>
+      </div>
 
-        <!-- 2.4 DÍVIDAS & ACORDOS FORMAIS -->
-        <div class="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div class="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-1.5">
-              <span>📁</span> <span>Dívidas & Acordos de Renegociação</span>
+      <!-- GRUPO 8: DÍVIDAS & ACORDOS FORMAIS -->
+      <div id="card-grupo-dividas" class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition">
+        <button type="button" 
+                onclick="alternarGrupo('card-grupo-dividas')"
+                class="w-full flex items-center justify-between p-3.5 sm:p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/40 transition select-none">
+          <div class="flex items-center gap-2">
+            <span class="text-base">📁</span>
+            <span class="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Dívidas & Financiamentos Formais
             </span>
-            <strong class="text-rose-500">{{ resumo.total_dividas_formais | moeda }}</strong>
           </div>
+          <div class="flex items-center gap-2.5">
+            <span class="text-xs font-black text-rose-500">{{ resumo.total_dividas_formais | moeda }}</span>
+            <span class="chevron-icone text-slate-400 text-xs transition-transform duration-200">▼</span>
+          </div>
+        </button>
 
+        <div class="conteudo-grupo p-4 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
           {% if resumo.dividas_formais %}
           <div class="space-y-1.5">
             {% for d in resumo.dividas_formais %}
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs">
               <div>
                 <p class="font-bold text-slate-900 dark:text-white">{{ d.credor }}</p>
                 <p class="text-[10px] text-slate-400">{{ d.descricao }}</p>
@@ -326,16 +623,112 @@
             {% endfor %}
           </div>
           {% else %}
-          <p class="text-xs text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
-            Nenhum registro cadastrado nesta área.
+          <p class="p-2.5 bg-slate-50 dark:bg-slate-800/30 rounded-xl text-slate-400 italic">
+            Nenhum contrato formal de renegociação ou financiamento ativo.
           </p>
           {% endif %}
         </div>
-
       </div>
-    </section>
+
+    </div>
 
   </div>
 
 </div>
+
+<!-- ===================================================================== -->
+  <!-- [ 7. JAVASCRIPT: CONTROLE DE VISUALIZAÇÃO E GRUPOS RECOLHÍVEIS ]       -->
+  <!-- ===================================================================== -->
+<script>
+  // Alternância entre Gráficos e Lista Resumida com localStorage
+  function definirModoVisualizacao(modo) {
+    const cGraficos = document.getElementById('container-graficos-patrimonio');
+    const cLista = document.getElementById('container-lista-resumida-patrimonio');
+    const btnG = document.getElementById('btn-view-graficos');
+    const btnL = document.getElementById('btn-view-lista');
+
+    if (modo === 'lista') {
+      cGraficos.classList.add('hidden');
+      cLista.classList.remove('hidden');
+      btnL.className = 'px-3 py-1.5 rounded-lg transition text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-sm font-bold flex items-center gap-1.5';
+      btnG.className = 'px-3 py-1.5 rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5';
+    } else {
+      cLista.classList.add('hidden');
+      cGraficos.classList.remove('hidden');
+      btnG.className = 'px-3 py-1.5 rounded-lg transition text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-sm font-bold flex items-center gap-1.5';
+      btnL.className = 'px-3 py-1.5 rounded-lg transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5';
+    }
+    try {
+      localStorage.setItem('oikos_patrimonio_view_mode', modo);
+    } catch (e) {}
+  }
+
+  // Alternar grupo individual (recolher/expandir) e salvar no localStorage
+  function alternarGrupo(grupoId, forcarEstado = null) {
+    const el = document.getElementById(grupoId);
+    if (!el) return;
+    const conteudo = el.querySelector('.conteudo-grupo');
+    const chevron = el.querySelector('.chevron-icone');
+    if (!conteudo) return;
+
+    const estaOculto = conteudo.classList.contains('hidden');
+    const deveAbrir = forcarEstado !== null ? forcarEstado : estaOculto;
+
+    if (deveAbrir) {
+      conteudo.classList.remove('hidden');
+      if (chevron) chevron.style.transform = 'rotate(0deg)';
+      try { localStorage.setItem('oikos_grupo_' + grupoId, 'aberto'); } catch (e) {}
+    } else {
+      conteudo.classList.add('hidden');
+      if (chevron) chevron.style.transform = 'rotate(-90deg)';
+      try { localStorage.setItem('oikos_grupo_' + grupoId, 'recolhido'); } catch (e) {}
+    }
+  }
+
+  // Alternar todos os grupos de uma vez
+  function alternarTodosGrupos(abrir) {
+    const ids = [
+      'card-grupo-bens',
+      'card-grupo-contas',
+      'card-grupo-investimentos',
+      'card-grupo-cofrinhos',
+      'card-grupo-cartoes',
+      'card-grupo-pagaleve',
+      'card-grupo-outros-parc',
+      'card-grupo-dividas'
+    ];
+    ids.forEach(id => alternarGrupo(id, abrir));
+  }
+
+  // Inicialização no carregamento da página
+  document.addEventListener('DOMContentLoaded', function() {
+    // Restaurar preferência de modo de visualização
+    try {
+      const modoSalvo = localStorage.getItem('oikos_patrimonio_view_mode');
+      if (modoSalvo === 'lista') {
+        definirModoVisualizacao('lista');
+      }
+    } catch (e) {}
+
+    // Restaurar preferência de cada grupo recolhível
+    const ids = [
+      'card-grupo-bens',
+      'card-grupo-contas',
+      'card-grupo-investimentos',
+      'card-grupo-cofrinhos',
+      'card-grupo-cartoes',
+      'card-grupo-pagaleve',
+      'card-grupo-outros-parc',
+      'card-grupo-dividas'
+    ];
+    ids.forEach(id => {
+      try {
+        const estado = localStorage.getItem('oikos_grupo_' + id);
+        if (estado === 'recolhido') {
+          alternarGrupo(id, false);
+        }
+      } catch (e) {}
+    });
+  });
+</script>
 {% endblock %}
