@@ -341,7 +341,7 @@
             <h2 class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Patrimônio Líquido</h2>
           </div>
           <div class="flex items-center gap-2 text-xs">
-            <a href="/bens" class="text-slate-500 hover:text-emerald-500 dark:text-slate-400 transition" title="Ver Meus Bens">📦 Bens ({{ rp.qtd_bens }})</a>
+            <a href="/bens" class="text-slate-500 hover:text-emerald-500 dark:text-slate-400 transition" title="Ver Meus Bens">📦 Bens ({{ rp.qtd_bens if rp.qtd_bens is not none else (rp.total_bens_count if rp.total_bens_count is not none else 0) }})</a>
             <span class="text-slate-300 dark:text-slate-700">|</span>
             <a href="/patrimonio" class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-bold transition">Balanço ➔</a>
           </div>

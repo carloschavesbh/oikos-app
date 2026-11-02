@@ -537,6 +537,7 @@ def obter_resumo_patrimonial(conn: sqlite3.Connection) -> Dict[str, Any]:
         # Composição Ativos
         "total_bens": round(total_bens, 2),
         "total_bens_count": len(bens_ativos),
+        "qtd_bens": len(bens_ativos),
         "saldo_caixa": round(saldo_caixa, 2),
         "contas_ativas": contas_ativas,
         "cofrinhos_reserva": cofrinhos_reserva,
