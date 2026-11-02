@@ -537,12 +537,14 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
 
     dias_semana_pt = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
     nome_dia_hoje = dias_semana_pt[hoje.weekday()]
+    meses_pt_dashboard = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    mes_nome_atual = meses_pt_dashboard[mes_atual] if 1 <= mes_atual <= 12 else "Mês"
 
     return {
         "hoje_str": hoje_str,
         "hoje_formatado": hoje.strftime("%d/%m/%Y"),
         "dia_semana": nome_dia_hoje,
-        "mes_nome": "Outubro",
+        "mes_nome": mes_nome_atual,
         "ano": ano_atual,
         # Resumo da Casa
         "receita_mensal": receita_mensal_total,
