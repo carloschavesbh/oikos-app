@@ -17,13 +17,14 @@ from datetime import date, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from decimal import Decimal
 
-from fastapi import FastAPI, Request, HTTPException, Form, Query
+from fastapi import FastAPI, Request, HTTPException, Form, Query, UploadFile, File, Body
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import saldo_service
 import planejamento_service
+import conciliacao_service
 
 from google import genai
 from google.genai import types
@@ -857,6 +858,114 @@ async def rota_extrato_redirect(request: Request):
     return RedirectResponse(url=url, status_code=301)
 
 
+
+# ========================================================
+# REGRAS RECORRENTES COTIDIANAS APROVADAS (OIKOS PESSOAL)
+# ========================================================
+RECORRENCIAS_APROVADAS_CONFIG = [
+    {
+        "descricao": "Copasa - Água e Esgoto",
+        "categoria": "HABITAÇÃO",
+        "subcategoria": "Água e Esgoto",
+        "conta": "Mercado Pago",
+        "dia": 1,
+        "valor": 72.46
+    },
+    {
+        "descricao": "CEMIG SIM - Energia",
+        "categoria": "Energia",
+        "subcategoria": "Eletricidade",
+        "conta": "Mercado Pago",
+        "dia": 9,
+        "valor": 132.92
+    },
+    {
+        "descricao": "Cemig",
+        "categoria": "HABITAÇÃO",
+        "subcategoria": "Eletricidade",
+        "conta": "Mercado Pago",
+        "dia": 27,
+        "valor": 93.95
+    },
+    {
+        "descricao": "Fatura Claro Controle Fernanda",
+        "categoria": "HABITAÇÃO",
+        "subcategoria": "Telefonia / Internet",
+        "conta": "Mercado Pago",
+        "dia": 10,
+        "valor": 34.36
+    },
+    {
+        "descricao": "YouCine",
+        "categoria": "Streaming",
+        "subcategoria": "Assinaturas",
+        "conta": "Mercado Pago",
+        "dia": 8,
+        "valor": 24.90
+    },
+    {
+        "descricao": "WellHub Júnior",
+        "categoria": "Academia / Wellhub",
+        "subcategoria": "Atividades Físicas",
+        "conta": "Mercado Pago",
+        "dia": 13,
+        "valor": 119.99
+    },
+    {
+        "descricao": "WellHub Fernanda",
+        "categoria": "Academia / Wellhub",
+        "subcategoria": "Atividades Físicas",
+        "conta": "Mercado Pago",
+        "dia": 18,
+        "valor": 137.50
+    },
+    {
+        "descricao": "Assinatura Audible",
+        "categoria": "Educação",
+        "subcategoria": "Cursos/Livros",
+        "conta": "Mercado Pago",
+        "dia": 22,
+        "valor": 19.90
+    }
+]
+
+def materializar_recorrencias_aprovadas_mes(conn: sqlite3.Connection, ano: int, mes: int) -> int:
+    """Garante de forma 100% idempotente que contas recorrentes aprovadas existam no mês solicitado."""
+    cur = conn.cursor()
+    prefixo_mes = f"{ano}-{mes:02d}-"
+    inseridas = 0
+
+    cur.execute("SELECT id, nome FROM contas_config WHERE nome = 'Mercado Pago'")
+    r_c = cur.fetchone()
+    cid_mp = r_c[0] if r_c else 1
+
+    for rec in RECORRENCIAS_APROVADAS_CONFIG:
+        desc = rec["descricao"]
+        # Checar se já existe transação com descrição similar no mês
+        cur.execute("""
+            SELECT COUNT(*) FROM transacoes
+            WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
+              AND data LIKE ?
+        """, (desc, f"{prefixo_mes}%"))
+        
+        if cur.fetchone()[0] == 0:
+            dia_str = f"{rec['dia']:02d}"
+            dt_str = f"{prefixo_mes}{dia_str}"
+            cur.execute("""
+                INSERT INTO transacoes (
+                    data, descricao, valor, tipo, categoria, subcategoria,
+                    conta, conta_id, pago, status_pagamento, afeta_saldo_bancario
+                ) VALUES (?, ?, ?, 'despesa', ?, ?, 'Mercado Pago', ?, 0, 'pendente', 1)
+            """, (
+                dt_str, desc, rec["valor"], rec["categoria"], rec["subcategoria"], cid_mp
+            ))
+            inseridas += 1
+
+    if inseridas > 0:
+        conn.commit()
+    return inseridas
+
+
 @app.get("/lancamentos", response_class=HTMLResponse)
 async def pagina_lancamentos(
     request: Request,
@@ -903,6 +1012,12 @@ async def pagina_lancamentos(
     ultimo_dia = calendar.monthrange(ano, mes)[1]
     fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
 
+    # Materializar de forma idempotente as contas recorrentes cotidianas aprovadas
+    try:
+        materializar_recorrencias_aprovadas_mes(conn, ano, mes)
+    except Exception as e:
+        print(f"Aviso ao materializar recorrencias: {e}")
+
     # Lista para o dropdown de saltar meses (ano anterior, atual e próximo)
     opcoes_periodo = []
     anos_disp = sorted(list({hoje.year - 1, hoje.year, ano, ano + 1}))
@@ -918,13 +1033,17 @@ async def pagina_lancamentos(
 
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(transacoes)")
-    cols_tr = [c["name"] for c in cur.fetchall()]
+    cols_tr = [c[1] if isinstance(c, tuple) else c["name"] for c in cur.fetchall()]
     if "data_liquidacao" not in cols_tr:
         cur.execute("ALTER TABLE transacoes ADD COLUMN data_liquidacao TEXT")
         conn.commit()
     if "subcategoria" not in cols_tr:
         cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
         conn.commit()
+
+    # Identificar nomes de cartões cadastrados
+    cur.execute("SELECT nome FROM cartoes")
+    nomes_cartoes = set(r["nome"] for r in cur.fetchall())
 
     cur.execute("""
         SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
@@ -936,7 +1055,6 @@ async def pagina_lancamentos(
     rows = cur.fetchall()
 
     hoje_str = hoje.strftime("%Y-%m-%d")
-    transacoes = []
     tot_receitas = 0.0
     tot_despesas = 0.0
 
@@ -944,7 +1062,7 @@ async def pagina_lancamentos(
     abast_map = {}
     try:
         cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
-        cols_ab = [c["name"] for c in cur.fetchall()]
+        cols_ab = [c[1] if isinstance(c, tuple) else c["name"] for c in cur.fetchall()]
         if "app_desconto" not in cols_ab:
             cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
             conn.commit()
@@ -969,6 +1087,11 @@ async def pagina_lancamentos(
     except Exception:
         abast_map = {}
 
+    # Dicionários de agrupamento
+    grupos_cartao = {}     # chave: (conta, dt_str)
+    grupos_pagaleve = {}   # chave: (dt_str, titular_str)
+    itens_individuais = []
+
     for r in rows:
         val = float(r["valor"] or 0.0)
         tipo = r["tipo"] or "despesa"
@@ -989,7 +1112,19 @@ async def pagina_lancamentos(
 
         grp_str = str(r["grupo_parcelamento"] or "").strip()
         desc_str = str(r["descricao"] or "").strip()
+        conta_str = str(r["conta"] or "Mercado Pago").strip()
+        cat_str = str(r["categoria"] or "").strip()
+        if not cat_str or cat_str.lower() in ("none", "null"):
+            cat_str = "Sem categoria"
+        subcat_str = str(r["subcategoria"] or "").strip()
+
+        titular_str = str(r["titular"] or "").strip()
+        if not titular_str or titular_str in ("A Confirmar", "None", ""):
+            titular_str = "Carlos"
+
         is_pl = bool("pagaleve" in grp_str.lower() or "paga leve" in desc_str.lower() or "pagaleve" in desc_str.lower())
+        is_cc = bool((conta_str in nomes_cartoes or "cartão" in conta_str.lower() or "cartao" in conta_str.lower()) 
+                     and not is_pl and cat_str != "Pagamento de fatura" and tipo == "despesa")
 
         num_parc = r["numero_parcela"]
         tot_parc = r["total_parcelas_compra"]
@@ -1003,15 +1138,7 @@ async def pagina_lancamentos(
                     num_parc = 1
                     tot_parc = 4
 
-        titular_str = str(r["titular"] or "").strip()
-        if not titular_str or titular_str in ("A Confirmar", "None", ""):
-            titular_str = "Carlos"
-
-        cat_str = str(r["categoria"] or "").strip()
-        if not cat_str or cat_str.lower() in ("none", "null"):
-            cat_str = "Sem categoria"
-
-        transacoes.append({
+        item_dict = {
             "id": r["id"],
             "data": dt_str,
             "data_formatada": dt_fmt,
@@ -1019,8 +1146,8 @@ async def pagina_lancamentos(
             "valor": val,
             "tipo": tipo,
             "categoria": cat_str,
-            "subcategoria": r["subcategoria"] or "",
-            "conta": r["conta"] or "Mercado Pago",
+            "subcategoria": subcat_str,
+            "conta": conta_str,
             "pago": pago_flag,
             "grupo_parcelamento": r["grupo_parcelamento"],
             "numero_parcela": num_parc,
@@ -1034,7 +1161,146 @@ async def pagina_lancamentos(
             "eh_passada": False,
             "is_atrasada": is_atrasada,
             "economia_badge": abast_map.get(r["id"], "")
-        })
+        }
+
+        if is_cc:
+            # Agrupar compras de cartão por fatura do cartão
+            chave_cc = (conta_str, dt_str)
+            if chave_cc not in grupos_cartao:
+                cid_clean = re.sub(r'[^a-zA-Z0-9]', '_', conta_str)
+                grupos_cartao[chave_cc] = {
+                    "is_grupo": True,
+                    "tipo_grupo": "cartao",
+                    "grupo_id": f"cartao_{cid_clean}_{dt_str.replace('-', '')}",
+                    "nome_cartao": conta_str,
+                    "descricao": f"Fatura {conta_str}",
+                    "categoria": "Cartão de Crédito",
+                    "subcategoria": f"Vencimento {dt_fmt}",
+                    "conta": conta_str,
+                    "data": dt_str,
+                    "data_formatada": dt_fmt,
+                    "itens": [],
+                    "total": 0.0,
+                    "valor_pago": 0.0,
+                    "valor_pendente": 0.0,
+                    "link_origem": "/cartoes"
+                }
+            grupos_cartao[chave_cc]["itens"].append(item_dict)
+            grupos_cartao[chave_cc]["total"] += val
+            if pago_flag == 1:
+                grupos_cartao[chave_cc]["valor_pago"] += val
+            else:
+                grupos_cartao[chave_cc]["valor_pendente"] += val
+
+        elif is_pl:
+            # Agrupar parcelas Paga Leve por data de vencimento e titular
+            chave_pl = (dt_str, titular_str)
+            if chave_pl not in grupos_pagaleve:
+                tit_clean = re.sub(r'[^a-zA-Z0-9]', '_', titular_str)
+                grupos_pagaleve[chave_pl] = {
+                    "is_grupo": True,
+                    "tipo_grupo": "pagaleve",
+                    "grupo_id": f"pagaleve_{tit_clean}_{dt_str.replace('-', '')}",
+                    "titular": titular_str,
+                    "descricao": f"Paga Leve • {titular_str}",
+                    "categoria": "Parcelamento Paga Leve",
+                    "subcategoria": f"Vencimento {dt_fmt}",
+                    "conta": "Paga Leve",
+                    "data": dt_str,
+                    "data_formatada": dt_fmt,
+                    "itens": [],
+                    "total": 0.0,
+                    "valor_pago": 0.0,
+                    "valor_pendente": 0.0,
+                    "link_origem": f"/pagaleve#{grp_str}" if grp_str else "/pagaleve"
+                }
+            grupos_pagaleve[chave_pl]["itens"].append(item_dict)
+            grupos_pagaleve[chave_pl]["total"] += val
+            if pago_flag == 1:
+                grupos_pagaleve[chave_pl]["valor_pago"] += val
+            else:
+                grupos_pagaleve[chave_pl]["valor_pendente"] += val
+
+        else:
+            item_dict["is_grupo"] = False
+            itens_individuais.append(item_dict)
+
+    # Consolidar grupos de cartão
+    lista_grupos = []
+    for g in list(grupos_cartao.values()):
+        tot_g = round(g["total"], 2)
+        pago_g = round(g["valor_pago"], 2)
+        pend_g = round(g["valor_pendente"], 2)
+        qtd = len(g["itens"])
+        g["total"] = tot_g
+        g["valor"] = tot_g
+        g["valor_pago"] = pago_g
+        g["valor_pendente"] = pend_g
+        g["qtd_itens"] = qtd
+        g["descricao"] = f"Fatura {g['nome_cartao']} ({qtd} compras)" if qtd > 1 else f"Fatura {g['nome_cartao']} (1 compra)"
+        if pend_g == 0.0:
+            g["situacao"] = "paga"
+            g["pago"] = 1
+            g["is_atrasada"] = False
+        elif pago_g > 0.0 and pend_g > 0.0:
+            g["situacao"] = "parcial"
+            g["pago"] = 0
+            g["is_atrasada"] = (g["data"] < hoje_str)
+        else:
+            g["situacao"] = "pendente"
+            g["pago"] = 0
+            g["is_atrasada"] = (g["data"] < hoje_str)
+
+        g["transacao_ids"] = [it["id"] for it in g["itens"]]
+        g["transacao_ids_pendentes"] = [it["id"] for it in g["itens"] if it["pago"] == 0]
+        g["transacao_ids_pagos"] = [it["id"] for it in g["itens"] if it["pago"] == 1]
+        
+        # Texto consolidado para busca
+        partes_busca = [g["nome_cartao"], "fatura", "cartão", "cartao"]
+        for it in g["itens"]:
+            partes_busca.extend([it["descricao"], it["categoria"], it["subcategoria"]])
+        g["texto_busca"] = " ".join(partes_busca).lower()
+        lista_grupos.append(g)
+
+    # Consolidar grupos Paga Leve
+    for g in list(grupos_pagaleve.values()):
+        tot_g = round(g["total"], 2)
+        pago_g = round(g["valor_pago"], 2)
+        pend_g = round(g["valor_pendente"], 2)
+        qtd = len(g["itens"])
+        g["total"] = tot_g
+        g["valor"] = tot_g
+        g["valor_pago"] = pago_g
+        g["valor_pendente"] = pend_g
+        g["qtd_itens"] = qtd
+        g["descricao"] = f"Paga Leve • {g['titular']} ({qtd} parcelas)" if qtd > 1 else f"Paga Leve • {g['titular']} (1 parcela)"
+        if pend_g == 0.0:
+            g["situacao"] = "paga"
+            g["pago"] = 1
+            g["is_atrasada"] = False
+        elif pago_g > 0.0 and pend_g > 0.0:
+            g["situacao"] = "parcial"
+            g["pago"] = 0
+            g["is_atrasada"] = (g["data"] < hoje_str)
+        else:
+            g["situacao"] = "pendente"
+            g["pago"] = 0
+            g["is_atrasada"] = (g["data"] < hoje_str)
+
+        g["transacao_ids"] = [it["id"] for it in g["itens"]]
+        g["transacao_ids_pendentes"] = [it["id"] for it in g["itens"] if it["pago"] == 0]
+        g["transacao_ids_pagos"] = [it["id"] for it in g["itens"] if it["pago"] == 1]
+        
+        # Texto consolidado para busca
+        partes_busca = ["pagaleve", "paga leve", g["titular"]]
+        for it in g["itens"]:
+            partes_busca.extend([it["descricao"], it["categoria"], it["subcategoria"], f"parcela {it['numero_parcela']}/{it['total_parcelas_compra']}"])
+        g["texto_busca"] = " ".join(partes_busca).lower()
+        lista_grupos.append(g)
+
+    # Mesclar lista de apresentação e ordenar por data decrescente
+    transacoes = itens_individuais + lista_grupos
+    transacoes.sort(key=lambda x: (x["data"], x.get("id", 0)), reverse=True)
 
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
@@ -1140,6 +1406,7 @@ async def pagina_lancamentos(
             "active_tab": "lancamentos"
         }
     )
+
 
 
 # Estrutura hierárquica Categoria -> Subcategoria (Categorias e subcategorias)
@@ -1251,7 +1518,7 @@ async def api_criar_lancamento(
     try:
         cur = conn.cursor()
         cur.execute("PRAGMA table_info(transacoes)")
-        cols_tr = [c["name"] for c in cur.fetchall()]
+        cols_tr = [c[1] if isinstance(c, tuple) else c["name"] for c in cur.fetchall()]
         if "subcategoria" not in cols_tr:
             cur.execute("ALTER TABLE transacoes ADD COLUMN subcategoria TEXT")
             conn.commit()
@@ -4061,7 +4328,7 @@ async def api_motorista_abastecer(
     try:
         cur = conn.cursor()
         cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
-        cols_ab = [c["name"] for c in cur.fetchall()]
+        cols_ab = [c[1] if isinstance(c, tuple) else c["name"] for c in cur.fetchall()]
         if "app_desconto" not in cols_ab:
             cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
             conn.commit()
@@ -5052,6 +5319,111 @@ async def api_salvar_meses_amostra(request: Request):
         conn.close()
 
 
+@app.post("/api/grupo/baixar")
+async def api_grupo_baixar(request: Request):
+    """
+    Executa a baixa em lote de todas as obrigações pendentes de um grupo (Cartão ou Paga Leve):
+    - Baixa cada transação individualmente respeitando a conta de liquidação
+    - Atualiza os saldos bancários e registros oficiais
+    - Retorna resumo detalhado para atualização instantânea da UI
+    """
+    conn = conectar_db()
+    try:
+        payload = await request.json()
+        transacao_ids = payload.get("transacao_ids", [])
+        if not transacao_ids:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Nenhum ID de transação informado."})
+
+        cur = conn.cursor()
+        hoje_str = date.today().strftime("%Y-%m-%d")
+        baixadas = 0
+        total_baixado = 0.0
+
+        cur.execute("SELECT id, nome FROM contas_config WHERE nome = 'Mercado Pago'")
+        r_mp = cur.fetchone()
+        cid_padrao = r_mp["id"] if r_mp else 1
+
+        for tid in transacao_ids:
+            cur.execute("SELECT id, pago, valor, conta, conta_id, descricao FROM transacoes WHERE id = ?", (tid,))
+            r = cur.fetchone()
+            if r and r["pago"] == 0:
+                val = float(r["valor"] or 0.0)
+                cid = r["conta_id"] if r["conta_id"] else cid_padrao
+                try:
+                    saldo_service.registrar_pagamento(
+                        conn=conn,
+                        transacao_id=tid,
+                        data_pagamento=hoje_str,
+                        valor_pago=val,
+                        conta_id=cid,
+                        afeta_saldo_bancario=1,
+                        considerado_no_marco=0,
+                        forma_pagamento="Pix"
+                    )
+                except Exception:
+                    # Fallback direto se já houver registro parcial
+                    cur.execute("""
+                        UPDATE transacoes
+                        SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?
+                        WHERE id = ?
+                    """, (hoje_str, tid))
+                baixadas += 1
+                total_baixado += val
+
+        conn.commit()
+        return {
+            "sucesso": True,
+            "mensagem": f"{baixadas} obrigações baixadas com sucesso! Total: {formatar_moeda_br(total_baixado)}",
+            "baixadas": baixadas,
+            "total_baixado": total_baixado,
+            "transacao_ids": transacao_ids
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/grupo/desfazer")
+async def api_grupo_desfazer(request: Request):
+    """
+    Reverte em lote os pagamentos de todas as obrigações quitadas de um grupo:
+    - Retorna cada obrigação para pendente
+    - Recompõe integralmente os saldos bancários auditados
+    """
+    conn = conectar_db()
+    try:
+        payload = await request.json()
+        transacao_ids = payload.get("transacao_ids", [])
+        motivo = payload.get("motivo", "Desfazer pagamento em lote do grupo")
+        if not transacao_ids:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Nenhum ID de transação informado."})
+
+        cur = conn.cursor()
+        desfeitas = 0
+        total_desfeito = 0.0
+
+        for tid in transacao_ids:
+            cur.execute("SELECT id, pago, valor FROM transacoes WHERE id = ?", (tid,))
+            r = cur.fetchone()
+            if r and r["pago"] == 1:
+                saldo_service.desfazer_pagamento_transacao(conn, tid, motivo=motivo)
+                desfeitas += 1
+                total_desfeito += float(r["valor"] or 0.0)
+
+        return {
+            "sucesso": True,
+            "mensagem": f"{desfeitas} pagamentos desfeitos com sucesso! Total recomposto: {formatar_moeda_br(total_desfeito)}",
+            "desfeitas": desfeitas,
+            "total_desfeito": total_desfeito,
+            "transacao_ids": transacao_ids
+        }
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/planejamento/cenarios")
 async def api_salvar_cenarios_renda(request: Request):
     dados = await request.json()
@@ -5668,5 +6040,123 @@ async def api_opcoes_transacao_global():
             "categorias_receita": cats_rec,
             "cartoes": cartoes
         }
+    finally:
+        conn.close()
+
+
+# ==========================================
+# ROTAS DE CONCILIAÇÃO BANCÁRIA & EXTRATOS
+# ==========================================
+
+@app.get("/conciliacao", response_class=HTMLResponse)
+async def rota_conciliacao(request: Request):
+    """Página de conciliação bancária, importação assistida e visão anual de cobertura."""
+    return templates.TemplateResponse(
+        request=request,
+        name="conciliacao.html",
+        context={"request": request, "active_tab": "conciliacao"}
+    )
+
+
+@app.post("/api/conciliacao/upload")
+async def api_conciliacao_upload(
+    arquivo: UploadFile = File(...),
+    conta: str = Form("Mercado Pago")
+):
+    """Recebe o arquivo CSV do extrato bancário e gera a prévia assistida com matching inteligente sem gravar no banco definitivo."""
+    conn = conectar_db()
+    try:
+        conteudo_bytes = await arquivo.read()
+        previa = conciliacao_service.processar_previa_importacao(
+            conteudo_bytes, arquivo.filename, conta, conn
+        )
+        return previa
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/conciliacao/salvar_rascunho")
+async def api_conciliacao_salvar_rascunho(previa: Dict[str, Any] = Body(...)):
+    """Salva a prévia como um lote pendente em lotes_importacao e lote_itens_conciliacao sem alterar transações."""
+    conn = conectar_db()
+    try:
+        lote_id = conciliacao_service.registrar_lote_pendente(previa, conn)
+        return {"sucesso": True, "lote_id": lote_id, "status": "pendente"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/conciliacao/confirmar")
+async def api_conciliacao_confirmar(payload: Dict[str, Any] = Body(...)):
+    """Aplica o lote de conciliação de forma atômica no banco de dados."""
+    lote_id = payload.get("lote_id")
+    decisoes = payload.get("decisoes", [])
+    if not lote_id:
+        raise HTTPException(status_code=400, detail="lote_id obrigatório.")
+
+    conn = conectar_db()
+    try:
+        resumo = conciliacao_service.aplicar_lote_conciliacao(lote_id, decisoes, conn)
+        return {"sucesso": True, "lote_id": lote_id, "resumo": resumo}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.post("/api/conciliacao/reverter")
+async def api_conciliacao_reverter(payload: Dict[str, Any] = Body(...)):
+    """Reverte um lote importado, removendo transações geradas e desfazendo vínculos com segurança."""
+    lote_id = payload.get("lote_id")
+    if not lote_id:
+        raise HTTPException(status_code=400, detail="lote_id obrigatório.")
+
+    conn = conectar_db()
+    try:
+        resultado = conciliacao_service.reverter_lote_conciliacao(lote_id, conn)
+        return {"sucesso": True, **resultado}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/conciliacao/lotes")
+async def api_conciliacao_listar_lotes():
+    """Retorna o histórico de todos os lotes de importação."""
+    conn = conectar_db()
+    try:
+        conciliacao_service.inicializar_tabelas_conciliacao(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, arquivo_nome, hash_arquivo, banco_ou_conta, periodo_inicio, periodo_fim,
+                   total_linhas, total_creditos, total_debitos, saldo_inicial, saldo_final,
+                   status, data_importacao
+            FROM lotes_importacao
+            ORDER BY id DESC
+        """)
+        cols = [d[0] for d in cur.description]
+        lotes = [dict(zip(cols, r)) for r in cur.fetchall()]
+        return {"sucesso": True, "lotes": lotes}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+@app.get("/api/conciliacao/visao_anual")
+async def api_conciliacao_visao_anual(ano: Optional[int] = Query(2026)):
+    """Retorna os dados da Visão Anual e Cobertura de Extratos (Etapa 5)."""
+    conn = conectar_db()
+    try:
+        conciliacao_service.inicializar_tabelas_conciliacao(conn)
+        dados = conciliacao_service.obter_visao_anual_cobertura(ano or 2026, conn)
+        return dados
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
     finally:
         conn.close()

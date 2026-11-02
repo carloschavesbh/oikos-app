@@ -491,6 +491,18 @@
         </div>
       </div>
 
+      <!-- 3.1 CONCILIAÇÃO & EXTRATOS -->
+      <div class="sidebar-nav-item relative group">
+        <a href="/conciliacao" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'conciliacao' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <span class="w-6 h-6 flex items-center justify-center text-lg shrink-0">📥</span>
+          <span class="sidebar-text truncate">Conciliação & Extratos</span>
+        </a>
+        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
+          Conciliação & Extratos
+        </div>
+      </div>
+
+
       <!-- 4. CONTAS & COFRINHOS -->
       <div class="sidebar-nav-item relative group">
         <a href="/contas" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'contas' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm shadow-emerald-500/10 font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
@@ -702,6 +714,11 @@
           <span class="text-xl">📋</span>
           <span>Lançamentos</span>
         </a>
+        <a href="/conciliacao" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'conciliacao' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <span class="text-xl">📥</span>
+          <span>Conciliação & Extratos</span>
+        </a>
+
         <a href="/contas" onclick="toggleMobileDrawer(false)" class="touch-target flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition {% if active_tab == 'contas' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30{% else %}text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <span class="text-xl">🏦</span>
           <span>Contas & Cofrinhos</span>

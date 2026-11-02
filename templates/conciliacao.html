@@ -1,0 +1,694 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto pb-16">
+    <!-- Cabeçalho Principal -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </span>
+                <h1 class="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Conciliação Bancária & Extratos</h1>
+            </div>
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Importação assistida de CSV (Mercado Pago), preservação de histórico, proteção contra duplicidades e visão anual de cobertura.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="/lancamentos" class="touch-target px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-300/60 dark:border-slate-700">
+                ← Voltar a Lançamentos
+            </a>
+        </div>
+    </div>
+
+    <!-- Navegação por Abas Internas -->
+    <div class="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto pb-1 text-sm font-semibold">
+        <button onclick="trocarAbaConciliacao('aba-upload')" id="tab-btn-upload" class="aba-conc-btn px-4 py-2.5 rounded-xl transition text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-b-2 border-emerald-500 font-bold flex items-center gap-2">
+            <span>📥 Importar Extrato (CSV)</span>
+        </button>
+        <button onclick="trocarAbaConciliacao('aba-previa')" id="tab-btn-previa" class="aba-conc-btn px-4 py-2.5 rounded-xl transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2">
+            <span>🔍 Conferir Prévia & Ações</span>
+            <span id="badge-total-previa" class="hidden px-2 py-0.5 text-xs rounded-full bg-emerald-500 text-white font-bold">0</span>
+        </button>
+        <button onclick="trocarAbaConciliacao('aba-visao-anual')" id="tab-btn-visao-anual" class="aba-conc-btn px-4 py-2.5 rounded-xl transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2">
+            <span>📅 Visão Anual & Cobertura</span>
+        </button>
+        <button onclick="trocarAbaConciliacao('aba-historico')" id="tab-btn-historico" class="aba-conc-btn px-4 py-2.5 rounded-xl transition text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2">
+            <span>📑 Lotes & Reversão Auditável</span>
+        </button>
+    </div>
+
+    <!-- ABA 1: UPLOAD DE EXTRATO CSV -->
+    <div id="aba-upload" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Formulário de Upload -->
+            <div class="md:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    Carregar Extrato Oficial do Mercado Pago
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">
+                    Selecione o arquivo CSV exportado pelo app ou web do Mercado Pago. O sistema lerá os cabeçalhos de saldo e cada transação sem gravar nada antes da sua conferência.
+                </p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Conta de Destino no Oikos</label>
+                        <select id="conta-destino-input" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="Mercado Pago" selected>Mercado Pago (Principal)</option>
+                            <option value="99Pay">99Pay</option>
+                            <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
+                        </select>
+                    </div>
+
+                    <!-- Dropzone / Input File -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Arquivo CSV do Extrato</label>
+                        <div id="drop-zone" class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-8 text-center hover:border-emerald-500 dark:hover:border-emerald-400 transition cursor-pointer bg-slate-50/50 dark:bg-slate-800/30">
+                            <input type="file" id="arquivo-csv-input" accept=".csv" class="hidden" onchange="tratarArquivoSelecionado(this.files[0])">
+                            <div class="flex flex-col items-center gap-2" onclick="document.getElementById('arquivo-csv-input').click()">
+                                <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                </div>
+                                <span id="nome-arquivo-selecionado" class="text-sm font-bold text-slate-700 dark:text-slate-200">Clique para selecionar ou arraste o arquivo CSV</span>
+                                <span class="text-xs text-slate-400">Exemplo: "extrato outubro Mercado Pago.csv"</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botão de Ação -->
+                    <div class="pt-2 flex items-center gap-3">
+                        <button type="button" onclick="enviarArquivoParaPrevia()" id="btn-gerar-previa" class="touch-target px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/20 active:scale-95 transition flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            <span>Analisar e Gerar Prévia Assistida</span>
+                        </button>
+                        <span id="loading-previa" class="hidden text-xs text-slate-500 font-semibold animate-pulse">Processando linhas e calculando correspondências...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card de Regras e Garantias -->
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-4">
+                <h3 class="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    Regras de Proteção Ativas
+                </h3>
+                <ul class="text-xs text-slate-600 dark:text-slate-300 space-y-2.5">
+                    <li class="flex items-start gap-2">
+                        <span class="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Não destrutivo:</strong> Nenhum dado existente é apagado ou substituído silenciosamente.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Antiduplicidade (Hash SHA-256):</strong> Avisa imediatamente se o arquivo já foi processado.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Proteção do Drive (99):</strong> Ganhos do aplicativo não inflam faturamento duplicado.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Vínculo com Paga Leve:</strong> Sugere associação automática com compras parceladas cadastradas.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Reversão Total:</strong> Qualquer lote confirmado pode ser revertido mantendo o banco limpo.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 2: PAINEL DA PRÉVIA & AÇÕES POR ITEM -->
+    <div id="aba-previa" class="hidden space-y-6">
+        <!-- Banner de Metadados do Lote -->
+        <div id="banner-metadados-lote" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs">Prévia Assistida</span>
+                        <h2 id="previa-titulo-arquivo" class="text-base font-bold text-slate-900 dark:text-white">Arquivo.csv</h2>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        Período: <strong id="previa-periodo" class="text-slate-700 dark:text-slate-300">-</strong> | 
+                        Total: <strong id="previa-total-linhas" class="text-slate-700 dark:text-slate-300">0 movimentações</strong>
+                    </p>
+                </div>
+
+                <!-- Balanço de Totais do Extrato -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700">
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Saldo Inicial</span>
+                        <div id="previa-saldo-ini" class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200">R$ 0,00</div>
+                    </div>
+                    <div class="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <span class="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Créditos</span>
+                        <div id="previa-creditos" class="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400">R$ 0,00</div>
+                    </div>
+                    <div class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                        <span class="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400">Débitos</span>
+                        <div id="previa-debitos" class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400">R$ 0,00</div>
+                    </div>
+                    <div class="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700">
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Saldo Final</span>
+                        <div id="previa-saldo-fim" class="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200">R$ 0,00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alertas de Duplicidade ou Sobreposição -->
+            <div id="box-avisos-lote" class="mt-4 space-y-2 hidden">
+                <div id="aviso-duplicidade" class="hidden p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-2">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    <span id="texto-aviso-duplicidade"></span>
+                </div>
+                <div id="aviso-sobreposicao" class="hidden p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-400 text-xs font-semibold flex items-center gap-2">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span id="texto-aviso-sobreposicao"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela Interativa de Linhas da Prévia -->
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Linhas para Conciliação</h3>
+                    <span id="filtro-itens-badge" class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300">Todas</span>
+                </div>
+                <!-- Filtros rápidos de prévia -->
+                <div class="flex items-center gap-1.5 text-xs">
+                    <button onclick="filtrarItensPrevia('todos')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-200">Todas</button>
+                    <button onclick="filtrarItensPrevia('vincular')" class="px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold hover:bg-blue-500/20">Vinculações</button>
+                    <button onclick="filtrarItensPrevia('transferencia')" class="px-2.5 py-1.5 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold hover:bg-purple-500/20">Transferências</button>
+                    <button onclick="filtrarItensPrevia('novo')" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20">Novas</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[580px]">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 dark:bg-slate-800/70 text-slate-500 dark:text-slate-400 font-bold uppercase sticky top-0 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                            <th class="py-3 px-3 w-10">#</th>
+                            <th class="py-3 px-3 w-24">Data</th>
+                            <th class="py-3 px-3">Descrição Original Extrato</th>
+                            <th class="py-3 px-3 text-right w-28">Valor</th>
+                            <th class="py-3 px-3 w-32">Sugestão</th>
+                            <th class="py-3 px-3 w-44">Ação Definida</th>
+                            <th class="py-3 px-3">Detalhe / Correspondência</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-itens-previa" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                        <!-- Linhas geradas via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Barra Fixa de Confirmação -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                    Ao confirmar, os novos lançamentos e vínculos serão gravados de forma atômica no banco de dados.
+                </div>
+                <div class="flex items-center gap-3">
+                    <button type="button" onclick="salvarRascunhoLote()" class="touch-target px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 text-xs font-bold transition">
+                        Salvar Rascunho Pendente
+                    </button>
+                    <button type="button" onclick="confirmarConciliacaoLote()" class="touch-target px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 active:scale-95 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>Aprovar e Gravar Conciliação</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 3: VISÃO ANUAL & COBERTURA DE EXTRATOS (ETAPA 5) -->
+    <div id="aba-visao-anual" class="hidden space-y-6">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        Cobertura e Conciliação do Histórico (Ano 2026)
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Diferenciação clara entre valores realizados, previstos, históricos não conciliados e dados confirmados por extrato bancário.
+                    </p>
+                </div>
+                <button onclick="carregarVisaoAnual()" class="touch-target px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition flex items-center gap-1.5 self-start">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Atualizar Dados
+                </button>
+            </div>
+
+            <!-- Tabela Anual -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 dark:bg-slate-800/70 text-slate-500 dark:text-slate-400 font-bold uppercase border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                            <th class="py-3 px-3">Mês</th>
+                            <th class="py-3 px-3 text-right">Receita Realiz.</th>
+                            <th class="py-3 px-3 text-right">Despesa Realiz.</th>
+                            <th class="py-3 px-3 text-right">Saldo Realizado</th>
+                            <th class="py-3 px-3 text-right">Conciliado Extrato</th>
+                            <th class="py-3 px-3 text-right">Histórico Não Concil.</th>
+                            <th class="py-3 px-3 text-center">Status Cobertura</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-visao-anual" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                        <!-- Carregado via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 4: HISTÓRICO DE LOTES & REVERSÃO AUDITÁVEL (ETAPA 4) -->
+    <div id="aba-historico" class="hidden space-y-6">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900 dark:text-white">Lotes de Importação Processados</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Rastreabilidade completa de cada arquivo importado e possibilidade de reversão atômica.</p>
+                </div>
+                <button onclick="carregarLotesHistorico()" class="touch-target px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition">
+                    Atualizar Lotes
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-50 dark:bg-slate-800/70 text-slate-500 dark:text-slate-400 font-bold uppercase border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                            <th class="py-3 px-3">ID</th>
+                            <th class="py-3 px-3">Arquivo</th>
+                            <th class="py-3 px-3">Conta</th>
+                            <th class="py-3 px-3">Período</th>
+                            <th class="py-3 px-3 text-right">Linhas</th>
+                            <th class="py-3 px-3 text-center">Status</th>
+                            <th class="py-3 px-3">Data Importação</th>
+                            <th class="py-3 px-3 text-right">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-lotes-historico" class="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                        <!-- Carregado via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let dadosPreviaGlobal = null;
+let loteIdAtual = null;
+
+function trocarAbaConciliacao(idAba) {
+    ['aba-upload', 'aba-previa', 'aba-visao-anual', 'aba-historico'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    document.getElementById(idAba).classList.remove('hidden');
+
+    document.querySelectorAll('.aba-conc-btn').forEach(btn => {
+        btn.classList.remove('text-emerald-600', 'dark:text-emerald-400', 'bg-emerald-500/10', 'border-b-2', 'border-emerald-500', 'font-bold');
+        btn.classList.add('text-slate-600', 'dark:text-slate-400');
+    });
+
+    const btnMap = {
+        'aba-upload': 'tab-btn-upload',
+        'aba-previa': 'tab-btn-previa',
+        'aba-visao-anual': 'tab-btn-visao-anual',
+        'aba-historico': 'tab-btn-historico'
+    };
+    const ativo = document.getElementById(btnMap[idAba]);
+    if (ativo) {
+        ativo.classList.remove('text-slate-600', 'dark:text-slate-400');
+        ativo.classList.add('text-emerald-600', 'dark:text-emerald-400', 'bg-emerald-500/10', 'border-b-2', 'border-emerald-500', 'font-bold');
+    }
+
+    if (idAba === 'aba-visao-anual') carregarVisaoAnual();
+    if (idAba === 'aba-historico') carregarLotesHistorico();
+}
+
+function tratarArquivoSelecionado(file) {
+    if (!file) return;
+    document.getElementById('nome-arquivo-selecionado').innerText = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+}
+
+async function enviarArquivoParaPrevia() {
+    const fileInput = document.getElementById('arquivo-csv-input');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Por favor, selecione um arquivo CSV do Mercado Pago.");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const conta = document.getElementById('conta-destino-input').value;
+
+    const formData = new FormData();
+    formData.append('arquivo', file);
+    formData.append('conta', conta);
+
+    document.getElementById('btn-gerar-previa').disabled = true;
+    document.getElementById('loading-previa').classList.remove('hidden');
+
+    try {
+        const res = await fetch('/api/conciliacao/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            alert("Erro ao processar arquivo: " + (data.detail || data.erro || "Falha na leitura"));
+            return;
+        }
+
+        dadosPreviaGlobal = data;
+        renderizarPrevia(data);
+        trocarAbaConciliacao('aba-previa');
+    } catch (err) {
+        alert("Erro de comunicação com o servidor: " + err.message);
+    } finally {
+        document.getElementById('btn-gerar-previa').disabled = false;
+        document.getElementById('loading-previa').classList.add('hidden');
+    }
+}
+
+function formatarMoeda(val) {
+    const n = Number(val) || 0;
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function renderizarPrevia(previa) {
+    document.getElementById('previa-titulo-arquivo').innerText = previa.arquivo_nome;
+    document.getElementById('previa-periodo').innerText = (previa.periodo_inicio || '?') + ' até ' + (previa.periodo_fim || '?');
+    document.getElementById('previa-total-linhas').innerText = previa.total_transacoes + ' movimentações';
+
+    document.getElementById('previa-saldo-ini').innerText = formatarMoeda(previa.saldo_inicial);
+    document.getElementById('previa-creditos').innerText = formatarMoeda(previa.creditos_totais);
+    document.getElementById('previa-debitos').innerText = formatarMoeda(previa.debitos_totais);
+    document.getElementById('previa-saldo-fim').innerText = formatarMoeda(previa.saldo_final);
+
+    const badgePrevia = document.getElementById('badge-total-previa');
+    badgePrevia.innerText = previa.total_transacoes;
+    badgePrevia.classList.remove('hidden');
+
+    // Avisos
+    const boxAvisos = document.getElementById('box-avisos-lote');
+    const avDup = document.getElementById('aviso-duplicidade');
+    const avSob = document.getElementById('aviso-sobreposicao');
+
+    let temAviso = false;
+    if (previa.aviso_duplicidade) {
+        document.getElementById('texto-aviso-duplicidade').innerText = previa.aviso_duplicidade;
+        avDup.classList.remove('hidden');
+        temAviso = true;
+    } else {
+        avDup.classList.add('hidden');
+    }
+
+    if (previa.aviso_sobreposicao) {
+        document.getElementById('texto-aviso-sobreposicao').innerText = previa.aviso_sobreposicao;
+        avSob.classList.remove('hidden');
+        temAviso = true;
+    } else {
+        avSob.classList.add('hidden');
+    }
+
+    if (temAviso) boxAvisos.classList.remove('hidden');
+    else boxAvisos.classList.add('hidden');
+
+    // Tabela
+    const tbody = document.getElementById('tabela-itens-previa');
+    tbody.innerHTML = '';
+
+    previa.itens.forEach((it, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition item-row';
+        tr.dataset.acao = it.acao_sugerida;
+        tr.dataset.idx = idx;
+
+        const badgeTipo = it.tipo === 'receita'
+            ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Crédito</span>'
+            : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400">Débito</span>';
+
+        const corValor = it.tipo === 'receita' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-200';
+
+        tr.innerHTML = `
+            <td class="py-2.5 px-3 text-slate-400 font-mono text-[11px]">${it.linha_num}</td>
+            <td class="py-2.5 px-3 font-medium text-slate-700 dark:text-slate-300">${it.data}</td>
+            <td class="py-2.5 px-3 text-slate-900 dark:text-white font-semibold">
+                <div>${it.descricao}</div>
+                ${it.ref_id ? `<div class="text-[10px] text-slate-400 font-mono">Ref: ${it.ref_id}</div>` : ''}
+            </td>
+            <td class="py-2.5 px-3 text-right font-black ${corValor}">
+                ${formatarMoeda(it.valor)}
+                <div class="mt-0.5">${badgeTipo}</div>
+            </td>
+            <td class="py-2.5 px-3">
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold ${
+                    it.acao_sugerida === 'vincular' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400' :
+                    it.acao_sugerida === 'transferencia' ? 'bg-purple-500/15 text-purple-600 dark:text-purple-400' :
+                    'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                }">
+                    ${it.acao_sugerida.toUpperCase()}
+                </span>
+            </td>
+            <td class="py-2.5 px-3">
+                <select class="select-acao w-full px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 font-medium" onchange="alterarAcaoItem(${idx}, this.value)">
+                    <option value="vincular" ${it.acao_sugerida === 'vincular' ? 'selected' : ''}>Vincular a Existente</option>
+                    <option value="novo" ${it.acao_sugerida === 'novo' ? 'selected' : ''}>Nova Movimentação</option>
+                    <option value="transferencia" ${it.acao_sugerida === 'transferencia' ? 'selected' : ''}>Transferência Interna</option>
+                    <option value="ignorar" ${it.acao_sugerida === 'ignorar' ? 'selected' : ''}>Ignorar Lançamento</option>
+                    <option value="pendente" ${it.acao_sugerida === 'pendente' ? 'selected' : ''}>Deixar Pendente</option>
+                </select>
+            </td>
+            <td class="py-2.5 px-3 text-[11px] text-slate-500 dark:text-slate-400">
+                ${it.match_detalhe ? `<span class="text-blue-600 dark:text-blue-400 font-semibold">${it.match_detalhe}</span>` : ''}
+                ${it.tipo_alerta === 'drive_99' ? '<span class="text-amber-600 dark:text-amber-400 font-semibold">Receita 99 / Drive (Carlos)</span>' : ''}
+                ${it.tipo_alerta === 'transferencia_interna' ? '<span class="text-purple-600 dark:text-purple-400 font-semibold">Reserva / Transferência entre Contas</span>' : ''}
+                <div class="text-[10px] text-slate-400 mt-0.5">Cat: ${it.categoria_sugerida} / ${it.subcategoria_sugerida}</div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function alterarAcaoItem(idx, novaAcao) {
+    if (dadosPreviaGlobal && dadosPreviaGlobal.itens[idx]) {
+        dadosPreviaGlobal.itens[idx].acao_sugerida = novaAcao;
+    }
+}
+
+function filtrarItensPrevia(tipo) {
+    const rows = document.querySelectorAll('.item-row');
+    rows.forEach(r => {
+        if (tipo === 'todos' || r.dataset.acao === tipo) {
+            r.classList.remove('hidden');
+        } else {
+            r.classList.add('hidden');
+        }
+    });
+    document.getElementById('filtro-itens-badge').innerText = tipo.toUpperCase();
+}
+
+async function salvarRascunhoLote() {
+    if (!dadosPreviaGlobal) return;
+    try {
+        const res = await fetch('/api/conciliacao/salvar_rascunho', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dadosPreviaGlobal)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            loteIdAtual = data.lote_id;
+            alert("Rascunho salvo com sucesso como Lote #" + data.lote_id + " (Pendente).");
+            trocarAbaConciliacao('aba-historico');
+        } else {
+            alert("Erro ao salvar rascunho: " + (data.detail || data.erro));
+        }
+    } catch (e) {
+        alert("Erro de rede: " + e.message);
+    }
+}
+
+async function confirmarConciliacaoLote() {
+    if (!dadosPreviaGlobal) return;
+
+    if (!confirm("Confirmar a conciliação deste lote? Lançamentos novos e vínculos serão gravados no banco.")) {
+        return;
+    }
+
+    try {
+        // Se ainda não salvou o lote pendente, salvar primeiro
+        if (!loteIdAtual) {
+            const resRascunho = await fetch('/api/conciliacao/salvar_rascunho', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dadosPreviaGlobal)
+            });
+            const dR = await resRascunho.json();
+            if (!resRascunho.ok) throw new Error(dR.detail || "Erro ao registrar lote");
+            loteIdAtual = dR.lote_id;
+        }
+
+        // Montar payload de decisões
+        const decisoes = dadosPreviaGlobal.itens.map((it, idx) => ({
+            item_id: idx + 1,
+            acao: it.acao_sugerida,
+            transacao_id: it.transacao_id_sugerida,
+            categoria: it.categoria_sugerida,
+            subcategoria: it.subcategoria_sugerida,
+            motivo: it.motivo_ignorado || "Aprovado pelo usuário"
+        }));
+
+        const resConf = await fetch('/api/conciliacao/confirmar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                lote_id: loteIdAtual,
+                decisoes: decisoes
+            })
+        });
+
+        const dataConf = await resConf.json();
+        if (resConf.ok) {
+            alert("Conciliação concluída com sucesso!\n\n" +
+                  "• Vinculados: " + dataConf.resumo.vinculados + "\n" +
+                  "• Novos criados: " + dataConf.resumo.novos_criados + "\n" +
+                  "• Transferências: " + dataConf.resumo.transferencias_criadas + "\n" +
+                  "• Ignorados: " + dataConf.resumo.ignorados);
+            trocarAbaConciliacao('aba-visao-anual');
+        } else {
+            alert("Erro ao confirmar conciliação: " + (dataConf.detail || dataConf.erro));
+        }
+    } catch (e) {
+        alert("Erro ao aplicar lote: " + e.message);
+    }
+}
+
+async function carregarVisaoAnual() {
+    const tbody = document.getElementById('tabela-visao-anual');
+    tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-400">Carregando dados anuais...</td></tr>';
+
+    try {
+        const res = await fetch('/api/conciliacao/visao_anual?ano=2026');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+
+        tbody.innerHTML = '';
+        data.meses.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition';
+
+            let badgeStatus = '';
+            if (m.status_cobertura === 'Completo') {
+                badgeStatus = '<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">Completo</span>';
+            } else if (m.status_cobertura.includes('Parcial')) {
+                badgeStatus = '<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">Parcial</span>';
+            } else if (m.status_cobertura.includes('Histórico')) {
+                badgeStatus = '<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">Histórico s/ Extrato</span>';
+            } else {
+                badgeStatus = '<span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-500">Sem Dados</span>';
+            }
+
+            tr.innerHTML = `
+                <td class="py-3 px-3 font-bold text-slate-900 dark:text-white">${m.nome_mes} <span class="text-[11px] text-slate-400 font-normal">(${m.mes})</span></td>
+                <td class="py-3 px-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">${formatarMoeda(m.rec_realizada)}</td>
+                <td class="py-3 px-3 text-right font-semibold text-rose-600 dark:text-rose-400">${formatarMoeda(m.desp_realizada)}</td>
+                <td class="py-3 px-3 text-right font-black ${m.saldo_realizado >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${formatarMoeda(m.saldo_realizado)}</td>
+                <td class="py-3 px-3 text-right font-semibold text-blue-600 dark:text-blue-400">
+                    ${formatarMoeda(m.total_conciliado)}
+                    <span class="text-[10px] text-slate-400 block">${m.qtd_conciliados} itens</span>
+                </td>
+                <td class="py-3 px-3 text-right font-semibold text-slate-600 dark:text-slate-400">
+                    ${formatarMoeda(m.total_nao_conciliado)}
+                    <span class="text-[10px] text-slate-400 block">${m.qtd_nao_conciliados} itens</span>
+                </td>
+                <td class="py-3 px-3 text-center">${badgeStatus}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-4 text-center text-rose-500">Erro ao carregar visão anual: ${e.message}</td></tr>`;
+    }
+}
+
+async function carregarLotesHistorico() {
+    const tbody = document.getElementById('tabela-lotes-historico');
+    tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-slate-400">Carregando histórico de lotes...</td></tr>';
+
+    try {
+        const res = await fetch('/api/conciliacao/lotes');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail);
+
+        if (!data.lotes || data.lotes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-slate-400">Nenhum lote importado ainda.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        data.lotes.forEach(l => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition';
+
+            let badgeStatus = '';
+            if (l.status === 'confirmado') {
+                badgeStatus = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Confirmado</span>';
+            } else if (l.status === 'pendente') {
+                badgeStatus = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400">Pendente</span>';
+            } else {
+                badgeStatus = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400">Revertido</span>';
+            }
+
+            const btnReverter = l.status === 'confirmado'
+                ? `<button onclick="reverterLote(${l.id})" class="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold text-xs transition">Reverter Lote</button>`
+                : '<span class="text-slate-400 text-xs">-</span>';
+
+            tr.innerHTML = `
+                <td class="py-3 px-3 font-mono font-bold text-slate-500">#${l.id}</td>
+                <td class="py-3 px-3 font-semibold text-slate-900 dark:text-white">${l.arquivo_nome}</td>
+                <td class="py-3 px-3 text-slate-600 dark:text-slate-300">${l.banco_ou_conta}</td>
+                <td class="py-3 px-3 text-slate-500 text-[11px]">${l.periodo_inicio || '?'} a ${l.periodo_fim || '?'}</td>
+                <td class="py-3 px-3 text-right font-bold text-slate-700 dark:text-slate-300">${l.total_linhas}</td>
+                <td class="py-3 px-3 text-center">${badgeStatus}</td>
+                <td class="py-3 px-3 text-slate-500 text-[11px]">${l.data_importacao}</td>
+                <td class="py-3 px-3 text-right">${btnReverter}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-4 text-center text-rose-500">Erro ao carregar lotes: ${e.message}</td></tr>`;
+    }
+}
+
+async function reverterLote(loteId) {
+    if (!confirm("ATENÇÃO: Deseja realmente reverter o Lote #" + loteId + "? Todas as transações criadas por este lote serão removidas e os vínculos desfeitos com segurança.")) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/conciliacao/reverter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lote_id: loteId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert("Lote revertido com sucesso! " + data.transacoes_removidas + " transações removidas.");
+            carregarLotesHistorico();
+            carregarVisaoAnual();
+        } else {
+            alert("Erro ao reverter lote: " + (data.detail || data.erro));
+        }
+    } catch (e) {
+        alert("Erro de comunicação: " + e.message);
+    }
+}
+</script>
+{% endblock %}
+
