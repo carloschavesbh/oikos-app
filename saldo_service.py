@@ -2096,10 +2096,20 @@ def obter_producao_consolidada_99(
     cur = conn.cursor()
     marco = obter_marco_producao_99(conn)
 
-    fat_marco = float(marco["faturamento_bruto"]) if marco else 0.0
-    din_marco = float(marco["recebido_dinheiro_pix"]) if marco else 0.0
-    onl_marco = float(marco["recebido_online"]) if marco else 0.0
-    corte_marco = str(marco["data_corte"]) if marco else inicio_mes
+    # Condiciona a utilização do marco ativo ao mês de referência consultado
+    mes_ref = f"{ano}-{mes:02d}"
+    marco_mesmo_mes = bool(marco and str(marco.get("data_corte") or "")[:7] == mes_ref)
+
+    if marco_mesmo_mes:
+        fat_marco = float(marco["faturamento_bruto"])
+        din_marco = float(marco["recebido_dinheiro_pix"])
+        onl_marco = float(marco["recebido_online"])
+        corte_marco = str(marco["data_corte"])
+    else:
+        fat_marco = 0.0
+        din_marco = 0.0
+        onl_marco = 0.0
+        corte_marco = None
 
     # Turnos da semana corrente
     cur.execute("""
@@ -2124,19 +2134,33 @@ def obter_producao_consolidada_99(
     horas_sem = round(float(sem_row[5]), 2)
     km_sem = round(float(sem_row[6]), 2)
 
-    # Turnos após o marco no mês corrente
-    cur.execute("""
-        SELECT
-            COUNT(*),
-            COALESCE(SUM(ganho_bruto), 0),
-            COALESCE(SUM(ganho_dinheiro_pix), 0),
-            COALESCE(SUM(ganho_online), 0),
-            COALESCE(SUM(combustivel), 0),
-            COALESCE(SUM(horas), 0),
-            COALESCE(SUM(km), 0)
-        FROM turnos
-        WHERE data > ? AND data >= ? AND data <= ?
-    """, (corte_marco, inicio_mes, fim_mes))
+    # Turnos no mês corrente (se houver marco no mesmo mês, considera turnos pós-marco; senão, todos do mês)
+    if corte_marco:
+        cur.execute("""
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(ganho_bruto), 0),
+                COALESCE(SUM(ganho_dinheiro_pix), 0),
+                COALESCE(SUM(ganho_online), 0),
+                COALESCE(SUM(combustivel), 0),
+                COALESCE(SUM(horas), 0),
+                COALESCE(SUM(km), 0)
+            FROM turnos
+            WHERE data > ? AND data >= ? AND data <= ?
+        """, (corte_marco, inicio_mes, fim_mes))
+    else:
+        cur.execute("""
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(ganho_bruto), 0),
+                COALESCE(SUM(ganho_dinheiro_pix), 0),
+                COALESCE(SUM(ganho_online), 0),
+                COALESCE(SUM(combustivel), 0),
+                COALESCE(SUM(horas), 0),
+                COALESCE(SUM(km), 0)
+            FROM turnos
+            WHERE data >= ? AND data <= ?
+        """, (inicio_mes, fim_mes))
     pos_row = cur.fetchone()
 
     qtd_pos = pos_row[0]

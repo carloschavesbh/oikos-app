@@ -389,7 +389,8 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
           AND (descricao LIKE '%Fernanda%' OR categoria LIKE '%Fernanda%')
     """, (inicio_mes_str, fim_mes_str))
     row_sal = cur.fetchone()
-    sal_fernanda = float(row_sal[0]) if (row_sal and row_sal[0] > 0) else 3523.43
+    sal_fernanda = float(row_sal[0]) if (row_sal and row_sal[0] > 0) else 0.0
+    sal_fernanda_previsto = 3523.43
     receita_mensal_total = sal_fernanda + fat_99_mes
 
     # 3. Despesas do Mês (Pagas + Pendentes do Mês)
@@ -549,6 +550,7 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
         # Resumo da Casa
         "receita_mensal": receita_mensal_total,
         "salario_fernanda": sal_fernanda,
+        "salario_fernanda_previsto": sal_fernanda_previsto,
         "fat_99_mes": fat_99_mes,
         "despesa_mensal": despesa_mensal_total,
         "despesas_pagas": despesas_pagas_mes,

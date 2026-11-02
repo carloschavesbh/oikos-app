@@ -21,7 +21,7 @@
           {{ d.receita_mensal | moeda }}
         </div>
         <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>Fernanda: <strong class="text-slate-800 dark:text-slate-200 font-bold">{{ d.salario_fernanda | moeda }}</strong></span>
+          <span>Fernanda: <strong class="text-slate-800 dark:text-slate-200 font-bold">{{ d.salario_fernanda | moeda }}</strong>{% if d.salario_fernanda <= 0 %} <span class="text-[11px] text-slate-400 font-normal">(Previsto: {{ d.salario_fernanda_previsto | moeda }})</span>{% endif %}</span>
           <span>99: <strong class="text-emerald-600 dark:text-emerald-400 font-bold">{{ d.fat_99_mes | moeda }}</strong></span>
         </div>
       </div>
