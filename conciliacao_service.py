@@ -711,6 +711,7 @@ def obter_visao_anual_cobertura(ano: int, conn) -> Dict[str, Any]:
       - Status de Cobertura: 'Completo', 'Parcial' ou 'Sem Dados'
     Sem forçar saldos fictícios nem ajustes inventados.
     """
+    inicializar_tabelas_conciliacao(conn)
     cur = conn.cursor()
     ano_str = str(ano)
 
