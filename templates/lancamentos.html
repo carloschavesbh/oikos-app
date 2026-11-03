@@ -6,64 +6,51 @@
 <div class="space-y-4">
 
   <!-- CABEÇALHO & NAVEGAÇÃO DE MESES -->
-  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-      <div>
-        <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Extrato & Lançamentos</h1>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gestão de transações mensais, baixas imediatas e novos registros.</p>
-      </div>
-
-      <!-- NAVEGADOR DE MESES COMPLETO -->
-      <div class="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-0">
-        <!-- Botão Mês Anterior [ ‹ ] -->
-        <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
-           title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
-           class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
-          ‹
-        </a>
-
-        <!-- Mês/Ano Centralizado com Dropdown Rápido -->
-        <div class="relative inline-flex items-center">
-          <select onchange="navegarPeriodoComOrdem(this.value)" 
-                  title="Saltar para outro mês"
-                  class="appearance-none touch-target bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
-            {% for op in opcoes_periodo %}
-            <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
-              {{ op.label }}
-            </option>
-            {% endfor %}
-          </select>
-          <span class="pointer-events-none absolute right-3 text-[10px] text-slate-500 dark:text-slate-400">▼</span>
-        </div>
-
-        <!-- Botão Próximo Mês [ › ] -->
-        <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
-           title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
-           class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
-          ›
-        </a>
-
-        <!-- Botão Rápido: Mês Atual (se não estiver no mês corrente) -->
-        {% if not eh_mes_atual %}
-        <a href="/lancamentos{% if ordem_atual %}?ordem={{ ordem_atual }}{% endif %}" 
-           title="Voltar ao Mês Atual"
-           class="touch-target inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.75 3v2.25M17.25 3v2.253M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5"/></svg>
-          <span>Mês Atual</span>
-        </a>
-        {% endif %}
-      </div>
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Extrato & Lançamentos</h1>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gestão de transações mensais, baixas imediatas e novos registros.</p>
     </div>
 
-    <!-- Ações: Conciliação & Novo Lançamento -->
-    <div class="flex items-center gap-2.5 self-start lg:self-auto">
-      <a href="/conciliacao" class="touch-target min-h-[44px] inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-slate-800 dark:text-slate-200 text-xs sm:text-sm font-bold border border-slate-300/80 dark:border-slate-700 shadow-sm transition cursor-pointer">
-        <svg class="w-4 h-4 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
-        <span>Conciliar Extrato</span>
+    <!-- NAVEGADOR DE MESES COMPLETO -->
+    <div class="flex items-center gap-1.5 sm:gap-2">
+      <!-- Botão Mês Anterior [ ‹ ] -->
+      <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
+         title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
+         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+        ‹
       </a>
-      <button onclick="abrirModalLancamento()" class="touch-target min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/20 transition cursor-pointer">
-        <span class="text-base font-black">+</span> Novo Lançamento
-      </button>
+
+      <!-- Mês/Ano Centralizado com Dropdown Rápido -->
+      <div class="relative inline-flex items-center">
+        <select onchange="navegarPeriodoComOrdem(this.value)" 
+                title="Saltar para outro mês"
+                class="appearance-none touch-target bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
+          {% for op in opcoes_periodo %}
+          <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
+            {{ op.label }}
+          </option>
+          {% endfor %}
+        </select>
+        <span class="pointer-events-none absolute right-3 text-[10px] text-slate-500 dark:text-slate-400">▼</span>
+      </div>
+
+      <!-- Botão Próximo Mês [ › ] -->
+      <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
+         title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
+         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
+        ›
+      </a>
+
+      <!-- Botão Rápido: Mês Atual (se não estiver no mês corrente) -->
+      {% if not eh_mes_atual %}
+      <a href="/lancamentos{% if ordem_atual %}?ordem={{ ordem_atual }}{% endif %}" 
+         title="Voltar ao Mês Atual"
+         class="touch-target inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.75 3v2.25M17.25 3v2.253M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5"/></svg>
+        <span>Mês Atual</span>
+      </a>
+      {% endif %}
     </div>
   </div>
 
