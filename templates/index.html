@@ -815,7 +815,7 @@
                 class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
           {% for c in d.contas %}
           <option value="{{ c.nome }}" {% if 'mercado' in c.nome.lower() %}selected{% endif %}>
-            {{ c.icone }} {{ c.nome }} ({{ c.saldo_atual | moeda }})
+            {{ c.nome }} ({{ c.saldo_atual | moeda }})
           </option>
           {% endfor %}
         </select>

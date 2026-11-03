@@ -1198,13 +1198,13 @@
         const selDest = document.getElementById('global-select-destino');
 
         if (selConta && dados.contas) {
-          selConta.innerHTML = dados.contas.map(c => `<option value="${c.nome}">${c.icone} ${c.nome}</option>`).join('');
+          selConta.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
         }
         if (selOrig && dados.contas) {
-          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.icone} ${c.nome}</option>`).join('');
+          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
         }
         if (selDest && dados.contas) {
-          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.icone} ${c.nome}</option>`).join('');
+          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.nome}</option>`).join('');
         }
       }
 
@@ -1325,11 +1325,13 @@
         const qtd = r.qtd_futuras ? `${r.qtd_futuras} ocorrências` : 'Ativa';
         const descEsc = (r.descricao || '').replace(/'/g, "\'");
         const catEsc = (r.categoria || 'Moradia/Contas').replace(/'/g, "\'");
+        const contaEsc = (r.conta || '').replace(/'/g, "\'");
         const diaNum = venc.includes('-') ? parseInt(venc.split('-')[2], 10) : 10;
+        const iconeSvg = r.icone_arquivo || 'banco_default.svg';
         return `
           <div class="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs hover:border-emerald-500/50 transition">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-sm shrink-0">🔁</span>
+              <img src="/static/img/bancos/${iconeSvg}" onerror="this.onerror=null; this.src='/static/img/bancos/banco_default.svg'" class="w-4 h-4 object-contain inline-block shrink-0" alt="" />
               <div class="truncate">
                 <div class="font-bold text-slate-900 dark:text-white truncate">${r.descricao}</div>
                 <div class="text-[10px] text-slate-500 truncate">${r.categoria} • ${venc} • ${qtd}</div>
@@ -1337,7 +1339,7 @@
             </div>
             <div class="flex items-center gap-2 shrink-0 ml-2">
               <span class="font-black text-rose-500 text-xs">${fmtVal}</span>
-              <button type="button" onclick="preencherRecorrenciaGlobal('${descEsc}', '${catEsc}', ${r.valor}, ${diaNum})"
+              <button type="button" onclick="preencherRecorrenciaGlobal('${descEsc}', '${catEsc}', ${r.valor}, ${diaNum}, '${contaEsc}')"
                       class="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white text-[10px] font-bold transition cursor-pointer"
                       title="Preencher dados no formulário">
                 Usar
@@ -1362,7 +1364,18 @@
       }
     }
 
-    function preencherRecorrenciaGlobal(desc, cat, valor, dia) {
+    function preencherRecorrenciaGlobal(desc, cat, valor, dia, conta = '') {
+      if (conta) {
+        const selConta = document.getElementById('global-select-conta');
+        if (selConta) {
+          for (let opt of selConta.options) {
+            if (opt.textContent.trim().toLowerCase() === conta.trim().toLowerCase() || opt.value === String(conta)) {
+              selConta.value = opt.value;
+              break;
+            }
+          }
+        }
+      }
       document.getElementById('global-input-descricao').value = desc;
       const selCat = document.getElementById('global-select-categoria');
       if (selCat) {

@@ -1669,6 +1669,73 @@ def converter_valor_monetario(val: Any, default: float = 0.0) -> float:
         return default
 
 
+def resolver_conta_bancaria(conn: sqlite3.Connection, conta_param: Any) -> Tuple[int, str]:
+    """
+    Resolve de forma determinística e segura uma conta bancária a partir de ID estável ou nome humano:
+    - Separa identificador interno, nome humano e arquivo de ícone.
+    - Sanitiza qualquer texto recebido removendo resíduos de arquivos de ícone (.svg, .png), HTML ou emojis.
+    - Garante que NUNCA seja gravado nome de arquivo visual (*.svg) ou HTML no campo conta de transações.
+    - Retorna sempre uma tupla (conta_id: int, conta_nome: str) com o nome humano canônico (ex.: 1779, '99Pay').
+    """
+    if conta_param is None:
+        return 1, "Mercado Pago"
+
+    cur = conn.cursor()
+    c_raw = str(conta_param).strip()
+    
+    # 1. Se for numérico ou puder ser convertido para int, busca por ID diretamente
+    try:
+        cid_int = int(c_raw)
+        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (cid_int,))
+        row = cur.fetchone()
+        if row:
+            return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Sanitiza o texto removendo nomes de arquivo de ícone (.svg, .png) que possam ter vazado
+    c_limpo = re.sub(r'[\w\-]+\.(svg|png)', '', c_raw, flags=re.IGNORECASE)
+    # Remove emojis comuns de prefixo e caracteres especiais
+    c_limpo = re.sub(r'[^\w\s\/\-]', '', c_limpo).strip()
+    c_limpo = re.sub(r'\s+', ' ', c_limpo).strip()
+    if not c_limpo:
+        c_limpo = c_raw
+
+    # 3. Busca exata por nome em contas_config
+    cur.execute("SELECT id, nome FROM contas_config WHERE LOWER(TRIM(nome)) = LOWER(TRIM(?))", (c_limpo,))
+    row = cur.fetchone()
+    if row:
+        return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+
+    # 4. Busca parcial por palavras-chave canônicas
+    c_low = c_limpo.lower()
+    if "99" in c_low:
+        cur.execute("SELECT id, nome FROM contas_config WHERE LOWER(nome) LIKE '%99%'")
+        row = cur.fetchone()
+        if row:
+            return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+        return 1779, "99Pay"
+    elif "carteira" in c_low or "dinheiro" in c_low:
+        cur.execute("SELECT id, nome FROM contas_config WHERE LOWER(nome) LIKE '%carteira%' OR LOWER(nome) LIKE '%dinheiro%'")
+        row = cur.fetchone()
+        if row:
+            return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+        return 2, "Dinheiro / Carteira"
+    elif "mercado" in c_low and "card" not in c_low:
+        cur.execute("SELECT id, nome FROM contas_config WHERE LOWER(nome) LIKE '%mercado pago%'")
+        row = cur.fetchone()
+        if row:
+            return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+        return 1, "Mercado Pago"
+
+    # Fallback final seguro para Mercado Pago (conta principal)
+    cur.execute("SELECT id, nome FROM contas_config WHERE id = 1")
+    row_default = cur.fetchone()
+    if row_default:
+        return 1, str(row_default["nome"] if isinstance(row_default, sqlite3.Row) else row_default[1]).strip()
+    return 1, "Mercado Pago"
+
+
 @app.post("/api/lancamentos")
 async def api_criar_lancamento(
     data: str = Form(...),
@@ -1713,26 +1780,7 @@ async def api_criar_lancamento(
             cur.execute("ALTER TABLE transacoes ADD COLUMN motivo_ajuste TEXT")
             conn.commit()
 
-        conta_input = str(conta).strip()
-        cur.execute("SELECT id, nome FROM contas_config WHERE nome = ? OR id = ?", (conta_input, conta_input))
-        row_c = cur.fetchone()
-        if row_c:
-            conta_id = row_c["id"]
-            conta_nome = row_c["nome"]
-        else:
-            c_low = conta_input.lower()
-            if "carteira" in c_low or "dinheiro" in c_low:
-                conta_id = 2
-                conta_nome = "Dinheiro / Carteira"
-            elif "99" in c_low:
-                conta_id = 1779
-                conta_nome = "99Pay"
-            elif "mercado" in c_low and "card" not in c_low:
-                conta_id = 1
-                conta_nome = "Mercado Pago"
-            else:
-                conta_id = 1
-                conta_nome = conta_input
+        conta_id, conta_nome = resolver_conta_bancaria(conn, conta)
 
         pago_int = 1 if (pago == 1 or str(pago).strip() in ["1", "true", "True"]) else 0
         afeta_saldo = 1 if pago_int == 1 else 0
@@ -6093,8 +6141,8 @@ if __name__ == "__main__":
 
 @app.post("/api/transferencias")
 async def api_criar_transferencia(
-    conta_origem_id: int = Form(...),
-    conta_destino_id: int = Form(...),
+    conta_origem_id: Any = Form(...),
+    conta_destino_id: Any = Form(...),
     valor: Any = Form(...),
     data: str = Form(...),
     descricao: Optional[str] = Form("")
@@ -6108,33 +6156,30 @@ async def api_criar_transferencia(
     valor_num = converter_valor_monetario(valor)
     if valor_num <= 0:
         return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
-    if int(conta_origem_id) == int(conta_destino_id):
-        return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Conta de origem e conta de destino não podem ser a mesma."})
 
     conn = conectar_db()
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_origem_id,))
-        r_orig = cur.fetchone()
-        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_destino_id,))
-        r_dest = cur.fetchone()
-        if not r_orig or not r_dest:
-            return JSONResponse(status_code=404, content={"status": "erro", "sucesso": False, "erro": "Conta de origem ou destino não encontrada."})
+        cid_orig, cnome_orig = resolver_conta_bancaria(conn, conta_origem_id)
+        cid_dest, cnome_dest = resolver_conta_bancaria(conn, conta_destino_id)
 
-        desc = (descricao or f"Transferência de {r_orig['nome']} para {r_dest['nome']}").strip()
+        if int(cid_orig) == int(cid_dest):
+            return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Conta de origem e conta de destino não podem ser a mesma."})
+
+        desc = (descricao or f"Transferência de {cnome_orig} para {cnome_dest}").strip()
         data_efetiva = str(data)[:10]
 
+        cur = conn.cursor()
         cur.execute("""
             INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, conta_destino_id, pago, afeta_saldo_bancario, data_liquidacao)
             VALUES (?, ?, ?, 'transferencia', 'Transferência Interna', ?, ?, ?, 1, 1, ?)
-        """, (data_efetiva, desc, valor_num, r_orig["nome"], conta_origem_id, conta_destino_id, data_efetiva))
+        """, (data_efetiva, desc, valor_num, cnome_orig, cid_orig, cid_dest, data_efetiva))
         conn.commit()
 
         res_saldo = saldo_service.calcular_saldo_consolidado(conn)
         return {
             "status": "sucesso",
             "sucesso": True,
-            "mensagem": f"Transferência de {formatar_moeda_br(valor_num)} de {r_orig['nome']} para {r_dest['nome']} realizada com sucesso!",
+            "mensagem": f"Transferência de {formatar_moeda_br(valor_num)} de {cnome_orig} para {cnome_dest} realizada com sucesso!",
             "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
         }
     except Exception as e:
@@ -6180,10 +6225,7 @@ async def api_criar_recorrencia(
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome FROM contas_config WHERE nome = ? OR id = ?", (conta, conta))
-        r_c = cur.fetchone()
-        cid = r_c["id"] if r_c else 1
-        cnome = r_c["nome"] if r_c else "Mercado Pago"
+        cid, cnome = resolver_conta_bancaria(conn, conta)
 
         inseridas = 0
         ano_corrente, mes_corrente = ano_ini, mes_ini
@@ -6257,6 +6299,7 @@ async def api_listar_recorrencias():
                 "subcategoria": r["subcategoria"],
                 "valor": float(r["valor"] or 0.0),
                 "conta": r["conta"],
+                "icone_arquivo": resolver_icone_banco(r["conta"] or ""),
                 "grupo_parcelamento": r["grupo_parcelamento"],
                 "qtd_futuras": r["qtd_futuras"],
                 "proximo_vencimento": r["proximo_vencimento"],
@@ -6284,6 +6327,7 @@ async def api_listar_recorrencias():
                     "subcategoria": rec.get("subcategoria", ""),
                     "valor": float(rec["valor"]),
                     "conta": rec.get("conta", "Mercado Pago"),
+                    "icone_arquivo": resolver_icone_banco(rec.get("conta", "Mercado Pago")),
                     "grupo_parcelamento": f"regra_aprovada_dia_{rec['dia']}",
                     "qtd_futuras": qtd_f,
                     "proximo_vencimento": prox_venc,
@@ -6298,12 +6342,24 @@ async def api_listar_recorrencias():
 
 @app.get("/api/opcoes-transacao-global")
 async def api_opcoes_transacao_global():
-    """Retorna as opções reais e ativas para alimentar o modal global de transações."""
+    """Retorna as opções reais e ativas para alimentar o modal global de transações com IDs e nomes separados de ícones."""
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, tipo, cor, COALESCE(icone, '🏦') as icone FROM contas_config WHERE id NOT IN (SELECT id FROM contas_config WHERE tipo = 'investimento') ORDER BY nome ASC")
-        contas = [dict(r) for r in cur.fetchall()]
+        cur.execute("SELECT id, nome, tipo, cor, COALESCE(icone, 'carteira.svg') as icone_db FROM contas_config WHERE id NOT IN (SELECT id FROM contas_config WHERE tipo = 'investimento') ORDER BY nome ASC")
+        rows_contas = cur.fetchall()
+        contas = []
+        for r in rows_contas:
+            c_dict = dict(r)
+            icone_svg = resolver_icone_banco(c_dict.get("icone_db") or c_dict.get("nome"))
+            contas.append({
+                "id": c_dict["id"],
+                "nome": c_dict["nome"],
+                "tipo": c_dict.get("tipo"),
+                "cor": c_dict.get("cor"),
+                "icone_arquivo": icone_svg,
+                "icone_fallback": "banco_default.svg"
+            })
 
         cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'despesa' AND categoria IS NOT NULL ORDER BY categoria ASC")
         cats_desp = [r[0] for r in cur.fetchall() if r[0]]
