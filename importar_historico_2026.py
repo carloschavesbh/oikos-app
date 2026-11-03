@@ -23,7 +23,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "financas_casa.db")
+DB_PATH = os.environ.get("OIKOS_DB_PATH", os.path.join(BASE_DIR, "financas_casa.db"))
 BACKUP_PATH = os.path.join(BASE_DIR, "financas_casa_backup_pre_correcao.db")
 
 ORGANIZZE_DIR = r"c:\Users\carlo\Downloads\Movimentações Organizze"

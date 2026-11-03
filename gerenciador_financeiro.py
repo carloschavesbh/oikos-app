@@ -3,15 +3,17 @@ Sistema Financeiro Personalizado - Core SQLite
 Inclui criação de tabelas e gerador de parcelas quinzenais (ex: Pagaleve / Pix 4x).
 """
 
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
-def conectar_banco(nome_banco: str = "financas.db") -> sqlite3.Connection:
+def conectar_banco(nome_banco: Optional[str] = None) -> sqlite3.Connection:
     """Cria a conexão e ativa chaves estrangeiras."""
-    conn = sqlite3.connect(nome_banco)
+    caminho = nome_banco or os.environ.get("OIKOS_DB_PATH", "financas.db")
+    conn = sqlite3.connect(caminho)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 

@@ -17,7 +17,10 @@ import os
 from datetime import date
 import calendar
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "financas_casa.db"))
+DB_PATH = os.environ.get(
+    "OIKOS_DB_PATH",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "financas_casa.db"))
+)
 
 def cadastrar_claro():
     conn = sqlite3.connect(DB_PATH)
