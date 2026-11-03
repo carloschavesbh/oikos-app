@@ -3,7 +3,7 @@
 {% block title %}Oikos | Cartões de Crédito & Faturas{% endblock %}
 
 {% block content %}
-<div class="space-y-5">
+<div class="space-y-5 w-full min-w-0 max-w-full overflow-x-hidden">
 
   <!-- CABEÇALHO -->
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
@@ -19,7 +19,7 @@
       <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Controle de limites, fechamento e faturas reais dos cartões cadastrados.</p>
     </div>
 
-    <!-- Ações do Topo: Seletor de Cartões + Botão Novo Cartão -->
+    <!-- Ações do Topo: Seletor de Cartões + Botões de Ação -->
     <div class="flex flex-wrap items-center gap-2">
       {% if cartoes | length > 1 %}
       <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
@@ -34,6 +34,12 @@
         {% endfor %}
       </div>
       {% endif %}
+
+      <button type="button"
+              onclick="abrirModalDespesaCartao({{ cartao_ativo.id if cartao_ativo else (cartoes[0].id if cartoes else 'null') }})"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+        <span>+</span> Despesa no Cartão
+      </button>
 
       <button type="button"
               onclick="abrirModalNovoCartao()"
@@ -59,59 +65,80 @@
 
   <!-- CONTEÚDO DOS CARTÕES -->
   {% for crd in cartoes %}
-  <div class="secao-cartao space-y-3.5 {% if cartao_ativo and crd.id != cartao_ativo.id %}hidden{% endif %}" id="cartao-bloco-{{ crd.id }}">
+  <div class="secao-cartao space-y-3.5 w-full min-w-0 max-w-full overflow-hidden {% if cartao_ativo and crd.id != cartao_ativo.id %}hidden{% endif %}" id="cartao-bloco-{{ crd.id }}">
 
-    <!-- FAIXA SUPERIOR MINIMALISTA & HORIZONTAL: CARTÃO COMPACTO + RESUMO DE LIMITES -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+    <!-- FAIXA SUPERIOR MINIMALISTA & HORIZONTAL: CARTÃO PROPORCIONAL + RESUMO DE LIMITES -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch w-full min-w-0">
 
-      <!-- MOCKUP COMPACTO HORIZONTAL DO CARTÃO (Col 4) -->
-      <div class="lg:col-span-4 rounded-xl p-3.5 shadow-sm relative overflow-hidden flex flex-col justify-between border border-white/10"
-           style="background: linear-gradient(135deg, {{ crd.cor or '#ea580c' }}dd 0%, #0f172a 90%); min-height: 110px;">
+      <!-- MOCKUP PROPORCIONAL REALISTA DO CARTÃO (Col 4, Aspect Ratio ~ 1.58:1) -->
+      <div class="lg:col-span-4 flex items-center justify-center w-full min-w-0">
+        <div class="w-full max-w-[340px] sm:max-w-sm mx-auto lg:mx-0 aspect-[1.58/1] rounded-2xl p-3 sm:p-4 shadow-md relative overflow-hidden flex flex-col justify-between border border-white/15"
+             style="background: linear-gradient(135deg, {{ crd.cor or '#ea580c' }} 0%, #0f172a 90%);">
 
-        <!-- Linha 1: Nome do Cartão + Bandeira -->
-        <div class="flex items-center justify-between gap-2 relative z-10">
-          <div class="flex items-center gap-2 min-w-0">
-            <div class="w-6 h-6 rounded-md bg-white/20 p-1 backdrop-blur-xs border border-white/20 flex items-center justify-center shrink-0">
-              <img src="/static/img/bancos/{{ crd.icone or (crd.nome | icone_banco) }}" 
-                   onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" 
-                   alt="{{ crd.nome }}" 
-                   class="w-full h-full object-contain">
+          <!-- Efeito de brilho de fundo suave -->
+          <div class="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
+
+          <!-- Linha 1: Nome do Cartão + Bandeira -->
+          <div class="flex items-center justify-between gap-2 relative z-10">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-white/20 p-1 backdrop-blur-xs border border-white/20 flex items-center justify-center shrink-0">
+                <img src="/static/img/bancos/{{ crd.icone or (crd.nome | icone_banco) }}" 
+                     onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" 
+                     alt="{{ crd.nome }}" 
+                     class="w-full h-full object-contain">
+              </div>
+              <span class="font-black text-xs sm:text-sm text-white tracking-tight truncate drop-shadow-xs">{{ crd.nome }}</span>
             </div>
-            <span class="font-extrabold text-xs sm:text-sm text-white tracking-tight truncate">{{ crd.nome }}</span>
+            <span class="px-2 py-0.5 rounded-md text-[9px] font-black text-white uppercase tracking-wider bg-black/40 border border-white/20 shrink-0">
+              {{ crd.bandeira }}
+            </span>
           </div>
-          <span class="px-1.5 py-0.5 rounded text-[9px] font-black text-white uppercase tracking-wider bg-black/35 border border-white/20 shrink-0">
-            {{ crd.bandeira }}
-          </span>
-        </div>
 
-        <!-- Linha 2: Titular + Datas (Fechamento / Vencimento) Sem ornamentos ou número fake -->
-        <div class="flex items-end justify-between pt-2 border-t border-white/15 text-[11px] relative z-10">
-          <div class="min-w-0">
-            <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold leading-tight">Titular</p>
-            <p class="font-bold text-white text-xs uppercase truncate leading-tight">{{ crd.titular or 'Carlos' }}</p>
+          <!-- Linha 2 (Centro): Chip Metálico + Últimos Dígitos -->
+          <div class="flex items-center justify-between my-auto py-1 relative z-10">
+            <div class="w-8 h-6 rounded-md bg-gradient-to-tr from-amber-300 via-amber-200 to-amber-100 border border-amber-400/60 shadow-inner flex items-center justify-center">
+              <div class="w-6 h-4 border border-amber-600/30 rounded-xs flex items-center justify-center">
+                <div class="w-2.5 h-2.5 border-r border-amber-600/30"></div>
+              </div>
+            </div>
+            <span class="font-mono text-xs sm:text-sm tracking-widest text-white/90 font-bold drop-shadow-xs">•••• {{ crd.ultimos_digitos or '0000' }}</span>
           </div>
-          <div class="text-right shrink-0">
-            <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold leading-tight">Fech / Venc</p>
-            <p class="font-bold text-white text-xs leading-tight">Dia {{ "%02d"|format(crd.dia_fechamento) }} • Dia {{ "%02d"|format(crd.dia_vencimento) }}</p>
+
+          <!-- Linha 3 (Rodapé): Titular + Fech / Venc (100% contido, sem vazar a borda) -->
+          <div class="flex items-end justify-between pt-2 border-t border-white/15 text-[11px] relative z-10 gap-2">
+            <div class="min-w-0 pr-1">
+              <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold leading-tight">Titular</p>
+              <p class="font-bold text-white text-xs uppercase truncate leading-tight">{{ crd.titular or 'Carlos' }}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-[9px] uppercase tracking-wider text-white/60 font-semibold leading-tight">Fech / Venc</p>
+              <p class="font-bold text-white text-[10px] sm:text-xs leading-tight whitespace-nowrap">Dia {{ "%02d"|format(crd.dia_fechamento) }} • Dia {{ "%02d"|format(crd.dia_vencimento) }}</p>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- RESUMO DE LIMITES E AÇÕES DO CARTÃO ATIVO (Col 8) -->
-      <div class="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl p-3 sm:p-3.5 flex flex-col justify-between shadow-2xs">
-        <!-- Topo com título e botões discretos Editar / Excluir no canto direito -->
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 min-w-0">
-            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 truncate">
+      <div class="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
+        <!-- Topo com título e botões discretos no canto direito -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-1 sm:pb-0">
+          <div class="flex flex-wrap items-center gap-1.5 min-w-0">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <span>📊</span> Limites & Fatura
             </h2>
-            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/80 shrink-0">
+            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/80">
               Fech. dia {{ "%02d"|format(crd.dia_fechamento) }} • Venc. dia {{ "%02d"|format(crd.dia_vencimento) }}
             </span>
           </div>
 
-          <!-- Botões discretos de Editar e Excluir -->
+          <!-- Botões discretos de Nova Despesa, Editar e Excluir -->
           <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button"
+                    onclick='abrirModalDespesaCartao({{ crd.id }})'
+                    class="px-2.5 py-1 rounded-lg text-[10px] font-bold text-white bg-orange-600 hover:bg-orange-500 shadow-xs transition flex items-center gap-1 cursor-pointer"
+                    title="Lançar compra neste cartão">
+              <span>+</span> Despesa
+            </button>
             <button type="button"
                     onclick='abrirModalEditarCartao({{ crd.id }}, {{ crd.nome | tojson }}, {{ crd.bandeira | tojson }}, {{ crd.limite_total }}, {{ crd.dia_fechamento }}, {{ crd.dia_vencimento }}, {{ (crd.ultimos_digitos or "0000") | tojson }}, {{ (crd.titular or "Carlos") | tojson }}, {{ (crd.cor or "#ea580c") | tojson }}, {{ (crd.icone or (crd.nome | icone_banco)) | tojson }})'
                     class="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 cursor-pointer"
@@ -128,16 +155,16 @@
         </div>
 
         <!-- 3 Cards de Limite Horizontais Enxutos -->
-        <div class="grid grid-cols-3 gap-2 my-1.5">
-          <div class="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 rounded-lg p-2">
+        <div class="grid grid-cols-3 gap-1.5 sm:gap-2.5 my-2">
+          <div class="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-2.5">
             <p class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold leading-tight">Limite Total</p>
             <p class="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-0.5 truncate leading-tight">{{ crd.limite_total | moeda }}</p>
           </div>
-          <div class="bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80 rounded-lg p-2">
+          <div class="bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80 rounded-xl p-2.5">
             <p class="text-[9px] uppercase tracking-wider text-rose-600 dark:text-rose-400 font-bold leading-tight">Fatura Atual</p>
             <p class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400 mt-0.5 truncate leading-tight">{{ crd.total_fatura | moeda }}</p>
           </div>
-          <div class="bg-emerald-50/50 dark:bg-slate-950/60 border border-emerald-200/50 dark:border-slate-800/80 rounded-lg p-2">
+          <div class="bg-emerald-50/50 dark:bg-slate-950/60 border border-emerald-200/50 dark:border-slate-800/80 rounded-xl p-2.5">
             <p class="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold leading-tight">Limite Disponível</p>
             <p class="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate leading-tight">{{ crd.limite_disponivel | moeda }}</p>
           </div>
@@ -153,7 +180,7 @@
               Titular: <strong class="text-slate-700 dark:text-slate-300 font-semibold">{{ crd.titular or 'Carlos' }}</strong>
             </span>
           </div>
-          <div class="w-full h-1.5 sm:h-2 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-800">
+          <div class="w-full h-2 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-800">
             <div class="h-full rounded-full transition-all duration-500 {% if crd.pct_uso > 85 %}bg-gradient-to-r from-rose-500 to-orange-500{% elif crd.pct_uso > 50 %}bg-gradient-to-r from-amber-500 to-orange-400{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}"
                  style="width: {{ [crd.pct_uso, 100]|min }}%"></div>
           </div>
@@ -174,7 +201,7 @@
       </div>
 
       <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto w-full max-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -373,6 +400,163 @@
         <button type="submit" id="btn-salvar-cartao"
                 class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-950/50 transition cursor-pointer">
           Salvar Cartão
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL LANÇAR DESPESA NO CARTÃO -->
+<div id="modal-despesa-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 my-auto">
+    <!-- Cabeçalho -->
+    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center text-lg">
+          💳
+        </div>
+        <div>
+          <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+            Nova Despesa no Cartão
+          </h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Lance compras à vista ou parceladas com destino de fatura</p>
+        </div>
+      </div>
+      <button type="button" onclick="fecharModalDespesaCartao()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg leading-none cursor-pointer">✕</button>
+    </div>
+
+    <!-- Formulário -->
+    <form id="form-despesa-cartao" onsubmit="salvarDespesaCartao(event)" class="space-y-3">
+      <!-- 1. Cartão Selecionado -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Cartão de Crédito *</label>
+        <select id="despesa-cartao-id" name="cartao_id" required onchange="aoMudarCartaoModalDespesa()"
+                class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+          {% for crd in cartoes %}
+          <option value="{{ crd.id }}" {% if cartao_ativo and crd.id == cartao_ativo.id %}selected{% endif %}
+                  data-fechamento="{{ crd.dia_fechamento }}" data-vencimento="{{ crd.dia_vencimento }}" data-titular="{{ crd.titular }}">
+            {{ crd.nome }} (Fech: dia {{ "%02d"|format(crd.dia_fechamento) }} • Venc: dia {{ "%02d"|format(crd.dia_vencimento) }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 2. Valor Total e Data da Compra -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Total (R$) *</label>
+          <input type="number" step="0.01" min="0.01" id="despesa-cartao-valor" name="valor" required placeholder="0,00"
+                 oninput="atualizarPreviaParcelasCartao()"
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Data da Compra *</label>
+          <input type="date" id="despesa-cartao-data" name="data" required value="{{ hoje or '' }}"
+                 onchange="atualizarOpcoesFaturasCartao()"
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- 3. Descrição da Compra -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição da Compra *</label>
+        <input type="text" id="despesa-cartao-desc" name="descricao" required placeholder="Ex: Mercado Livre, Drogaria, Supermercado..."
+               class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+      </div>
+
+      <!-- 4. Categoria e Subcategoria -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
+          <select id="despesa-cartao-categoria" name="categoria" required onchange="aoMudarCategoriaDespesaCartao()"
+                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+            {% for cat in categorias_despesa %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Subcategoria</label>
+          <input type="text" id="despesa-cartao-subcategoria" name="subcategoria" placeholder="Opcional"
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- 5. Responsável pelo Gasto -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável pelo Gasto *</label>
+        <div class="grid grid-cols-4 gap-2" id="grid-responsavel-cartao">
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+            <input type="radio" name="responsavel_radio" value="Carlos" class="hidden" checked onchange="definirResponsavelCartao('Carlos')">
+            <span>Carlos</span>
+          </label>
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+            <input type="radio" name="responsavel_radio" value="Fernanda" class="hidden" onchange="definirResponsavelCartao('Fernanda')">
+            <span>Fernanda</span>
+          </label>
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+            <input type="radio" name="responsavel_radio" value="Aparecida" class="hidden" onchange="definirResponsavelCartao('Aparecida')">
+            <span>Aparecida</span>
+          </label>
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+            <input type="radio" name="responsavel_radio" value="Outro" class="hidden" onchange="definirResponsavelCartao('Outro')">
+            <span>Outro</span>
+          </label>
+        </div>
+        <input type="hidden" id="despesa-cartao-responsavel" name="responsavel" value="Carlos">
+        <input type="text" id="despesa-cartao-responsavel-outro" placeholder="Informe o nome do responsável" class="hidden mt-2 w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+      </div>
+
+      <!-- 6. Parcelamento & Destino da Fatura -->
+      <div class="p-3 bg-slate-50 dark:bg-slate-950/80 rounded-xl border border-slate-200 dark:border-slate-800/80 space-y-3">
+        <!-- Parcelamento -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Parcelamento</label>
+            <span id="previa-parcelas-cartao-texto" class="text-xs font-extrabold text-orange-600 dark:text-orange-400">
+              1x de R$ 0,00 (À vista)
+            </span>
+          </div>
+          <select id="despesa-cartao-parcelas" name="parcelas" onchange="atualizarPreviaParcelasCartao()"
+                  class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+            <option value="1">1x (À vista na fatura)</option>
+            {% for n in range(2, 25) %}
+            <option value="{{ n }}">{{ n }}x parcelas</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Destino da Fatura -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">Fatura de Destino</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label class="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:ring-1 has-checked:ring-orange-500">
+              <input type="radio" name="despesa_fatura_destino" value="atual" checked class="mt-0.5 text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaParcelasCartao()">
+              <div class="min-w-0">
+                <span class="font-bold text-slate-900 dark:text-white block">Fatura Atual (Ciclo aberto)</span>
+                <span id="label-fatura-atual-venc" class="text-[11px] text-slate-500 dark:text-slate-400 block">Vencimento: Calculando...</span>
+              </div>
+            </label>
+            <label class="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:ring-1 has-checked:ring-orange-500">
+              <input type="radio" name="despesa_fatura_destino" value="proxima" class="mt-0.5 text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaParcelasCartao()">
+              <div class="min-w-0">
+                <span class="font-bold text-slate-900 dark:text-white block">Próxima Fatura</span>
+                <span id="label-fatura-proxima-venc" class="text-[11px] text-slate-500 dark:text-slate-400 block">Vencimento: Calculando...</span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rodapé de Ações -->
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalDespesaCartao()"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-salvar-despesa-cartao"
+                class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 shadow-md shadow-orange-950/30 transition cursor-pointer flex items-center gap-1.5">
+          <span>💾</span> Salvar Despesa
         </button>
       </div>
     </form>
@@ -590,5 +774,218 @@
   }
 
   document.addEventListener('click', fecharTodosMenusCartao);
+
+
+  // ==========================================
+  // FUNÇÕES: MODAL DE DESPESAS NO CARTÃO
+  // ==========================================
+
+  function abrirModalDespesaCartao(cartaoId = null) {
+    const modal = document.getElementById('modal-despesa-cartao');
+    if (!modal) return;
+
+    if (cartaoId) {
+      const selectCartao = document.getElementById('despesa-cartao-id');
+      if (selectCartao) selectCartao.value = cartaoId;
+    }
+
+    // Inicializa valores
+    document.getElementById('despesa-cartao-valor').value = '';
+    document.getElementById('despesa-cartao-desc').value = '';
+    document.getElementById('despesa-cartao-subcategoria').value = '';
+    document.getElementById('despesa-cartao-parcelas').value = '1';
+
+    // Define responsável padrão com base no titular do cartão selecionado
+    aoMudarCartaoModalDespesa();
+    atualizarOpcoesFaturasCartao();
+    atualizarPreviaParcelasCartao();
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function fecharModalDespesaCartao() {
+    const modal = document.getElementById('modal-despesa-cartao');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  function aoMudarCartaoModalDespesa() {
+    const sel = document.getElementById('despesa-cartao-id');
+    if (!sel || !sel.selectedOptions || !sel.selectedOptions[0]) return;
+    const opt = sel.selectedOptions[0];
+    const titular = opt.dataset.titular || 'Carlos';
+
+    // Se o titular for conhecido, marca ele no radio
+    const radios = document.getElementsByName('responsavel_radio');
+    let achou = false;
+    for (let r of radios) {
+      if (r.value.toLowerCase() === titular.toLowerCase()) {
+        r.checked = true;
+        definirResponsavelCartao(r.value);
+        achou = true;
+        break;
+      }
+    }
+    if (!achou) {
+      definirResponsavelCartao(titular);
+    }
+    atualizarOpcoesFaturasCartao();
+    atualizarPreviaParcelasCartao();
+  }
+
+  function definirResponsavelCartao(resp) {
+    const inputResp = document.getElementById('despesa-cartao-responsavel');
+    const inputOutro = document.getElementById('despesa-cartao-responsavel-outro');
+    if (!inputResp) return;
+
+    if (resp === 'Outro') {
+      if (inputOutro) {
+        inputOutro.classList.remove('hidden');
+        inputOutro.focus();
+        inputResp.value = inputOutro.value || 'Outro';
+        inputOutro.oninput = () => { inputResp.value = inputOutro.value || 'Outro'; };
+      }
+    } else {
+      if (inputOutro) inputOutro.classList.add('hidden');
+      inputResp.value = resp;
+    }
+  }
+
+  function aoMudarCategoriaDespesaCartao() {
+    // Sincronização opcional
+  }
+
+  function calcularDatasVencimentoCartao(diaFech, diaVenc, dataCompraStr) {
+    let dt = new Date();
+    if (dataCompraStr) {
+      const parts = dataCompraStr.split('-');
+      if (parts.length === 3) {
+        dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+    }
+
+    const ano = dt.getFullYear();
+    const mes = dt.getMonth(); // 0-indexed
+
+    // Fatura Atual: mês corrente
+    const dtAtual = new Date(ano, mes, Math.min(diaVenc, 28));
+    // Próxima Fatura: +1 mês
+    const dtProx = new Date(ano, mes + 1, Math.min(diaVenc, 28));
+
+    const fmt = (d) => {
+      const diaF = String(diaVenc).padStart(2, '0');
+      const mesF = String(d.getMonth() + 1).padStart(2, '0');
+      const anoF = d.getFullYear();
+      return `${diaF}/${mesF}/${anoF}`;
+    };
+
+    return {
+      vencAtualStr: fmt(dtAtual),
+      vencProxStr: fmt(dtProx)
+    };
+  }
+
+  function atualizarOpcoesFaturasCartao() {
+    const sel = document.getElementById('despesa-cartao-id');
+    const inputData = document.getElementById('despesa-cartao-data');
+    if (!sel || !sel.selectedOptions || !sel.selectedOptions[0]) return;
+    const opt = sel.selectedOptions[0];
+    const diaFech = parseInt(opt.dataset.fechamento || '1', 10);
+    const diaVenc = parseInt(opt.dataset.vencimento || '7', 10);
+    const dataCompra = inputData ? inputData.value : '';
+
+    const calcs = calcularDatasVencimentoCartao(diaFech, diaVenc, dataCompra);
+
+    const lblAtual = document.getElementById('label-fatura-atual-venc');
+    const lblProx = document.getElementById('label-fatura-proxima-venc');
+    if (lblAtual) lblAtual.textContent = `Vencimento: ${calcs.vencAtualStr}`;
+    if (lblProx) lblProx.textContent = `Vencimento: ${calcs.vencProxStr}`;
+  }
+
+  function atualizarPreviaParcelasCartao() {
+    const inputValor = document.getElementById('despesa-cartao-valor');
+    const selectParcelas = document.getElementById('despesa-cartao-parcelas');
+    const labelPrevia = document.getElementById('previa-parcelas-cartao-texto');
+    if (!inputValor || !selectParcelas || !labelPrevia) return;
+
+    const valor = parseFloat(inputValor.value || '0');
+    const parcelas = parseInt(selectParcelas.value || '1', 10);
+
+    if (valor <= 0) {
+      labelPrevia.textContent = parcelas === 1 ? '1x de R$ 0,00 (À vista)' : `${parcelas}x de R$ 0,00`;
+      return;
+    }
+
+    const valorParcela = (valor / parcelas).toFixed(2);
+    const valorParcelaFmt = parseFloat(valorParcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const valorTotalFmt = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    if (parcelas === 1) {
+      labelPrevia.textContent = `1x de ${valorParcelaFmt} (À vista na fatura)`;
+    } else {
+      labelPrevia.textContent = `${parcelas}x de ${valorParcelaFmt} (Total: ${valorTotalFmt})`;
+    }
+  }
+
+  async function salvarDespesaCartao(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-salvar-despesa-cartao');
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Salvando...';
+
+    const cartaoId = document.getElementById('despesa-cartao-id').value;
+    const valor = parseFloat(document.getElementById('despesa-cartao-valor').value || '0');
+    const dataCompra = document.getElementById('despesa-cartao-data').value;
+    const descricao = document.getElementById('despesa-cartao-desc').value.trim();
+    const categoria = document.getElementById('despesa-cartao-categoria').value;
+    const subcategoria = document.getElementById('despesa-cartao-subcategoria').value.trim();
+    const responsavel = document.getElementById('despesa-cartao-responsavel').value.trim() || 'Carlos';
+    const parcelas = parseInt(document.getElementById('despesa-cartao-parcelas').value || '1', 10);
+    
+    let faturaDestino = 'atual';
+    const radiosFatura = document.getElementsByName('despesa_fatura_destino');
+    for (let r of radiosFatura) {
+      if (r.checked) {
+        faturaDestino = r.value;
+        break;
+      }
+    }
+
+    const payload = {
+      cartao_id: cartaoId,
+      valor: valor,
+      data_compra: dataCompra,
+      descricao: descricao,
+      categoria: categoria,
+      subcategoria: subcategoria,
+      responsavel: responsavel,
+      parcelas: parcelas,
+      fatura_destino: faturaDestino
+    };
+
+    try {
+      const resp = await fetch('/api/cartoes/compras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const res = await resp.json();
+      if (resp.ok && res.sucesso) {
+        window.location.href = `/cartoes?c=${cartaoId}`;
+      } else {
+        alert(res.erro || 'Não foi possível registrar a despesa no cartão.');
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾</span> Salvar Despesa';
+      }
+    } catch (err) {
+      alert('Erro de conexão ao salvar despesa no cartão.');
+      btn.disabled = false;
+      btn.innerHTML = '<span>💾</span> Salvar Despesa';
+    }
+  }
+
 </script>
 {% endblock %}

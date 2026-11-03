@@ -1685,11 +1685,23 @@ def resolver_conta_bancaria(conn: sqlite3.Connection, conta_param: Any) -> Tuple
     
     # 1. Se for numérico ou puder ser convertido para int, busca por ID diretamente
     try:
+        if c_raw.lower().startswith("cartao_"):
+            cid_crd = int(c_raw.split("_")[1])
+            cur.execute("SELECT id, nome FROM cartoes WHERE id = ?", (cid_crd,))
+            r_crd = cur.fetchone()
+            if r_crd:
+                return int(r_crd["id"] if isinstance(r_crd, sqlite3.Row) else r_crd[0]), str(r_crd["nome"] if isinstance(r_crd, sqlite3.Row) else r_crd[1]).strip()
+
         cid_int = int(c_raw)
         cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (cid_int,))
         row = cur.fetchone()
         if row:
             return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+
+        cur.execute("SELECT id, nome FROM cartoes WHERE id = ?", (cid_int,))
+        r_crd = cur.fetchone()
+        if r_crd:
+            return int(r_crd["id"] if isinstance(r_crd, sqlite3.Row) else r_crd[0]), str(r_crd["nome"] if isinstance(r_crd, sqlite3.Row) else r_crd[1]).strip()
     except (ValueError, TypeError):
         pass
 
@@ -1701,11 +1713,16 @@ def resolver_conta_bancaria(conn: sqlite3.Connection, conta_param: Any) -> Tuple
     if not c_limpo:
         c_limpo = c_raw
 
-    # 3. Busca exata por nome em contas_config
+    # 3. Busca exata por nome em contas_config ou cartoes
     cur.execute("SELECT id, nome FROM contas_config WHERE LOWER(TRIM(nome)) = LOWER(TRIM(?))", (c_limpo,))
     row = cur.fetchone()
     if row:
         return int(row["id"] if isinstance(row, sqlite3.Row) else row[0]), str(row["nome"] if isinstance(row, sqlite3.Row) else row[1]).strip()
+
+    cur.execute("SELECT id, nome FROM cartoes WHERE LOWER(TRIM(nome)) = LOWER(TRIM(?))", (c_limpo,))
+    row_crd = cur.fetchone()
+    if row_crd:
+        return int(row_crd["id"] if isinstance(row_crd, sqlite3.Row) else row_crd[0]), str(row_crd["nome"] if isinstance(row_crd, sqlite3.Row) else row_crd[1]).strip()
 
     # 4. Busca parcial por palavras-chave canônicas
     c_low = c_limpo.lower()
@@ -1750,7 +1767,10 @@ async def api_criar_lancamento(
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
     motivo_ajuste: Optional[str] = Form(""),
-    escopo_edicao: Optional[str] = Form("somente_esta")
+    escopo_edicao: Optional[str] = Form("somente_esta"),
+    parcelas: Optional[int] = Form(1),
+    fatura_destino: Optional[str] = Form("atual"),
+    responsavel: Optional[str] = Form(None)
 ):
     """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria, Subcategoria, Juros, Desconto, Motivo e Escopo de Recorrência."""
     valor_num = converter_valor_monetario(valor)
@@ -1861,6 +1881,33 @@ async def api_criar_lancamento(
                 "sucesso": True,
                 "mensagem": msg_sucesso,
                 "qtd_serie_atualizada": qtd_afetadas_serie,
+                "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
+            }
+
+        # Se for despesa e a conta selecionada for um cartão de crédito cadastrado
+        cur.execute("SELECT id FROM cartoes WHERE id = ? OR LOWER(TRIM(nome)) = LOWER(TRIM(?))", (conta_id, conta_nome))
+        row_crd_check = cur.fetchone()
+        if tipo.strip().lower() == "despesa" and row_crd_check:
+            cid_alvo = row_crd_check["id"] if isinstance(row_crd_check, sqlite3.Row) else row_crd_check[0]
+            ok_crd, msg_crd, _ = criar_despesa_cartao(
+                conn=conn,
+                cartao_id=cid_alvo,
+                descricao=descricao,
+                valor_total=valor_num,
+                data_compra=str(data)[:10],
+                categoria=categoria,
+                subcategoria=subcat_str,
+                responsavel=responsavel,
+                parcelas=int(parcelas or 1),
+                fatura_destino=fatura_destino or "atual"
+            )
+            if not ok_crd:
+                return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": msg_crd})
+            res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+            return {
+                "status": "sucesso",
+                "sucesso": True,
+                "mensagem": msg_crd,
                 "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
             }
 
@@ -2153,6 +2200,130 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
     finally:
         conn.close()
 
+def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual") -> Tuple[bool, str, List[int]]:
+    """Gera o lançamento ou série de parcelas de uma compra no cartão de crédito na tabela transacoes."""
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome, dia_fechamento, dia_vencimento, titular FROM cartoes WHERE id = ?", (cartao_id,))
+    crd = cur.fetchone()
+    if not crd:
+        return False, "Cartão de crédito não encontrado.", []
+
+    nome_cartao = str(crd["nome"])
+    dia_fech = int(crd["dia_fechamento"] or 1)
+    dia_venc = int(crd["dia_vencimento"] or 7)
+    titular_cartao = responsavel or (crd["titular"] if crd["titular"] else "Carlos")
+
+    try:
+        dt_c = datetime.datetime.strptime(str(data_compra)[:10], "%Y-%m-%d").date()
+    except Exception:
+        dt_c = date.today()
+
+    parcelas_int = max(1, min(24, int(parcelas or 1)))
+    fatura_dest_str = str(fatura_destino or "atual").strip().lower()
+
+    deslocamento_inicial = 1 if fatura_dest_str == "proxima" else 0
+    ano_base = dt_c.year
+    mes_base = dt_c.month + deslocamento_inicial
+    ano_base += (mes_base - 1) // 12
+    mes_base = ((mes_base - 1) % 12) + 1
+
+    val_parcela = round(valor_total / parcelas_int, 2)
+    dif = round(valor_total - (val_parcela * parcelas_int), 2)
+    val_1 = round(val_parcela + dif, 2)
+
+    grupo = f"cartao_{cartao_id}_{int(datetime.datetime.now().timestamp())}" if parcelas_int > 1 else None
+    subcat_str = (subcategoria or "").strip()
+    ids_gerados = []
+
+    for i in range(1, parcelas_int + 1):
+        desloc = i - 1
+        m_calc = mes_base + desloc
+        ano_p = ano_base + ((m_calc - 1) // 12)
+        mes_p = ((m_calc - 1) % 12) + 1
+        max_d = calendar.monthrange(ano_p, mes_p)[1]
+        dia_p = min(dia_venc, max_d)
+        dt_venc = f"{ano_p:04d}-{mes_p:02d}-{dia_p:02d}"
+        v_p = val_1 if i == 1 else val_parcela
+        d_p = f"{descricao.strip()} ({i:02d}/{parcelas_int:02d})" if parcelas_int > 1 else descricao.strip()
+
+        cur.execute("""
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, titular, numero_parcela, total_parcelas_compra, grupo_parcelamento, status_pagamento)
+            VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 'pendente')
+        """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo))
+        ids_gerados.append(cur.lastrowid)
+
+    conn.commit()
+    return True, f"Compra '{descricao.strip()}' de {formatar_moeda_br(valor_total)} registrada com sucesso no cartão {nome_cartao} ({parcelas_int}x)!", ids_gerados
+
+
+@app.post("/api/cartoes/compras")
+async def api_criar_compra_cartao(request: Request):
+    """Endpoint dedicado para registrar compra no cartão de crédito com parcelamento e escolha de fatura."""
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cartao_id_raw = data.get("cartao_id") or data.get("conta_id") or data.get("conta")
+        if isinstance(cartao_id_raw, str) and cartao_id_raw.lower().startswith("cartao_"):
+            cartao_id = int(cartao_id_raw.split("_")[1])
+        else:
+            cartao_id = int(cartao_id_raw or 0)
+
+        if not cartao_id:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Selecione o cartão de crédito."})
+
+        descricao = str(data.get("descricao") or "").strip()
+        if not descricao:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Informe a descrição da compra."})
+
+        valor_raw = data.get("valor") or data.get("valor_total") or 0
+        valor_num = converter_valor_monetario(valor_raw)
+        if valor_num <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "O valor da compra deve ser maior que zero."})
+
+        data_compra = str(data.get("data") or data.get("data_compra") or date.today().strftime("%Y-%m-%d"))[:10]
+        categoria = str(data.get("categoria") or "Cartão").strip()
+        subcategoria = str(data.get("subcategoria") or "").strip()
+        responsavel = str(data.get("responsavel") or data.get("titular") or "").strip() or None
+        parcelas = int(data.get("parcelas") or 1)
+        fatura_destino = str(data.get("fatura_destino") or "atual").strip().lower()
+
+        ok, msg, ids = criar_despesa_cartao(
+            conn=conn,
+            cartao_id=cartao_id,
+            descricao=descricao,
+            valor_total=valor_num,
+            data_compra=data_compra,
+            categoria=categoria,
+            subcategoria=subcategoria,
+            responsavel=responsavel,
+            parcelas=parcelas,
+            fatura_destino=fatura_destino
+        )
+
+        if not ok:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": msg})
+
+        return JSONResponse({
+            "status": "sucesso",
+            "sucesso": True,
+            "success": True,
+            "mensagem": msg,
+            "cartao_id": cartao_id,
+            "transacoes_ids": ids
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 
 @app.post("/api/contas/{conta_id}/excluir")
 @app.post("/contas/{conta_id}/excluir")
@@ -2422,6 +2593,11 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
     if not cartao_ativo and cartoes_dados:
         cartao_ativo = cartoes_dados[0]
 
+    cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'despesa' AND categoria IS NOT NULL ORDER BY categoria ASC")
+    cats_desp_cartao = [r[0] for r in cur.fetchall() if r[0]]
+    if not cats_desp_cartao:
+        cats_desp_cartao = list(CATEGORIAS_SUBCATEGORIAS.keys())
+
     conn.close()
 
     return templates.TemplateResponse(
@@ -2432,6 +2608,10 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
             "cartao_ativo": cartao_ativo,
             "mes_atual": f"{mes:02d}",
             "bancos_disponiveis": BANCOS_DISPONIVEIS,
+            "categorias_despesa": cats_desp_cartao,
+            "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
+            "responsaveis": ["Carlos", "Fernanda", "Aparecida", "Outro"],
+            "hoje": date.today().strftime("%Y-%m-%d"),
             "active_tab": "cartoes"
         }
     )
@@ -6377,7 +6557,15 @@ async def api_opcoes_transacao_global():
         cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'receita' AND categoria IS NOT NULL ORDER BY categoria ASC")
         cats_rec = [r[0] for r in cur.fetchall() if r[0]]
 
-        cur.execute("SELECT id, nome, bandeira, limite_total FROM cartoes ORDER BY nome ASC")
+        cur.execute("""
+            SELECT id, nome, bandeira, limite_total, dia_fechamento, dia_vencimento,
+                   COALESCE(titular, 'Carlos') as titular,
+                   COALESCE(cor, '#ea580c') as cor,
+                   COALESCE(icone, 'carteira.svg') as icone,
+                   COALESCE(ultimos_digitos, '0000') as ultimos_digitos
+            FROM cartoes
+            ORDER BY nome ASC
+        """)
         cartoes = [dict(r) for r in cur.fetchall()]
 
         return {

@@ -388,7 +388,8 @@
       #app-sidebar {
         display: none !important;
       }
-      #main-wrapper {
+      #main-wrapper,
+      html.sidebar-collapsed #main-wrapper {
         padding-left: 0 !important;
       }
     }
@@ -1213,9 +1214,20 @@
         return `<option value="${c.id}">${texto}</option>`;
       }).join('');
 
+      // Opções agrupadas de cartões de crédito reais
+      let optionsCartoesHtml = '';
+      const cartoesLista = (cacheOpcoesGlobal && cacheOpcoesGlobal.cartoes) || [];
+      if (cartoesLista && cartoesLista.length > 0) {
+        optionsCartoesHtml = '<optgroup label="💳 Cartões de Crédito">' +
+          cartoesLista.map(c => {
+            return `<option value="cartao_${c.id}" data-tipo="cartao" data-fech="${c.dia_fechamento || 1}" data-venc="${c.dia_vencimento || 7}" data-titular="${c.titular || 'Carlos'}">💳 ${c.nome} (•••• ${c.ultimos_digitos || '0000'})</option>`;
+          }).join('') +
+          '</optgroup>';
+      }
+
       if (selConta) {
         const valAnterior = selConta.value;
-        selConta.innerHTML = optionsHtml;
+        selConta.innerHTML = optionsHtml + optionsCartoesHtml;
         if (valAnterior && Array.from(selConta.options).some(o => o.value === String(valAnterior))) {
           selConta.value = valAnterior;
         }
@@ -1341,6 +1353,7 @@
       } else {
         blocoPadrao.classList.remove('hidden');
         blocoStatus.classList.remove('hidden');
+        verificarContaCartaoGlobal();
       }
     }
 
@@ -1462,6 +1475,89 @@
       v = v.replace('.', ',');
       v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
       input.value = v;
+      if (typeof atualizarPreviaCartaoGlobal === 'function') {
+        atualizarPreviaCartaoGlobal();
+      }
+    }
+
+    
+    function verificarContaCartaoGlobal() {
+      const selConta = document.getElementById('global-select-conta');
+      const blocoCartao = document.getElementById('bloco-campos-cartao-global');
+      const blocoStatus = document.getElementById('bloco-status-pagamento');
+      const checkPago = document.getElementById('global-check-pago');
+      if (!selConta || !blocoCartao) return;
+
+      const val = (selConta.value || '').trim();
+      const isCartao = val.startsWith('cartao_');
+
+      if (abaAtualGlobal === 'despesa' && isCartao) {
+        blocoCartao.classList.remove('hidden');
+        if (blocoStatus) blocoStatus.classList.add('hidden');
+        if (checkPago) checkPago.checked = false; // Compra no cartão cai na fatura em aberto
+
+        // Seta responsável sugerido se o cartão tiver titular
+        const opt = selConta.selectedOptions ? selConta.selectedOptions[0] : null;
+        if (opt && opt.dataset.titular) {
+          const selResp = document.getElementById('global-select-cartao-responsavel');
+          if (selResp) selResp.value = opt.dataset.titular;
+        }
+
+        atualizarPreviaCartaoGlobal();
+      } else {
+        blocoCartao.classList.add('hidden');
+        if (abaAtualGlobal === 'despesa' || abaAtualGlobal === 'receita') {
+          if (blocoStatus) blocoStatus.classList.remove('hidden');
+        }
+      }
+    }
+
+    function atualizarPreviaCartaoGlobal() {
+      const selConta = document.getElementById('global-select-conta');
+      const inputValor = document.getElementById('global-input-valor');
+      const selectParcelas = document.getElementById('global-select-cartao-parcelas');
+      const labelPrevia = document.getElementById('global-cartao-previa-parcelas');
+      const inputData = document.getElementById('global-input-data');
+      if (!selConta || !inputValor || !selectParcelas || !labelPrevia) return;
+
+      const rawVal = inputValor.value.replace(/[^0-9,-]+/g, '').replace(',', '.');
+      const valor = parseFloat(rawVal) || 0;
+      const parcelas = parseInt(selectParcelas.value || '1', 10);
+
+      const valParc = (valor / parcelas).toFixed(2);
+      const valParcFmt = parseFloat(valParc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const valTotFmt = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      if (parcelas === 1) {
+        labelPrevia.textContent = `1x de ${valParcFmt} (À vista)`;
+      } else {
+        labelPrevia.textContent = `${parcelas}x de ${valParcFmt} (Total: ${valTotFmt})`;
+      }
+
+      // Calcula datas de vencimento da fatura
+      const opt = selConta.selectedOptions ? selConta.selectedOptions[0] : null;
+      if (opt) {
+        const diaVenc = parseInt(opt.dataset.venc || '7', 10);
+        let dt = new Date();
+        if (inputData && inputData.value) {
+          const parts = inputData.value.split('-');
+          if (parts.length === 3) {
+            dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          }
+        }
+        const mes = dt.getMonth();
+        const ano = dt.getFullYear();
+
+        const dtAtual = new Date(ano, mes, Math.min(diaVenc, 28));
+        const dtProx = new Date(ano, mes + 1, Math.min(diaVenc, 28));
+
+        const fmt = (d) => `${String(diaVenc).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+        const lblAtual = document.getElementById('global-cartao-fatura-atual-venc');
+        const lblProx = document.getElementById('global-cartao-fatura-proxima-venc');
+        if (lblAtual) lblAtual.textContent = `Vencimento: ${fmt(dtAtual)}`;
+        if (lblProx) lblProx.textContent = `Vencimento: ${fmt(dtProx)}`;
+      }
     }
 
     async function submeterTransacaoGlobal(e) {
@@ -1554,6 +1650,19 @@
           fd.append('categoria', cat);
           fd.append('conta', conta);
           fd.append('pago', pago);
+
+          if (conta.startsWith('cartao_')) {
+            const parcelas = document.getElementById('global-select-cartao-parcelas').value;
+            const resp = document.getElementById('global-select-cartao-responsavel').value;
+            let faturaDestino = 'atual';
+            const rFatura = document.getElementsByName('global_fatura_destino');
+            for (let r of rFatura) {
+              if (r.checked) { faturaDestino = r.value; break; }
+            }
+            fd.append('parcelas', parcelas);
+            fd.append('responsavel', resp);
+            fd.append('fatura_destino', faturaDestino);
+          }
 
           const res = await fetch('/api/lancamentos', { method: 'POST', body: fd });
           const json = await res.json();
@@ -1766,7 +1875,7 @@
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data*</label>
-            <input type="date" id="global-input-data" required
+            <input type="date" id="global-input-data" required onchange="if (typeof atualizarPreviaCartaoGlobal === 'function') atualizarPreviaCartaoGlobal();"
                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
           </div>
         </div>
@@ -1788,9 +1897,74 @@
           </div>
           <div>
             <label id="global-label-conta" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta / Forma*</label>
-            <select id="global-select-conta" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            <select id="global-select-conta" onchange="verificarContaCartaoGlobal()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
               <!-- Populado dinamicamente -->
             </select>
+          </div>
+        </div>
+
+        <!-- 3.1 CAMPOS ESPECÍFICOS DE CARTÃO DE CRÉDITO (Ativados quando uma conta de cartão é selecionada) -->
+        <div id="bloco-campos-cartao-global" class="hidden col-span-1 sm:col-span-2 p-3 bg-orange-500/5 border border-orange-500/20 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between pb-1 border-b border-orange-500/15">
+            <span class="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+              <span>💳</span> Compra no Cartão de Crédito
+            </span>
+            <span id="global-cartao-previa-parcelas" class="text-xs font-extrabold text-orange-600 dark:text-orange-400">
+              1x de R$ 0,00 (À vista)
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Parcelamento</label>
+              <select id="global-select-cartao-parcelas" onchange="atualizarPreviaCartaoGlobal()"
+                      class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                <option value="1">1x (À vista na fatura)</option>
+                <option value="2">2x parcelas</option>
+                <option value="3">3x parcelas</option>
+                <option value="4">4x parcelas</option>
+                <option value="5">5x parcelas</option>
+                <option value="6">6x parcelas</option>
+                <option value="7">7x parcelas</option>
+                <option value="8">8x parcelas</option>
+                <option value="9">9x parcelas</option>
+                <option value="10">10x parcelas</option>
+                <option value="11">11x parcelas</option>
+                <option value="12">12x parcelas</option>
+                <option value="18">18x parcelas</option>
+                <option value="24">24x parcelas</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Responsável</label>
+              <select id="global-select-cartao-responsavel"
+                      class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                <option value="Carlos">Carlos</option>
+                <option value="Fernanda">Fernanda</option>
+                <option value="Aparecida">Aparecida</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Fatura de Destino</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label class="flex items-start gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10">
+                <input type="radio" name="global_fatura_destino" value="atual" checked class="mt-0.5 text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaCartaoGlobal()">
+                <div>
+                  <span class="font-bold text-slate-800 dark:text-slate-100 block">Fatura Atual (Ciclo aberto)</span>
+                  <span id="global-cartao-fatura-atual-venc" class="text-[10px] text-slate-500 dark:text-slate-400 block">Vencimento corrente</span>
+                </div>
+              </label>
+              <label class="flex items-start gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10">
+                <input type="radio" name="global_fatura_destino" value="proxima" class="mt-0.5 text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaCartaoGlobal()">
+                <div>
+                  <span class="font-bold text-slate-800 dark:text-slate-100 block">Próxima Fatura</span>
+                  <span id="global-cartao-fatura-proxima-venc" class="text-[10px] text-slate-500 dark:text-slate-400 block">Próximo vencimento</span>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 
