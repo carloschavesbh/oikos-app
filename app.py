@@ -25,7 +25,20 @@ import planejamento_service
 # =============================================================================
 # 1. CONFIGURAÇÕES GERAIS E PALETA DE CORES
 # =============================================================================
-DB_NAME = os.environ.get("OIKOS_DB_PATH", "financas_remodelacao.db")
+def obter_caminho_banco() -> str:
+    env_path = os.environ.get("OIKOS_DB_PATH")
+    if env_path:
+        return os.path.abspath(env_path)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    caminho_remodelacao = os.path.join(base_dir, "financas_remodelacao.db")
+    caminho_casa = os.path.join(base_dir, "financas_casa.db")
+    if os.path.exists(caminho_remodelacao):
+        return caminho_remodelacao
+    if os.path.exists(caminho_casa):
+        return caminho_casa
+    return caminho_casa
+
+DB_NAME = obter_caminho_banco()
 APP_TITLE = "Central Financeira"
 APP_SUBTITLE = "Gestão Pessoal & Motorista"
 

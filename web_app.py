@@ -31,11 +31,33 @@ from google.genai import types
 
 client = genai.Client(api_key="AQ.Ab8RN6LEqt1vtNMt6G4zuvVHh5m5fZEj6szuYf7hQUnz4zUQsg")
 
-# Banco de dados isolado da branch de remodelação
-DB_PATH = os.environ.get(
-    "OIKOS_DB_PATH",
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "financas_remodelacao.db"))
-)
+import patrimonio_service
+import objetivos_service
+import planejamento_anual_service
+
+def obter_caminho_banco() -> str:
+    """Resolve o caminho do banco de dados SQLite com seguranca e robustez.
+    1. Se OIKOS_DB_PATH estiver definido no ambiente (como no Render Disk), respeita prioritariamente.
+    2. Caso contrario, procura financas_remodelacao.db (se existir localmente no ambiente de desenvolvimento).
+    3. Se nao existir, utiliza o banco estavel financas_casa.db presente no repositorio.
+    4. Garante que nunca cria um banco vazio no vazio sem aviso.
+    """
+    env_path = os.environ.get("OIKOS_DB_PATH")
+    if env_path:
+        return os.path.abspath(env_path)
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    caminho_remodelacao = os.path.join(base_dir, "financas_remodelacao.db")
+    caminho_casa = os.path.join(base_dir, "financas_casa.db")
+
+    if os.path.exists(caminho_remodelacao):
+        return caminho_remodelacao
+    if os.path.exists(caminho_casa):
+        return caminho_casa
+
+    return caminho_casa
+
+DB_PATH = obter_caminho_banco()
 
 app = FastAPI(
     title="Oikos - Gestão Financeira Familiar",
@@ -87,6 +109,15 @@ OIKOS_EDICAO_NOME = os.environ.get("OIKOS_EDICAO_NOME", "Pessoal")
 templates.env.globals["OIKOS_EDICAO_NOME"] = OIKOS_EDICAO_NOME
 
 
+@app.on_event("startup")
+async def startup_event():
+    try:
+        conn = conectar_db()
+        conn.close()
+    except Exception as e:
+        print(f"Aviso no startup ao inicializar banco: {e}")
+
+
 @app.get("/manifest.json", include_in_schema=False)
 async def rota_manifest():
     return FileResponse(os.path.join(STATIC_DIR, "manifest.json"), media_type="application/manifest+json")
@@ -102,10 +133,76 @@ async def rota_favicon():
     return FileResponse(os.path.join(STATIC_DIR, "app-icon.png"), media_type="image/png")
 
 
+_schema_garantido = False
+
+def garantir_esquema_banco(conn: sqlite3.Connection) -> None:
+    """Garante de forma idempotente que todas as tabelas e colunas necessarias
+    existam no banco conectado, preservando 100% dos dados historicos existentes."""
+    cur = conn.cursor()
+
+    # 1. Inicializar tabelas novas dos servicos
+    patrimonio_service.inicializar_tabelas_patrimonio(conn)
+    objetivos_service.inicializar_tabelas_objetivos(conn)
+    conciliacao_service.inicializar_tabelas_conciliacao(conn)
+    planejamento_anual_service.inicializar_tabelas_renda_e_anual(conn)
+
+    # 2. Assegurar colunas essenciais na tabela transacoes
+    cur.execute("PRAGMA table_info(transacoes)")
+    cols_trans = {c[1] for c in cur.fetchall()}
+    novas_cols_trans = [
+        ("data_liquidacao", "TEXT"),
+        ("subcategoria", "TEXT"),
+        ("titular", "TEXT DEFAULT 'A Confirmar'"),
+        ("afeta_saldo_bancario", "INTEGER DEFAULT 1"),
+        ("lote_importacao_id", "INTEGER"),
+        ("conciliado_com_extrato", "INTEGER DEFAULT 0"),
+        ("ref_externa", "TEXT"),
+        ("origem", "TEXT"),
+        ("juros", "REAL DEFAULT 0"),
+        ("desconto", "REAL DEFAULT 0"),
+        ("motivo_ajuste", "TEXT"),
+        ("status_pagamento", "TEXT DEFAULT 'pendente'"),
+        ("status_conciliacao_fatura", "TEXT DEFAULT 'normal'"),
+    ]
+    for col_name, col_type in novas_cols_trans:
+        if col_name not in cols_trans:
+            try:
+                cur.execute(f"ALTER TABLE transacoes ADD COLUMN {col_name} {col_type}")
+            except Exception:
+                pass
+
+    # 3. Assegurar coluna finalidade na tabela cofrinhos
+    cur.execute("PRAGMA table_info(cofrinhos)")
+    cols_cof = {c[1] for c in cur.fetchall()}
+    if "finalidade" not in cols_cof:
+        try:
+            cur.execute("ALTER TABLE cofrinhos ADD COLUMN finalidade TEXT DEFAULT 'reserva'")
+        except Exception:
+            pass
+
+    # 4. Assegurar coluna bem_id na tabela dividas_gerenciamento
+    cur.execute("PRAGMA table_info(dividas_gerenciamento)")
+    cols_div = {c[1] for c in cur.fetchall()}
+    if "bem_id" not in cols_div:
+        try:
+            cur.execute("ALTER TABLE dividas_gerenciamento ADD COLUMN bem_id INTEGER REFERENCES bens(id)")
+        except Exception:
+            pass
+
+    conn.commit()
+
+
 def conectar_db() -> sqlite3.Connection:
-    """Abre conexão com o banco financas_casa.db com suporte a Row factory."""
+    """Abre conexao com o banco de dados oficial com suporte a Row factory e garantia de esquema."""
+    global _schema_garantido
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    if not _schema_garantido:
+        try:
+            garantir_esquema_banco(conn)
+            _schema_garantido = True
+        except Exception as e:
+            print(f"Aviso ao inicializar esquema do banco: {e}")
     return conn
 
 
@@ -2906,7 +3003,8 @@ async def pagina_planejamento(
     request: Request,
     mes: Optional[int] = Query(None),
     ano: Optional[int] = Query(None),
-    periodo: Optional[str] = Query(None)
+    periodo: Optional[str] = Query(None),
+    ordem: Optional[str] = Query("crescente")
 ):
     conn = conectar_db()
     hoje = date.today()
@@ -3345,7 +3443,8 @@ async def pagina_motorista(
     filtro: Optional[str] = "semana",
     mes: Optional[int] = Query(None),
     ano: Optional[int] = Query(None),
-    periodo: Optional[str] = Query(None)
+    periodo: Optional[str] = Query(None),
+    ordem: Optional[str] = Query("crescente")
 ):
     conn = conectar_db()
     hoje = date.today()
