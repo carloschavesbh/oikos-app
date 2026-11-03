@@ -324,6 +324,45 @@ def obter_icone_categoria(cat: str) -> str:
 templates.env.filters["icone_cat"] = obter_icone_categoria
 
 
+def obter_icone_categoria_svg(cat: str) -> str:
+    """Retorna ícone SVG consistente da biblioteca do projeto (16-18px, traço uniforme 1.8)."""
+    import markupsafe
+    if not cat:
+        svg = '<svg class="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 6h.008v.008H6V6Z"/></svg>'
+        return markupsafe.Markup(svg)
+    c = cat.lower()
+    if any(k in c for k in ["aliment", "mercado", "super", "comida", "restaurante", "ifood"]):
+        svg = '<svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>'
+    elif any(k in c for k in ["saúde", "saude", "farm", "medic", "dent", "consult", "exame", "hospital"]):
+        svg = '<svg class="w-4 h-4 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/></svg>'
+    elif any(k in c for k in ["combust", "posto", "gasol", "etanol"]):
+        svg = '<svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2.25c-3.75 5.25-6.75 9-6.75 12.75a6.75 6.75 0 0 0 13.5 0c0-3.75-3-7.5-6.75-12.75Z"/></svg>'
+    elif any(k in c for k in ["veículo", "veiculo", "carro", "ipva", "manut", "moto", "oficina"]):
+        svg = '<svg class="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v9.375"/></svg>'
+    elif any(k in c for k in ["água", "agua", "copasa"]):
+        svg = '<svg class="w-4 h-4 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 2.25c-3.75 5.25-6.75 9-6.75 12.75a6.75 6.75 0 0 0 13.5 0c0-3.75-3-7.5-6.75-12.75Z"/></svg>'
+    elif any(k in c for k in ["luz", "cemig", "energ", "energia"]):
+        svg = '<svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>'
+    elif any(k in c for k in ["internet", "claro", "vivo", "celular", "telefone"]):
+        svg = '<svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/></svg>'
+    elif any(k in c for k in ["aluguel", "condom", "casa", "morad", "imóvel", "imovel"]):
+        svg = '<svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>'
+    elif any(k in c for k in ["dívida", "divida", "emprést", "emprest", "acordo", "bv", "banco", "cartão", "cartao"]):
+        svg = '<svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-6.75 4.5h18a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-18A2.25 2.25 0 0 0 0.75 6.75v10.5A2.25 2.25 0 0 0 3 19.5Z"/></svg>'
+    elif any(k in c for k in ["salário", "salario", "fernanda", "renda", "receita", "pró-labore", "prolabore"]):
+        svg = '<svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v1.868m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>'
+    elif any(k in c for k in ["99", "uber", "corrida"]):
+        svg = '<svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v9.375"/></svg>'
+    elif any(k in c for k in ["pagaleve", "paga leve", "compra", "vestuário", "loja"]):
+        svg = '<svg class="w-4 h-4 text-purple-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>'
+    else:
+        svg = '<svg class="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 6h.008v.008H6V6Z"/></svg>'
+    return markupsafe.Markup(svg)
+
+
+templates.env.filters["icone_cat_svg"] = obter_icone_categoria_svg
+
+
 BANCOS_DISPONIVEIS = [
     {"codigo": "mercadopago.svg", "nome": "Mercado Pago"},
     {"codigo": "99pay.svg", "nome": "99Pay"},
@@ -1296,19 +1335,20 @@ async def pagina_lancamentos(
                 grupos_cartao[chave_cc]["valor_pendente"] += val
 
         elif is_pl:
-            # Agrupar parcelas Paga Leve por data de vencimento e titular
-            chave_pl = (dt_str, titular_str)
+            # Agrupar parcelas Paga Leve por data de vencimento, titular e conta
+            chave_pl = (dt_str, titular_str, conta_str)
             if chave_pl not in grupos_pagaleve:
                 tit_clean = re.sub(r'[^a-zA-Z0-9]', '_', titular_str)
+                cta_clean = re.sub(r'[^a-zA-Z0-9]', '_', conta_str)
                 grupos_pagaleve[chave_pl] = {
                     "is_grupo": True,
                     "tipo_grupo": "pagaleve",
-                    "grupo_id": f"pagaleve_{tit_clean}_{dt_str.replace('-', '')}",
+                    "grupo_id": f"pagaleve_{tit_clean}_{cta_clean}_{dt_str.replace('-', '')}",
                     "titular": titular_str,
                     "descricao": f"Paga Leve • {titular_str}",
-                    "categoria": "Parcelamento Paga Leve",
+                    "categoria": "Paga Leve",
                     "subcategoria": f"Vencimento {dt_fmt}",
-                    "conta": "Paga Leve",
+                    "conta": conta_str,
                     "data": dt_str,
                     "data_formatada": dt_fmt,
                     "itens": [],
@@ -1328,7 +1368,7 @@ async def pagina_lancamentos(
             item_dict["is_grupo"] = False
             itens_individuais.append(item_dict)
 
-    # Consolidar grupos de cartão
+    # Consolidar grupos de cartão (uma linha por cartão e fatura)
     lista_grupos = []
     for g in list(grupos_cartao.values()):
         tot_g = round(g["total"], 2)
@@ -1340,7 +1380,7 @@ async def pagina_lancamentos(
         g["valor_pago"] = pago_g
         g["valor_pendente"] = pend_g
         g["qtd_itens"] = qtd
-        g["descricao"] = f"Fatura {g['nome_cartao']} ({qtd} compras)" if qtd > 1 else f"Fatura {g['nome_cartao']} (1 compra)"
+        g["descricao"] = f"Fatura {g['nome_cartao']}"
         if pend_g == 0.0:
             g["situacao"] = "paga"
             g["pago"] = 1
@@ -1365,41 +1405,67 @@ async def pagina_lancamentos(
         g["texto_busca"] = " ".join(partes_busca).lower()
         lista_grupos.append(g)
 
-    # Consolidar grupos Paga Leve
+    # Consolidar grupos Paga Leve:
+    # Agrupar apenas quando houver 2 ou mais parcelas da mesma conta/responsável e na mesma data completa de vencimento.
+    # Quando houver uma única parcela, apresentar como linha normal.
     for g in list(grupos_pagaleve.values()):
-        tot_g = round(g["total"], 2)
-        pago_g = round(g["valor_pago"], 2)
-        pend_g = round(g["valor_pendente"], 2)
-        qtd = len(g["itens"])
-        g["total"] = tot_g
-        g["valor"] = tot_g
-        g["valor_pago"] = pago_g
-        g["valor_pendente"] = pend_g
-        g["qtd_itens"] = qtd
-        g["descricao"] = f"Paga Leve • {g['titular']} ({qtd} parcelas)" if qtd > 1 else f"Paga Leve • {g['titular']} (1 parcela)"
-        if pend_g == 0.0:
-            g["situacao"] = "paga"
-            g["pago"] = 1
-            g["is_atrasada"] = False
-        elif pago_g > 0.0 and pend_g > 0.0:
-            g["situacao"] = "parcial"
-            g["pago"] = 0
-            g["is_atrasada"] = (g["data"] < hoje_str)
+        itens_g = g["itens"]
+        qtd = len(itens_g)
+        if qtd == 1:
+            # Parcela única: linha normal, descrição e categoria originais da compra
+            item_unico = itens_g[0]
+            item_unico["is_grupo"] = False
+            itens_individuais.append(item_unico)
         else:
-            g["situacao"] = "pendente"
-            g["pago"] = 0
-            g["is_atrasada"] = (g["data"] < hoje_str)
+            # Duas ou mais parcelas: grupo real consolidado
+            tot_g = round(g["total"], 2)
+            pago_g = round(g["valor_pago"], 2)
+            pend_g = round(g["valor_pendente"], 2)
+            g["total"] = tot_g
+            g["valor"] = tot_g
+            g["valor_pago"] = pago_g
+            g["valor_pendente"] = pend_g
+            g["qtd_itens"] = qtd
+            g["descricao"] = f"Paga Leve • {g['titular']}"
+            
+            # Categoria: se todas forem iguais, usa a categoria comum; senão 'Categorias diversas'
+            cats = [it["categoria"] for it in itens_g if it.get("categoria")]
+            cats_unicas = sorted(list(set(cats)))
+            if len(cats_unicas) == 1:
+                g["categoria"] = cats_unicas[0]
+                subcats = [it["subcategoria"] for it in itens_g if it.get("subcategoria")]
+                subcats_unicas = sorted(list(set(subcats)))
+                if len(subcats_unicas) == 1 and subcats_unicas[0]:
+                    g["subcategoria"] = subcats_unicas[0]
+                else:
+                    g["subcategoria"] = f"Vencimento {g['data_formatada']}"
+            else:
+                g["categoria"] = "Categorias diversas"
+                g["subcategoria"] = f"Vencimento {g['data_formatada']}"
 
-        g["transacao_ids"] = [it["id"] for it in g["itens"]]
-        g["transacao_ids_pendentes"] = [it["id"] for it in g["itens"] if it["pago"] == 0]
-        g["transacao_ids_pagos"] = [it["id"] for it in g["itens"] if it["pago"] == 1]
-        
-        # Texto consolidado para busca
-        partes_busca = ["pagaleve", "paga leve", g["titular"]]
-        for it in g["itens"]:
-            partes_busca.extend([it["descricao"], it["categoria"], it["subcategoria"], f"parcela {it['numero_parcela']}/{it['total_parcelas_compra']}"])
-        g["texto_busca"] = " ".join(partes_busca).lower()
-        lista_grupos.append(g)
+            if pend_g == 0.0:
+                g["situacao"] = "paga"
+                g["pago"] = 1
+                g["is_atrasada"] = False
+            elif pago_g > 0.0 and pend_g > 0.0:
+                g["situacao"] = "parcial"
+                g["pago"] = 0
+                g["is_atrasada"] = (g["data"] < hoje_str)
+            else:
+                g["situacao"] = "pendente"
+                g["pago"] = 0
+                g["is_atrasada"] = (g["data"] < hoje_str)
+
+            g["transacao_ids"] = [it["id"] for it in g["itens"]]
+            g["transacao_ids_pendentes"] = [it["id"] for it in g["itens"] if it["pago"] == 0]
+            g["transacao_ids_pagos"] = [it["id"] for it in g["itens"] if it["pago"] == 1]
+            
+            # Texto consolidado para busca
+            partes_busca = ["pagaleve", "paga leve", g["titular"], g["categoria"]]
+            for it in g["itens"]:
+                partes_busca.extend([it["descricao"], it["categoria"], it["subcategoria"], f"parcela {it['numero_parcela']}/{it['total_parcelas_compra']}"])
+            g["texto_busca"] = " ".join(partes_busca).lower()
+            lista_grupos.append(g)
 
     # Mesclar lista de apresentação e ordenar por data completa com critério de desempate estável
     transacoes = itens_individuais + lista_grupos
