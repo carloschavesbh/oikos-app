@@ -6351,12 +6351,22 @@ async def api_opcoes_transacao_global():
         contas = []
         for r in rows_contas:
             c_dict = dict(r)
+            icone_raw = str(c_dict.get("icone_db") or "").strip()
+            # Para cofrinhos, preserva o emoji (ex: 🏛️) para exibição elegante no select
+            if c_dict.get("tipo") == "cofrinho":
+                icone_texto = "🏛️" if icone_raw in ["🏦", "🏛️", "", "carteira.svg", "cofrinho.svg"] else icone_raw
+            elif not icone_raw.lower().endswith((".svg", ".png")):
+                icone_texto = icone_raw
+            else:
+                icone_texto = ""
+
             icone_svg = resolver_icone_banco(c_dict.get("icone_db") or c_dict.get("nome"))
             contas.append({
                 "id": c_dict["id"],
                 "nome": c_dict["nome"],
                 "tipo": c_dict.get("tipo"),
                 "cor": c_dict.get("cor"),
+                "icone": icone_texto,
                 "icone_arquivo": icone_svg,
                 "icone_fallback": "banco_default.svg"
             })

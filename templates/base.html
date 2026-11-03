@@ -1178,6 +1178,67 @@
       return null;
     }
 
+    function formatarTextoOpcaoConta(c) {
+      if (!c) return '';
+      // Limpa qualquer nome de arquivo de ícone (.svg/.png) que tenha vazado
+      let nome = (c.nome || '').replace(/[\w\-]+\.(svg|png)/gi, '').trim();
+
+      // Cofrinhos: preserva ou insere emoji 🏛️ antes do nome
+      if (c.tipo === 'cofrinho') {
+        const iconeStr = (c.icone || '').trim();
+        const emoji = (iconeStr && !iconeStr.toLowerCase().endsWith('.svg') && !iconeStr.toLowerCase().endsWith('.png')) ? iconeStr : '🏛️';
+        if (!nome.startsWith('🏛️') && !nome.startsWith('🏦')) {
+          return `${emoji} ${nome}`.trim();
+        }
+        return nome;
+      }
+
+      // Se tiver emoji ou símbolo textual no campo icone (que NÃO seja arquivo de imagem)
+      if (c.icone && !c.icone.toLowerCase().endsWith('.svg') && !c.icone.toLowerCase().endsWith('.png')) {
+        return `${c.icone} ${nome}`.trim();
+      }
+
+      // Contas bancárias tradicionais (Mercado Pago, 99Pay, Carteira): texto exclusivamente amigável
+      return nome;
+    }
+
+    function popularSelectsContasGlobal(dadosContas) {
+      if (!dadosContas || !Array.isArray(dadosContas)) return;
+      const selConta = document.getElementById('global-select-conta');
+      const selOrig = document.getElementById('global-select-origem');
+      const selDest = document.getElementById('global-select-destino');
+
+      const optionsHtml = dadosContas.map(c => {
+        const texto = formatarTextoOpcaoConta(c);
+        return `<option value="${c.id}">${texto}</option>`;
+      }).join('');
+
+      if (selConta) {
+        const valAnterior = selConta.value;
+        selConta.innerHTML = optionsHtml;
+        if (valAnterior && Array.from(selConta.options).some(o => o.value === String(valAnterior))) {
+          selConta.value = valAnterior;
+        }
+      }
+      if (selOrig) {
+        const valAnterior = selOrig.value;
+        selOrig.innerHTML = optionsHtml;
+        if (valAnterior && Array.from(selOrig.options).some(o => o.value === String(valAnterior))) {
+          selOrig.value = valAnterior;
+        }
+      }
+      if (selDest) {
+        const valAnterior = selDest.value;
+        selDest.innerHTML = dadosContas.map((c, i) => {
+          const texto = formatarTextoOpcaoConta(c);
+          return `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${texto}</option>`;
+        }).join('');
+        if (valAnterior && Array.from(selDest.options).some(o => o.value === String(valAnterior))) {
+          selDest.value = valAnterior;
+        }
+      }
+    }
+
     async function abrirModalTransacaoGlobal(tipo) {
       const menu = document.getElementById('menu-dropdown-global');
       if (menu) menu.classList.add('hidden');
@@ -1192,20 +1253,8 @@
         const inputData = document.getElementById('global-input-data');
         if (inputData && !inputData.value) inputData.value = dados.hoje;
 
-        // Contas
-        const selConta = document.getElementById('global-select-conta');
-        const selOrig = document.getElementById('global-select-origem');
-        const selDest = document.getElementById('global-select-destino');
-
-        if (selConta && dados.contas) {
-          selConta.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
-        }
-        if (selOrig && dados.contas) {
-          selOrig.innerHTML = dados.contas.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
-        }
-        if (selDest && dados.contas) {
-          selDest.innerHTML = dados.contas.map((c, i) => `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${c.nome}</option>`).join('');
-        }
+        // Montagem das contas preservando emojis de cofrinhos e removendo qualquer resíduo de .svg
+        popularSelectsContasGlobal(dados.contas);
       }
 
       mudarAbaModalGlobal(tipo || 'despesa');
@@ -1264,6 +1313,11 @@
       blocoRecorr.classList.add('hidden');
       blocoPL.classList.add('hidden');
       blocoStatus.classList.add('hidden');
+
+      // Garante que o select de contas permaneça limpo e populado ao trocar de aba
+      if (cacheOpcoesGlobal && cacheOpcoesGlobal.contas) {
+        popularSelectsContasGlobal(cacheOpcoesGlobal.contas);
+      }
 
       const selCat = document.getElementById('global-select-categoria');
       if (cacheOpcoesGlobal && selCat) {
