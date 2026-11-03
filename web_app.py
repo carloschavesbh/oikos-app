@@ -1682,9 +1682,10 @@ async def api_criar_lancamento(
     id: Optional[int] = Form(None),
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
-    motivo_ajuste: Optional[str] = Form("")
+    motivo_ajuste: Optional[str] = Form(""),
+    escopo_edicao: Optional[str] = Form("somente_esta")
 ):
-    """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria, Subcategoria, Juros, Desconto e Motivo."""
+    """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria, Subcategoria, Juros, Desconto, Motivo e Escopo de Recorrência."""
     valor_num = converter_valor_monetario(valor)
     if valor_num <= 0:
         return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "Valor deve ser maior que zero."})
@@ -1692,6 +1693,7 @@ async def api_criar_lancamento(
     juros_num = round(converter_valor_monetario(juros), 2) if juros is not None else 0.0
     desconto_num = round(converter_valor_monetario(desconto), 2) if desconto is not None else 0.0
     motivo_ajuste_str = (motivo_ajuste or "").strip()
+    escopo_str = (escopo_edicao or "somente_esta").strip().lower()
 
     conn = conectar_db()
     try:
@@ -1737,11 +1739,19 @@ async def api_criar_lancamento(
         subcat_str = (subcategoria or "").strip()
 
         if id and int(id) > 0:
+            tid = int(id)
+            cur.execute("""
+                SELECT id, data, descricao, tipo, categoria, subcategoria, conta, grupo_parcelamento, status_rateio, pago
+                FROM transacoes WHERE id = ?
+            """, (tid,))
+            tr_antiga = cur.fetchone()
+
+            # 1. Atualiza a transação principal
             cur.execute("""
                 UPDATE transacoes
                 SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?, juros = ?, desconto = ?, motivo_ajuste = ?
                 WHERE id = ?
-            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, int(id)))
+            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, tid))
             
             # Sincroniza veiculo_abastecimentos caso haja vínculo
             try:
@@ -1749,19 +1759,60 @@ async def api_criar_lancamento(
                     UPDATE veiculo_abastecimentos
                     SET data = ?, valor_pago = ?, conta = ?, conta_id = ?
                     WHERE transacao_id = ?
-                """, (str(data)[:10], valor_num, conta_nome, conta_id, int(id)))
+                """, (str(data)[:10], valor_num, conta_nome, conta_id, tid))
             except Exception:
                 pass
+
+            qtd_afetadas_serie = 0
+            if tr_antiga and escopo_str in ("esta_e_proximas", "toda_serie"):
+                grp = tr_antiga["grupo_parcelamento"] or ""
+                desc_ant = (tr_antiga["descricao"] or "").strip()
+                dt_ant = str(tr_antiga["data"] or "")[:10]
+
+                # Aplica apenas em ocorrências PENDENTES da série (nunca reescreve pagas/conciliadas)
+                if grp:
+                    if escopo_str == "esta_e_proximas":
+                        cur.execute("""
+                            UPDATE transacoes
+                            SET valor = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?
+                            WHERE grupo_parcelamento = ? AND data > ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                        """, (valor_num, categoria, subcat_str, conta_nome, conta_id, grp, dt_ant, tid))
+                    else:  # toda_serie
+                        cur.execute("""
+                            UPDATE transacoes
+                            SET valor = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?
+                            WHERE grupo_parcelamento = ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                        """, (valor_num, categoria, subcat_str, conta_nome, conta_id, grp, tid))
+                    qtd_afetadas_serie = cur.rowcount
+                elif desc_ant:
+                    if escopo_str == "esta_e_proximas":
+                        cur.execute("""
+                            UPDATE transacoes
+                            SET valor = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?
+                            WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?)) AND tipo = ? AND data > ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                        """, (valor_num, categoria, subcat_str, conta_nome, conta_id, desc_ant, tr_antiga["tipo"], dt_ant, tid))
+                    else:  # toda_serie
+                        cur.execute("""
+                            UPDATE transacoes
+                            SET valor = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?
+                            WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?)) AND tipo = ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                        """, (valor_num, categoria, subcat_str, conta_nome, conta_id, desc_ant, tr_antiga["tipo"], tid))
+                    qtd_afetadas_serie = cur.rowcount
 
             conn.commit()
 
             # Recalcula saldo consolidado imediatamente
             res_saldo = saldo_service.calcular_saldo_consolidado(conn)
 
+            msg_sucesso = f"Lançamento '{descricao.strip()}' atualizado com sucesso!"
+            if qtd_afetadas_serie > 0:
+                msg_sucesso += f" (+ {qtd_afetadas_serie} parcelas futuras atualizadas na série)"
+
             return {
                 "status": "sucesso",
                 "sucesso": True,
-                "mensagem": f"Lançamento '{descricao.strip()}' atualizado com sucesso!",
+                "mensagem": msg_sucesso,
+                "qtd_serie_atualizada": qtd_afetadas_serie,
                 "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
             }
 
@@ -1798,7 +1849,8 @@ async def api_editar_lancamento(
     pago: Optional[int] = Form(0),
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
-    motivo_ajuste: Optional[str] = Form("")
+    motivo_ajuste: Optional[str] = Form(""),
+    escopo_edicao: Optional[str] = Form("somente_esta")
 ):
     if not id:
         raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
@@ -1814,7 +1866,8 @@ async def api_editar_lancamento(
         id=int(id),
         juros=juros,
         desconto=desconto,
-        motivo_ajuste=motivo_ajuste
+        motivo_ajuste=motivo_ajuste,
+        escopo_edicao=escopo_edicao
     )
 
 
@@ -1832,7 +1885,8 @@ async def api_editar_lancamento_por_id(
     pago: Optional[int] = Form(0),
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
-    motivo_ajuste: Optional[str] = Form("")
+    motivo_ajuste: Optional[str] = Form(""),
+    escopo_edicao: Optional[str] = Form("somente_esta")
 ):
     tid = id if (id and str(id).strip()) else (transacao_id if transacao_id != "editar" else None)
     if not tid:
@@ -1849,7 +1903,8 @@ async def api_editar_lancamento_por_id(
         id=int(tid),
         juros=juros,
         desconto=desconto,
-        motivo_ajuste=motivo_ajuste
+        motivo_ajuste=motivo_ajuste,
+        escopo_edicao=escopo_edicao
     )
 
 
@@ -6175,32 +6230,68 @@ async def api_criar_recorrencia(
 
 @app.get("/api/recorrencias/listar")
 async def api_listar_recorrencias():
-    """Retorna lista de despesas recorrentes ativas baseada em descrições repetidas em meses futuros."""
+    """Retorna lista consolidada de despesas recorrentes ativas e regras aprovadas do Oikos Pessoal."""
     conn = conectar_db()
     try:
         cur = conn.cursor()
         hoje_str = date.today().strftime("%Y-%m-%d")
+        
+        # 1. Busca transações recorrentes ou repetidas pendentes no banco
         cur.execute("""
-            SELECT descricao, categoria, valor, conta, COUNT(*) as qtd_futuras, MIN(data) as proximo_vencimento
+            SELECT descricao, categoria, COALESCE(subcategoria, '') as subcategoria, valor, conta, 
+                   grupo_parcelamento, COUNT(*) as qtd_futuras, MIN(data) as proximo_vencimento
             FROM transacoes
             WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data >= ?
             GROUP BY LOWER(TRIM(descricao)), valor
-            HAVING COUNT(*) >= 1
             ORDER BY proximo_vencimento ASC
         """, (hoje_str,))
         rows = cur.fetchall()
-        recorrencias = [
-            {
-                "descricao": r["descricao"],
+        
+        recorrencias_map = {}
+        for r in rows:
+            desc = r["descricao"]
+            k = desc.lower().strip()
+            recorrencias_map[k] = {
+                "descricao": desc,
                 "categoria": r["categoria"],
+                "subcategoria": r["subcategoria"],
                 "valor": float(r["valor"] or 0.0),
                 "conta": r["conta"],
+                "grupo_parcelamento": r["grupo_parcelamento"],
                 "qtd_futuras": r["qtd_futuras"],
-                "proximo_vencimento": r["proximo_vencimento"]
+                "proximo_vencimento": r["proximo_vencimento"],
+                "origem": "banco_ativo"
             }
-            for r in rows
-        ]
-        return {"sucesso": True, "recorrencias": recorrencias}
+
+        # 2. Complementa com as regras cotidianas aprovadas (caso alguma ainda não tenha sido gerada no futuro)
+        for rec in RECORRENCIAS_APROVADAS_CONFIG:
+            desc_cfg = rec["descricao"]
+            k_cfg = desc_cfg.lower().strip()
+            if k_cfg not in recorrencias_map:
+                # Checa se há alguma fatura histórica ou recente
+                cur.execute("""
+                    SELECT MIN(data) as prox, COUNT(*) as qtd
+                    FROM transacoes
+                    WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?)) AND (pago = 0 OR pago IS NULL) AND data >= ?
+                """, (desc_cfg, hoje_str))
+                r_db = cur.fetchone()
+                prox_venc = r_db["prox"] if (r_db and r_db["prox"]) else f"Todo dia {rec['dia']:02d}"
+                qtd_f = r_db["qtd"] if (r_db and r_db["qtd"]) else 12
+
+                recorrencias_map[k_cfg] = {
+                    "descricao": desc_cfg,
+                    "categoria": rec["categoria"],
+                    "subcategoria": rec.get("subcategoria", ""),
+                    "valor": float(rec["valor"]),
+                    "conta": rec.get("conta", "Mercado Pago"),
+                    "grupo_parcelamento": f"regra_aprovada_dia_{rec['dia']}",
+                    "qtd_futuras": qtd_f,
+                    "proximo_vencimento": prox_venc,
+                    "origem": "regra_aprovada"
+                }
+
+        lista_final = sorted(list(recorrencias_map.values()), key=lambda x: str(x.get("proximo_vencimento") or ""))
+        return {"sucesso": True, "recorrencias": lista_final}
     finally:
         conn.close()
 

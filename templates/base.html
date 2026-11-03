@@ -1279,12 +1279,114 @@
       } else if (tipo === 'recorrencia') {
         blocoPadrao.classList.remove('hidden');
         blocoRecorr.classList.remove('hidden');
+        if (typeof carregarRecorrenciasAtivasGlobal === 'function') {
+          carregarRecorrenciasAtivasGlobal(false);
+        }
       } else if (tipo === 'pagaleve') {
         blocoPL.classList.remove('hidden');
       } else {
         blocoPadrao.classList.remove('hidden');
         blocoStatus.classList.remove('hidden');
       }
+    }
+
+    let listaRecorrenciasCacheGlobal = [];
+
+    async function carregarRecorrenciasAtivasGlobal(abrirAutomatico = false) {
+      try {
+        const res = await fetch('/api/recorrencias/listar');
+        const data = await res.json();
+        if (data.sucesso && Array.isArray(data.recorrencias)) {
+          listaRecorrenciasCacheGlobal = data.recorrencias;
+          renderizarListaRecorrenciasGlobal();
+          const badgeTot = document.getElementById('badge-total-recorrencias-ativas');
+          if (badgeTot) badgeTot.textContent = `${data.recorrencias.length} ativas`;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar recorrencias ativas:', err);
+      }
+      if (abrirAutomatico) {
+        const p = document.getElementById('painel-lista-recorrencias-global');
+        if (p) p.classList.remove('hidden');
+      }
+    }
+
+    function renderizarListaRecorrenciasGlobal() {
+      const container = document.getElementById('container-itens-recorrencias-global');
+      if (!container) return;
+      if (!listaRecorrenciasCacheGlobal || listaRecorrenciasCacheGlobal.length === 0) {
+        container.innerHTML = '<div class="p-3 text-center text-slate-400 text-xs">Nenhuma despesa recorrente encontrada.</div>';
+        return;
+      }
+
+      container.innerHTML = listaRecorrenciasCacheGlobal.map(r => {
+        const fmtVal = Number(r.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const venc = r.proximo_vencimento || 'Mensal';
+        const qtd = r.qtd_futuras ? `${r.qtd_futuras} ocorrências` : 'Ativa';
+        const descEsc = (r.descricao || '').replace(/'/g, "\'");
+        const catEsc = (r.categoria || 'Moradia/Contas').replace(/'/g, "\'");
+        const diaNum = venc.includes('-') ? parseInt(venc.split('-')[2], 10) : 10;
+        return `
+          <div class="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs hover:border-emerald-500/50 transition">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-sm shrink-0">🔁</span>
+              <div class="truncate">
+                <div class="font-bold text-slate-900 dark:text-white truncate">${r.descricao}</div>
+                <div class="text-[10px] text-slate-500 truncate">${r.categoria} • ${venc} • ${qtd}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0 ml-2">
+              <span class="font-black text-rose-500 text-xs">${fmtVal}</span>
+              <button type="button" onclick="preencherRecorrenciaGlobal('${descEsc}', '${catEsc}', ${r.valor}, ${diaNum})"
+                      class="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white text-[10px] font-bold transition cursor-pointer"
+                      title="Preencher dados no formulário">
+                Usar
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function alternarModoConsultaRecorrenciasGlobal() {
+      const painel = document.getElementById('painel-lista-recorrencias-global');
+      const btn = document.getElementById('btn-toggle-consulta-recorr');
+      if (!painel) return;
+      if (painel.classList.contains('hidden')) {
+        painel.classList.remove('hidden');
+        if (btn) btn.textContent = '✕ Ocultar Consulta';
+        carregarRecorrenciasAtivasGlobal(true);
+      } else {
+        painel.classList.add('hidden');
+        if (btn) btn.textContent = '📋 Consultar Recorrências Ativas';
+      }
+    }
+
+    function preencherRecorrenciaGlobal(desc, cat, valor, dia) {
+      document.getElementById('global-input-descricao').value = desc;
+      const selCat = document.getElementById('global-select-categoria');
+      if (selCat) {
+        if (!Array.from(selCat.options).some(o => o.value === cat)) {
+          const opt = document.createElement('option');
+          opt.value = cat;
+          opt.textContent = cat;
+          selCat.appendChild(opt);
+        }
+        selCat.value = cat;
+      }
+      const inpVal = document.getElementById('global-input-valor');
+      if (inpVal && valor > 0) {
+        inpVal.value = Number(valor).toFixed(2).replace('.', ',');
+        aplicarMascaraMoedaGlobal(inpVal);
+      }
+      const inpDia = document.getElementById('global-input-dia-venc');
+      if (inpDia && dia > 0) {
+        inpDia.value = dia;
+      }
+      const painel = document.getElementById('painel-lista-recorrencias-global');
+      const btn = document.getElementById('btn-toggle-consulta-recorr');
+      if (painel) painel.classList.add('hidden');
+      if (btn) btn.textContent = '📋 Consultar Recorrências Ativas';
     }
 
     function aplicarMascaraMoedaGlobal(input) {
@@ -1640,19 +1742,42 @@
         </div>
 
         <!-- 5. CAMPOS ESPECÍFICOS DE RECORRÊNCIA -->
-        <div id="bloco-campos-recorrencia" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Dia do Vencimento*</label>
-            <input type="number" id="global-input-dia-venc" min="1" max="31" value="10"
-                   class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        <div id="bloco-campos-recorrencia" class="hidden col-span-1 sm:col-span-2 space-y-3">
+          <div class="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+            <span class="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+              <span>🔁</span> Despesas Recorrentes Mensais
+            </span>
+            <button type="button" onclick="alternarModoConsultaRecorrenciasGlobal()" id="btn-toggle-consulta-recorr"
+                    class="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer">
+              📋 Consultar Recorrências Ativas
+            </button>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Duração (Meses)*</label>
-            <select id="global-select-meses-duracao" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-              <option value="6">6 meses</option>
-              <option value="12" selected>12 meses (1 ano)</option>
-              <option value="24">24 meses (2 anos)</option>
-            </select>
+
+          <!-- Painel de Consulta de Recorrências Ativas -->
+          <div id="painel-lista-recorrencias-global" class="hidden p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div class="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span>Recorrências já cadastradas:</span>
+              <span id="badge-total-recorrencias-ativas" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 font-normal">Carregando...</span>
+            </div>
+            <div id="container-itens-recorrencias-global" class="max-h-48 overflow-y-auto space-y-1.5 custom-scroll text-xs">
+              <!-- Populado via JS por carregarRecorrenciasAtivasGlobal() -->
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Dia do Vencimento*</label>
+              <input type="number" id="global-input-dia-venc" min="1" max="31" value="10"
+                     class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Duração (Meses)*</label>
+              <select id="global-select-meses-duracao" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="6">6 meses</option>
+                <option value="12" selected>12 meses (1 ano)</option>
+                <option value="24">24 meses (2 anos)</option>
+              </select>
+            </div>
           </div>
         </div>
 

@@ -322,7 +322,10 @@
                         data-pago="{{ t.pago }}"
                         data-juros="{{ t.juros }}"
                         data-desconto="{{ t.desconto }}"
-                        data-motivo="{{ t.motivo_ajuste }}"></button>
+                        data-motivo="{{ t.motivo_ajuste }}"
+                        data-grupo-parcelamento="{{ t.grupo_parcelamento or '' }}"
+                        data-status-rateio="{{ t.status_rateio or '' }}"
+                        data-titular="{{ t.titular or '' }}"></button>
               </div>
             </td>
           </tr>
@@ -811,7 +814,10 @@
                         data-pago="{{ t.pago }}"
                         data-juros="{{ t.juros }}"
                         data-desconto="{{ t.desconto }}"
-                        data-motivo="{{ t.motivo_ajuste }}"></button>
+                        data-motivo="{{ t.motivo_ajuste }}"
+                        data-grupo-parcelamento="{{ t.grupo_parcelamento or '' }}"
+                        data-status-rateio="{{ t.status_rateio or '' }}"
+                        data-titular="{{ t.titular or '' }}"></button>
               </div>
             </td>
           </tr>
@@ -829,170 +835,224 @@
 </div>
 
 <!-- MODAL NOVO / EDITAR LANÇAMENTO -->
-<div id="modal-lancamento" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-  <div id="modal-novo-lancamento" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+<div id="modal-lancamento" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+  <div id="modal-novo-lancamento" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    
+    <!-- Cabeçalho fixo (sempre acessível) -->
+    <div class="shrink-0 px-4 py-3 sm:px-5 sm:py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/60 dark:bg-slate-900/60">
       <div class="flex items-center gap-2">
-        <span class="text-xl" id="modal-lancamento-icone">📝</span>
-        <h3 class="font-bold text-slate-900 dark:text-white text-base" id="modal-lancamento-titulo">Novo Lançamento</h3>
+        <span class="text-lg sm:text-xl" id="modal-lancamento-icone">📝</span>
+        <h3 class="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base" id="modal-lancamento-titulo">Novo Lançamento</h3>
       </div>
-      <button onclick="fecharModalLancamento()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+      <button type="button" onclick="fecharModalLancamento()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer" aria-label="Fechar">✕</button>
     </div>
 
-    <form id="form-novo-lancamento" onsubmit="salvarLancamento(event)" class="space-y-3.5">
+    <!-- Formulário Flexível com Scroll Interno -->
+    <form id="form-novo-lancamento" onsubmit="salvarLancamento(event)" class="flex-1 flex flex-col min-h-0 overflow-hidden">
       <input type="hidden" name="id" id="input-id" value="">
+      <input type="hidden" name="grupo_parcelamento" id="input-grupo-parcelamento" value="">
 
-      <!-- Seletor Tipo: Despesa vs Receita -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Tipo de Lançamento</label>
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
-            <input type="radio" name="tipo" id="radio-tipo-despesa" value="despesa" checked class="accent-rose-500" onchange="atualizarEstiloTipo()">
-            <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
-          </label>
-          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
-            <input type="radio" name="tipo" id="radio-tipo-receita" value="receita" class="accent-emerald-500" onchange="atualizarEstiloTipo()">
-            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
-          </label>
-        </div>
-      </div>
+      <!-- Conteúdo rolável interno -->
+      <div class="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3 custom-scroll">
 
-      <!-- Atalho Amigável Paga Leve (Pix 4x) -->
-      <div class="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-between text-xs">
-        <div class="flex items-center gap-2">
-          <span class="text-base">🛍️</span>
-          <span class="text-purple-700 dark:text-purple-300 font-semibold text-[11px] sm:text-xs">Compra no Paga Leve (Pix 4x)?</span>
-        </div>
-        <a href="/pagaleve" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] shadow-sm transition">
-          Cadastrar no Paga Leve ➔
-        </a>
-      </div>
-
-      <!-- Data e Valor -->
-      <div class="grid grid-cols-2 gap-2.5">
+        <!-- Seletor Tipo: Despesa vs Receita -->
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
-          <input type="date" name="data" id="input-data" value="{{ hoje_str }}" required 
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo de Lançamento</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
+              <input type="radio" name="tipo" id="radio-tipo-despesa" value="despesa" checked class="accent-rose-500" onchange="atualizarEstiloTipo()">
+              <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+              <input type="radio" name="tipo" id="radio-tipo-receita" value="receita" class="accent-emerald-500" onchange="atualizarEstiloTipo()">
+              <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Identificação de Lançamento Recorrente vs Avulso -->
+        <div id="bloco-identificacao-recorrencia" class="hidden p-3 rounded-xl bg-blue-500/10 border border-blue-500/25 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+              <span>🔁</span> Despesa Recorrente / Programada
+            </span>
+            <span id="badge-info-recorrencia" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-200">
+              Mensal
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+            Aplicar alterações de valor, categoria ou conta em:
+          </div>
+          <div class="space-y-1.5 pt-0.5 text-xs">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+              <input type="radio" name="escopo_edicao" id="escopo-somente-esta" value="somente_esta" checked class="accent-blue-600">
+              <span><strong>Somente esta ocorrência</strong> (pontual neste mês)</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+              <input type="radio" name="escopo_edicao" id="escopo-esta-e-proximas" value="esta_e_proximas" class="accent-blue-600">
+              <span><strong>Esta e as próximas</strong> parcelas pendentes</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+              <input type="radio" name="escopo_edicao" id="escopo-toda-serie" value="toda_serie" class="accent-blue-600">
+              <span><strong>Toda a série</strong> (todas parcelas não pagas)</span>
+            </label>
+          </div>
+          <p class="text-[10px] text-slate-500 dark:text-slate-400 italic">
+            * Parcelas passadas já pagas ou conciliadas permanecem estritamente preservadas.
+          </p>
+        </div>
+
+        <div id="badge-lancamento-avulso" class="hidden px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/60 text-slate-500 text-[11px] font-medium flex items-center gap-1.5">
+          <span>📌</span> <span>Lançamento individual avulso</span>
+        </div>
+
+        <!-- Atalho Discreto Paga Leve (Pix 4x) -->
+        <div class="flex items-center justify-between px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
+          <span class="text-purple-700 dark:text-purple-300 font-semibold text-[11px] flex items-center gap-1.5">
+            <span>🛍️</span> Compra no Paga Leve (Pix 4x)?
+          </span>
+          <a href="/pagaleve" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:text-purple-500 transition">
+            Acessar Paga Leve ↗
+          </a>
+        </div>
+
+        <!-- Data e Valor (2 colunas no desktop) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Data / Vencimento</label>
+            <input type="date" name="data" id="input-data" value="{{ hoje_str }}" required 
+                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Original / Base (R$)</label>
+            <input type="text" inputmode="numeric" name="valor_original" id="input-valor" placeholder="R$ 0,00" required oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
+                   class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <!-- Ajustes Opcionais: Juros, Desconto e Motivo (Expansível / Compacto) -->
+        <details id="detalhes-juros-descontos" class="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 p-2.5 sm:p-3 transition">
+          <summary class="flex items-center justify-between cursor-pointer select-none list-none text-xs font-bold text-slate-700 dark:text-slate-300">
+            <span class="flex items-center gap-1.5">
+              <span class="text-slate-400 group-open:rotate-90 transition-transform text-[10px]">▶</span>
+              <span>Acréscimos / Deduções (Opcional)</span>
+            </span>
+            <span id="badge-valor-final" class="text-xs font-black text-slate-800 dark:text-white">Total Final: R$ 0,00</span>
+          </summary>
+          
+          <div class="pt-2.5 mt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">+ Juros / Acréscimo (R$)</label>
+                <input type="text" inputmode="numeric" name="juros" id="input-juros" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
+                       class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-rose-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">- Desconto / Abatimento (R$)</label>
+                <input type="text" inputmode="numeric" name="desconto" id="input-desconto" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
+                       class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Motivo do Juro / Desconto</label>
+              <input type="text" name="motivo_ajuste" id="input-motivo-ajuste" list="lista-motivos-ajuste" placeholder="Ex: Desconto pontualidade Claro, Taxa parcelamento, Atraso..."
+                     class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+              <datalist id="lista-motivos-ajuste">
+                <option value="Desconto até o prazo / pontualidade">
+                <option value="Sem saldo no momento">
+                <option value="Taxa parcelamento">
+                <option value="Atraso contratual">
+                <option value="Desconto cupom/posto">
+                <option value="Outro">
+              </datalist>
+            </div>
+          </div>
+        </details>
+
+        <!-- Descrição -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Descrição</label>
+          <input type="text" name="descricao" id="input-descricao" placeholder="Ex: Mercado, Claro Banda Larga, Energia..." required 
                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
         </div>
-        <div>
-          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Valor Original (R$)</label>
-          <input type="text" inputmode="numeric" name="valor_original" id="input-valor" placeholder="R$ 0,00" required oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
-                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
-        </div>
-      </div>
 
-      <!-- Ajustes Opcionais: Juros, Desconto e Motivo -->
-      <div class="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2.5">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          <span>Acréscimos / Deduções (Opcional)</span>
-          <span id="badge-valor-final" class="text-xs font-black text-slate-800 dark:text-white">Total Final: R$ 0,00</span>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-2.5">
+        <!-- Categorias e subcategorias (2 colunas no desktop) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <div>
-            <label class="block text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">+ Juros / Acréscimo (R$)</label>
-            <input type="text" inputmode="numeric" name="juros" id="input-juros" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
-                   class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-rose-500">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categoria</label>
+              <button type="button" onclick="alternarNovaCategoriaLancamento()" id="btn-toggle-nova-cat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
+                + Nova
+              </button>
+            </div>
+            <select name="categoria" id="input-categoria" required onchange="atualizarSubcategorias()"
+                    class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+              <option value="Alimentação">🛒 Alimentação</option>
+              <option value="Transporte">🚗 Transporte</option>
+              <option value="Combustível">⛽ Combustível</option>
+              <option value="Moradia/Contas">🏠 Moradia/Contas</option>
+              <option value="HABITAÇÃO">🏠 HABITAÇÃO</option>
+              <option value="Saúde">💊 Saúde</option>
+              <option value="Pessoal">👤 Pessoal</option>
+              <option value="Transferência">🔄 Transferência</option>
+              <option value="99 Produção">🚕 99 Produção</option>
+              <option value="Salário">💼 Salário / Renda</option>
+              <option value="Sem categoria">🏷️ Sem categoria</option>
+            </select>
+            <input type="text" id="input-categoria-custom" placeholder="Nova categoria..."
+                   class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">- Desconto (R$)</label>
-            <input type="text" inputmode="numeric" name="desconto" id="input-desconto" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularValorFinalLancamento()"
-                   class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subcategoria</label>
+              <button type="button" onclick="alternarNovaSubcategoriaLancamento()" id="btn-toggle-nova-subcat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
+                + Nova
+              </button>
+            </div>
+            <select name="subcategoria" id="subcategoria"
+                    class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+              <!-- Preenchido via JS por atualizarSubcategorias() -->
+            </select>
+            <input type="text" id="input-subcategoria-custom" placeholder="Nova subcategoria..."
+                   class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
           </div>
         </div>
 
-        <div>
-          <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Motivo do Juro / Desconto</label>
-          <input type="text" name="motivo_ajuste" id="input-motivo-ajuste" list="lista-motivos-ajuste" placeholder="Ex: Sem saldo no momento, Taxa parcelamento, Atraso..."
-                 class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-          <datalist id="lista-motivos-ajuste">
-            <option value="Sem saldo no momento">
-            <option value="Taxa parcelamento">
-            <option value="Atraso">
-            <option value="Desconto cupom/posto">
-            <option value="Outro">
-          </datalist>
-        </div>
-      </div>
-
-      <!-- Descrição -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Descrição</label>
-        <input type="text" name="descricao" id="input-descricao" placeholder="Ex: Mercado, Abastecimento, Farmácia..." required 
-               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <!-- Categorias e subcategorias -->
-      <div class="grid grid-cols-2 gap-2.5">
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Categoria</label>
-            <button type="button" onclick="alternarNovaCategoriaLancamento()" id="btn-toggle-nova-cat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
-              + Nova
-            </button>
+        <!-- Conta Bancária e Situação de Pagamento (2 colunas no desktop) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Bancária</label>
+            <select name="conta" id="input-conta" required 
+                    class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+              <option value="Mercado Pago">Mercado Pago</option>
+              <option value="99Pay">99Pay</option>
+              <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
+              <option value="Mercado Pago Card">Mercado Pago Card (Crédito)</option>
+            </select>
           </div>
-          <select name="categoria" id="input-categoria" required onchange="atualizarSubcategorias()"
-                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-            <option value="Alimentação">🛒 Alimentação</option>
-            <option value="Transporte">🚗 Transporte</option>
-            <option value="Combustível">⛽ Combustível</option>
-            <option value="Moradia/Contas">🏠 Moradia/Contas</option>
-            <option value="Saúde">💊 Saúde</option>
-            <option value="Pessoal">👤 Pessoal</option>
-            <option value="Transferência">🔄 Transferência</option>
-            <option value="99 Produção">🚕 99 Produção</option>
-            <option value="Salário">💼 Salário / Renda</option>
-            <option value="Sem categoria">🏷️ Sem categoria</option>
-          </select>
-          <input type="text" id="input-categoria-custom" placeholder="Nova categoria..."
-                 class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
-        </div>
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Subcategoria</label>
-            <button type="button" onclick="alternarNovaSubcategoriaLancamento()" id="btn-toggle-nova-subcat" class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer">
-              + Nova
-            </button>
+          <div class="pt-2 sm:pt-4">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" id="input-pago" name="pago" value="1" checked class="w-4 h-4 accent-emerald-500 rounded">
+              <span class="text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                Já liquidado / efetivamente pago
+              </span>
+            </label>
           </div>
-          <select name="subcategoria" id="subcategoria"
-                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-            <!-- Preenchido via JS por atualizarSubcategorias() -->
-          </select>
-          <input type="text" id="input-subcategoria-custom" placeholder="Nova subcategoria..."
-                 class="hidden w-full mt-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-emerald-500 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none">
         </div>
+
       </div>
 
-      <!-- Conta Bancária -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Conta Bancária</label>
-        <select name="conta" id="input-conta" required 
-                class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
-          <option value="Mercado Pago">Mercado Pago</option>
-          <option value="99Pay">99Pay</option>
-          <option value="Dinheiro / Carteira">Dinheiro / Carteira</option>
-          <option value="Mercado Pago Card">Mercado Pago Card (Crédito)</option>
-        </select>
-      </div>
-
-      <!-- Pago / Pendente -->
-      <div class="flex items-center gap-2 pt-1">
-        <input type="checkbox" id="input-pago" name="pago" value="1" checked class="w-4 h-4 accent-emerald-500 rounded">
-        <label for="input-pago" class="text-xs text-slate-700 dark:text-slate-300 font-semibold cursor-pointer">
-          Já está pago / recebido
-        </label>
-      </div>
-
-      <!-- Botões de Ação -->
-      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
-        <button type="button" onclick="fecharModalLancamento()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 transition">
+      <!-- Rodapé fixo (sempre acessível na janela) -->
+      <div class="shrink-0 px-4 py-2.5 sm:px-5 sm:py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-2">
+        <button type="button" onclick="fecharModalLancamento()" class="touch-target px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800/80 transition cursor-pointer">
           Cancelar
         </button>
-        <button type="submit" id="btn-submit-lancamento" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-lg shadow-emerald-600/20">
+        <button type="submit" id="btn-submit-lancamento" class="touch-target px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-lg shadow-emerald-600/20 cursor-pointer">
           Salvar Lançamento
         </button>
       </div>
+
     </form>
   </div>
 </div>
@@ -1593,6 +1653,7 @@
 
   function abrirModalLancamento() {
     document.getElementById('input-id').value = '';
+    document.getElementById('input-grupo-parcelamento').value = '';
     document.getElementById('modal-lancamento-titulo').textContent = 'Novo Lançamento';
     document.getElementById('modal-lancamento-icone').textContent = '📝';
     document.getElementById('btn-submit-lancamento').textContent = 'Salvar Lançamento';
@@ -1607,6 +1668,18 @@
     atualizarSubcategorias();
     document.getElementById('input-conta').value = 'Mercado Pago';
     document.getElementById('input-pago').checked = true;
+
+    // Reset de identificadores de recorrência e seções expansíveis
+    const blocoRecorr = document.getElementById('bloco-identificacao-recorrencia');
+    if (blocoRecorr) blocoRecorr.classList.add('hidden');
+    const badgeAvulso = document.getElementById('badge-lancamento-avulso');
+    if (badgeAvulso) badgeAvulso.classList.add('hidden');
+    const rEscopo = document.getElementById('escopo-somente-esta');
+    if (rEscopo) rEscopo.checked = true;
+
+    const detalhesJuros = document.getElementById('detalhes-juros-descontos');
+    if (detalhesJuros) detalhesJuros.open = false;
+
     calcularValorFinalLancamento();
     document.getElementById('modal-lancamento').classList.remove('hidden');
     document.getElementById('input-descricao').focus();
@@ -1625,8 +1698,11 @@
     const subcategoria = btn.getAttribute('data-subcategoria') || '';
     const conta = btn.getAttribute('data-conta') || 'Mercado Pago';
     const pago = btn.getAttribute('data-pago') === '1';
+    const grp = btn.getAttribute('data-grupo-parcelamento') || '';
+    const statusRateio = btn.getAttribute('data-status-rateio') || '';
 
     document.getElementById('input-id').value = id;
+    document.getElementById('input-grupo-parcelamento').value = grp;
     document.getElementById('modal-lancamento-titulo').textContent = 'Editar Lançamento';
     document.getElementById('modal-lancamento-icone').textContent = '✏️';
     document.getElementById('btn-submit-lancamento').textContent = 'Salvar Alterações';
@@ -1662,6 +1738,40 @@
       selConta.value = conta;
     }
     document.getElementById('input-pago').checked = pago;
+
+    // Identificação de Recorrência vs Lançamento Avulso
+    const RECORRENCIAS_PADRAO = ['copasa', 'cemig', 'youcine', 'wellhub', 'audible', 'claro', 'pós-graduação', 'pos-graduacao', 'internet'];
+    const descLower = descricao.toLowerCase();
+    const ehRecorrente = Boolean(
+      (grp && (grp.startsWith('fixa_') || grp.includes('recorrente'))) ||
+      statusRateio === 'fixa_recorrente' ||
+      RECORRENCIAS_PADRAO.some(term => descLower.includes(term))
+    );
+
+    const blocoRecorr = document.getElementById('bloco-identificacao-recorrencia');
+    const badgeAvulso = document.getElementById('badge-lancamento-avulso');
+    const badgeInfoRecorr = document.getElementById('badge-info-recorrencia');
+
+    if (ehRecorrente) {
+      if (blocoRecorr) blocoRecorr.classList.remove('hidden');
+      if (badgeAvulso) badgeAvulso.classList.add('hidden');
+      if (badgeInfoRecorr) {
+        badgeInfoRecorr.textContent = grp ? grp.replace('fixa_', '').replace(/_/g, ' ') : 'Recorrente Mensal';
+      }
+      const rEscopo = document.getElementById('escopo-somente-esta');
+      if (rEscopo) rEscopo.checked = true;
+    } else {
+      if (blocoRecorr) blocoRecorr.classList.add('hidden');
+      if (badgeAvulso) badgeAvulso.classList.remove('hidden');
+      const rEscopo = document.getElementById('escopo-somente-esta');
+      if (rEscopo) rEscopo.checked = true;
+    }
+
+    // Seção compacta de Juros/Descontos: aberta se houver valores
+    const detalhesJuros = document.getElementById('detalhes-juros-descontos');
+    if (detalhesJuros) {
+      detalhesJuros.open = (juros > 0 || desconto > 0);
+    }
 
     calcularValorFinalLancamento();
     document.getElementById('modal-lancamento').classList.remove('hidden');
@@ -1727,6 +1837,14 @@
     formData.set('desconto', desconto.toFixed(2));
     formData.set('motivo_ajuste', motivoAjuste);
 
+    // Escopo de edição (somente_esta, esta_e_proximas, toda_serie)
+    const rEscopoChecked = document.querySelector('input[name="escopo_edicao"]:checked');
+    if (rEscopoChecked) {
+      formData.set('escopo_edicao', rEscopoChecked.value);
+    } else {
+      formData.set('escopo_edicao', 'somente_esta');
+    }
+
     const url = idEdicao ? '/api/lancamentos/editar' : '/api/lancamentos';
 
     try {
@@ -1776,6 +1894,13 @@
     } else {
       atualizarBotoesFiltro();
       filtrarTabela();
+    }
+
+    const modalId = urlParams.get('modal_id') || urlParams.get('editar_id');
+    if (modalId) {
+      setTimeout(() => abrirModalEditarLancamentoDireto(modalId), 150);
+    } else if (urlParams.get('novo_lancamento') === '1') {
+      setTimeout(() => abrirModalLancamento(), 150);
     }
   });
 </script>
