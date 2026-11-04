@@ -1127,6 +1127,7 @@ async def pagina_lancamentos(
     if mes is None or mes < 1 or mes > 12:
         mes = hoje.month
 
+    materializar_parcelas_futuras_cartao(conn)
     MESES_PT = [
         "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -2325,6 +2326,119 @@ async def api_criar_compra_cartao(request: Request):
 
 
 
+
+@app.post("/api/cartoes/compras/editar")
+@app.post("/api/cartoes/compras/{compra_id}/editar")
+async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] = None):
+    """Edita uma compra da fatura do cartão."""
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cid = compra_id or data.get("id") or data.get("compra_id")
+        if not cid:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "ID da compra não informado."})
+        cid = int(cid)
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, descricao, valor, grupo_parcelamento, numero_parcela, total_parcelas_compra FROM transacoes WHERE id = ?", (cid,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Compra não encontrada."})
+
+        nova_desc = str(data.get("descricao") or "").strip()
+        if not nova_desc:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Descrição obrigatória."})
+
+        valor_raw = str(data.get("valor") or "0").strip()
+        if "," in valor_raw and "." in valor_raw:
+            valor_raw = valor_raw.replace(".", "").replace(",", ".")
+        elif "," in valor_raw:
+            valor_raw = valor_raw.replace(",", ".")
+        novo_valor = float(valor_raw or 0.0)
+
+        nova_cat = str(data.get("categoria") or "Cartão").strip()
+        nova_data = str(data.get("data") or data.get("vencimento") or "").strip()[:10]
+        novo_titular = str(data.get("titular") or data.get("responsavel") or "Carlos").strip()
+
+        num_p = row["numero_parcela"]
+        tot_p = row["total_parcelas_compra"]
+        if tot_p and tot_p > 1 and num_p:
+            desc_sem_sufixo = limpar_descricao_parcela(nova_desc)
+            desc_final = f"{desc_sem_sufixo} - Parcela {num_p}/{tot_p}"
+        else:
+            desc_final = nova_desc
+
+        if nova_data:
+            cur.execute("""
+                UPDATE transacoes
+                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?
+                WHERE id = ?
+            """, (desc_final, novo_valor, nova_cat, nova_data, novo_titular, cid))
+        else:
+            cur.execute("""
+                UPDATE transacoes
+                SET descricao = ?, valor = ?, categoria = ?, titular = ?
+                WHERE id = ?
+            """, (desc_final, novo_valor, nova_cat, novo_titular, cid))
+
+        conn.commit()
+        return JSONResponse({"sucesso": True, "mensagem": "Compra atualizada com sucesso!"})
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/cartoes/compras/excluir")
+@app.post("/api/cartoes/compras/{compra_id}/excluir")
+async def api_cartoes_compra_excluir(request: Request, compra_id: Optional[int] = None):
+    """Exclui uma compra da fatura do cartão."""
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cid = compra_id or data.get("id") or data.get("compra_id")
+        if not cid:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "ID da compra não informado."})
+        cid = int(cid)
+        excluir_futuras = str(data.get("excluir_futuras", "")).lower() in ("true", "1", "s", "sim")
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, descricao, grupo_parcelamento, numero_parcela, total_parcelas_compra FROM transacoes WHERE id = ?", (cid,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Compra não encontrada."})
+
+        grupo = row["grupo_parcelamento"]
+        num_p = row["numero_parcela"]
+        tot_p = row["total_parcelas_compra"]
+
+        if excluir_futuras and grupo and tot_p and tot_p > 1:
+            cur.execute("DELETE FROM transacoes WHERE grupo_parcelamento = ? AND numero_parcela >= ?", (grupo, num_p or 1))
+        else:
+            cur.execute("DELETE FROM transacoes WHERE id = ?", (cid,))
+
+        conn.commit()
+        return JSONResponse({"sucesso": True, "mensagem": "Compra excluída com sucesso!"})
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/contas/{conta_id}/excluir")
 @app.post("/contas/{conta_id}/excluir")
 @app.post("/api/contas/excluir")
@@ -2477,14 +2591,138 @@ def garantir_schema_cartoes(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def limpar_descricao_parcela(descricao: str) -> str:
+    """Remove sufixos redundantes de parcela na descrição, ex: 'Lava e Seca - Parcela 4/10' -> 'Lava e Seca'."""
+    if not descricao:
+        return ""
+    limpa = re.sub(r'\s*[-–—]\s*(?:Parcela\s*)?\d+\s*/\s*\d+\s*$', '', descricao, flags=re.IGNORECASE)
+    limpa = re.sub(r'\s*\((?:Parcela\s*)?\d+\s*/\s*\d+\)\s*$', '', limpa, flags=re.IGNORECASE)
+    limpa = re.sub(r'\s+Parcela\s+\d+\s*/\s*\d+\s*$', '', limpa, flags=re.IGNORECASE)
+    return limpa.strip() or descricao
+
+
+def materializar_parcelas_futuras_cartao(conn: sqlite3.Connection) -> None:
+    """Garante de forma idempotente que compras parceladas no cartão de crédito
+    tenham todas as suas parcelas futuras registradas na tabela transacoes."""
+    cur = conn.cursor()
+    cur.execute("SELECT id, nome FROM cartoes")
+    rows_crd = cur.fetchall()
+    nomes_cartoes = set()
+    mapa_ids = {}
+    for r in rows_crd:
+        nomes_cartoes.add(r["nome"].lower())
+        nomes_cartoes.add(f"cartão {r['nome']}".lower())
+        nomes_cartoes.add(f"cartao {r['nome']}".lower())
+        mapa_ids[r["nome"].lower()] = r["id"]
+
+    cur.execute("""
+        SELECT id, data, descricao, valor, categoria, conta, conta_id, titular,
+               grupo_parcelamento, numero_parcela, total_parcelas_compra, subcategoria
+        FROM transacoes
+        WHERE tipo = 'despesa'
+          AND total_parcelas_compra > 1
+          AND COALESCE(categoria, '') != 'Pagamento de fatura'
+          AND descricao NOT LIKE 'Pagamento de fatura%'
+          AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+    """)
+    compras = cur.fetchall()
+
+    for row in compras:
+        c_nome = (row["conta"] or "").lower()
+        is_cartao = False
+        cid = row["conta_id"]
+        for nc in nomes_cartoes:
+            if nc in c_nome:
+                is_cartao = True
+                if not cid:
+                    cid = mapa_ids.get(nc)
+                break
+        if "cartão" in c_nome or "cartao" in c_nome or (row["conta"] and "inter" in row["conta"].lower()):
+            is_cartao = True
+
+        if not is_cartao:
+            continue
+
+        tot_p = row["total_parcelas_compra"] or 1
+        num_p = row["numero_parcela"] or 1
+        desc_base = limpar_descricao_parcela(row["descricao"])
+        grupo = row["grupo_parcelamento"]
+        dt_base_str = str(row["data"])[:10]
+
+        try:
+            dt_base = datetime.datetime.strptime(dt_base_str, "%Y-%m-%d").date()
+        except Exception:
+            continue
+
+        for p in range(num_p + 1, tot_p + 1):
+            offset_meses = p - num_p
+            y = dt_base.year + ((dt_base.month - 1 + offset_meses) // 12)
+            m = ((dt_base.month - 1 + offset_meses) % 12) + 1
+            max_d = calendar.monthrange(y, m)[1]
+            d = min(dt_base.day, max_d)
+            dt_parc = f"{y:04d}-{m:02d}-{d:02d}"
+
+            cur.execute("""
+                SELECT id FROM transacoes
+                WHERE tipo = 'despesa'
+                  AND total_parcelas_compra = ?
+                  AND numero_parcela = ?
+                  AND (
+                    (grupo_parcelamento IS NOT NULL AND grupo_parcelamento = ?)
+                    OR (descricao LIKE ? AND strftime('%Y-%m', data) = ?)
+                  )
+            """, (tot_p, p, grupo if grupo else f"__none__", f"{desc_base}%", f"{y:04d}-{m:02d}"))
+            ja_existe = cur.fetchone()
+
+            if not ja_existe:
+                desc_futura = f"{desc_base} - Parcela {p}/{tot_p}"
+                cur.execute("""
+                    INSERT INTO transacoes (
+                        data, descricao, valor, categoria, conta, conta_id, tipo,
+                        pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
+                        titular, subcategoria
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'despesa', 0, ?, ?, ?, ?, ?)
+                """, (
+                    dt_parc, desc_futura, row["valor"], row["categoria"], row["conta"], cid,
+                    grupo or f"cartao_{row['id']}", p, tot_p, row["titular"], row["subcategoria"]
+                ))
+    conn.commit()
+
 @app.get("/cartoes", response_class=HTMLResponse)
-async def pagina_cartoes(request: Request, c: Optional[int] = None):
+async def pagina_cartoes(
+    request: Request,
+    c: Optional[int] = Query(None),
+    mes: Optional[int] = Query(None),
+    ano: Optional[int] = Query(None)
+):
     conn = conectar_db()
     hoje = date.today()
-    mes = hoje.month
+
+    if ano is None:
+        ano = hoje.year
+    if mes is None or mes < 1 or mes > 12:
+        mes = hoje.month
 
     garantir_schema_cartoes(conn)
+    materializar_parcelas_futuras_cartao(conn)
     cur = conn.cursor()
+
+    MESES_PT = [
+        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    mes_nome = MESES_PT[mes]
+    nome_mes_ano = f"{mes_nome} {ano}"
+
+    mes_ant = mes - 1 if mes > 1 else 12
+    ano_ant = ano if mes > 1 else ano - 1
+    mes_prox = mes + 1 if mes < 12 else 1
+    ano_prox = ano if mes < 12 else ano + 1
+
+    is_fatura_atual = (ano == hoje.year and mes == hoje.month)
+    is_fatura_futura = (ano > hoje.year) or (ano == hoje.year and mes > hoje.month)
+    is_fatura_passada = (ano < hoje.year) or (ano == hoje.year and mes < hoje.month)
+    periodo_str = f"{ano:04d}-{mes:02d}"
 
     # Busca apenas os cartões reais cadastrados
     cur.execute("""
@@ -2513,31 +2751,57 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
         titular_cartao = (r["titular"] or "Carlos").strip()
         icone_cartao = (r["icone"] or "").strip() or resolver_icone_banco(nome)
 
-        # Compras estritamente vinculadas a este cartão de crédito
+        # 1. Total comprometido pendente de todo o cartão para o Limite Disponível Real
+        if "inter" in nome.lower() or "aparecida" in nome.lower():
+            cur.execute("""
+                SELECT SUM(valor) FROM transacoes
+                WHERE tipo = 'despesa'
+                  AND pago = 0
+                  AND (conta = ? OR conta_id = ? OR conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
+                  AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                  AND descricao NOT LIKE 'Pagamento de fatura%'
+                  AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+            """, (nome, cid))
+        else:
+            cur.execute("""
+                SELECT SUM(valor) FROM transacoes
+                WHERE tipo = 'despesa'
+                  AND pago = 0
+                  AND (conta = ? OR conta_id = ?)
+                  AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                  AND descricao NOT LIKE 'Pagamento de fatura%'
+                  AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+            """, (nome, cid))
+        r_comp = cur.fetchone()
+        tot_comprometido = float(r_comp[0] or 0.0) if r_comp and r_comp[0] else 0.0
+
+        # 2. Compras filtradas pelo mês e ano da fatura selecionada
         if "inter" in nome.lower() or "aparecida" in nome.lower():
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
                        grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
                 FROM transacoes
                 WHERE tipo = 'despesa'
+                  AND strftime('%Y-%m', data) = ?
                   AND (conta = ? OR conta_id = ? OR conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
                   AND COALESCE(categoria, '') != 'Pagamento de fatura'
                   AND descricao NOT LIKE 'Pagamento de fatura%'
                   AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
                 ORDER BY data ASC, id ASC
-            """, (nome, cid))
+            """, (periodo_str, nome, cid))
         else:
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
                        grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
                 FROM transacoes
                 WHERE tipo = 'despesa'
+                  AND strftime('%Y-%m', data) = ?
                   AND (conta = ? OR conta_id = ?)
                   AND COALESCE(categoria, '') != 'Pagamento de fatura'
                   AND descricao NOT LIKE 'Pagamento de fatura%'
                   AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
                 ORDER BY data ASC, id ASC
-            """, (nome, cid))
+            """, (periodo_str, nome, cid))
 
         raw_compras = cur.fetchall()
         compras = []
@@ -2557,6 +2821,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
                 "data": dt_str,
                 "data_formatada": dt_fmt,
                 "descricao": it["descricao"],
+                "descricao_limpa": limpar_descricao_parcela(it["descricao"]),
                 "valor": val,
                 "categoria": it["categoria"] or "Cartão",
                 "conta": it["conta"],
@@ -2566,8 +2831,8 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
                 "titular": it["titular"] or titular_cartao
             })
 
-        lim_disp = max(0.0, lim_total - tot_fatura) if lim_total > 0 else 0.0
-        pct_uso = (tot_fatura / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_fatura > 0 else 0.0)
+        lim_disp = max(0.0, lim_total - tot_comprometido) if lim_total > 0 else 0.0
+        pct_uso = (tot_comprometido / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_comprometido > 0 else 0.0)
 
         c_info = {
             "id": cid,
@@ -2575,6 +2840,7 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
             "bandeira": bandeira,
             "limite_total": lim_total,
             "total_fatura": tot_fatura,
+            "total_comprometido": tot_comprometido,
             "limite_disponivel": lim_disp,
             "pct_uso": pct_uso,
             "dia_fechamento": dia_fech,
@@ -2607,6 +2873,16 @@ async def pagina_cartoes(request: Request, c: Optional[int] = None):
             "cartoes": cartoes_dados,
             "cartao_ativo": cartao_ativo,
             "mes_atual": f"{mes:02d}",
+            "mes_selecionado": mes,
+            "ano_selecionado": ano,
+            "mes_ant": mes_ant,
+            "ano_ant": ano_ant,
+            "mes_prox": mes_prox,
+            "ano_prox": ano_prox,
+            "nome_mes_ano": nome_mes_ano,
+            "is_fatura_atual": is_fatura_atual,
+            "is_fatura_futura": is_fatura_futura,
+            "is_fatura_passada": is_fatura_passada,
             "bancos_disponiveis": BANCOS_DISPONIVEIS,
             "categorias_despesa": cats_desp_cartao,
             "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
