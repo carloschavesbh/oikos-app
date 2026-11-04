@@ -1208,6 +1208,8 @@
       const selConta = document.getElementById('global-select-conta');
       const selOrig = document.getElementById('global-select-origem');
       const selDest = document.getElementById('global-select-destino');
+      const selSplit1 = document.getElementById('global-select-split-conta-1');
+      const selSplit2 = document.getElementById('global-select-split-conta-2');
 
       const optionsHtml = dadosContas.map(c => {
         const texto = formatarTextoOpcaoConta(c);
@@ -1249,6 +1251,23 @@
           selDest.value = valAnterior;
         }
       }
+      if (selSplit1) {
+        const valAnt = selSplit1.value;
+        selSplit1.innerHTML = optionsHtml;
+        if (valAnt && Array.from(selSplit1.options).some(o => o.value === String(valAnt))) {
+          selSplit1.value = valAnt;
+        }
+      }
+      if (selSplit2) {
+        const valAnt = selSplit2.value;
+        selSplit2.innerHTML = dadosContas.map((c, i) => {
+          const texto = formatarTextoOpcaoConta(c);
+          return `<option value="${c.id}" ${i === 1 ? 'selected' : ''}>${texto}</option>`;
+        }).join('');
+        if (valAnt && Array.from(selSplit2.options).some(o => o.value === String(valAnt))) {
+          selSplit2.value = valAnt;
+        }
+      }
     }
 
     async function abrirModalTransacaoGlobal(tipo) {
@@ -1284,9 +1303,80 @@
       document.getElementById('form-transacao-global').reset();
     }
 
+    function toggleSplitGlobalLancamento() {
+      const chk = document.getElementById('global-check-split');
+      const campos = document.getElementById('global-campos-split');
+      const blocoPadraoConta = document.getElementById('global-wrap-conta-unica');
+      if (!chk || !campos) return;
+      if (chk.checked) {
+        campos.classList.remove('hidden');
+        if (blocoPadraoConta) blocoPadraoConta.classList.add('hidden');
+        calcularSplitGlobalRestante();
+      } else {
+        campos.classList.add('hidden');
+        if (blocoPadraoConta) blocoPadraoConta.classList.remove('hidden');
+      }
+    }
+
+    function calcularSplitGlobalRestante() {
+      const valStr = document.getElementById('global-input-valor')?.value || '0';
+      const total = parseFloat(valStr.replace(/\./g, '').replace(',', '.')) || 0;
+      const v1El = document.getElementById('global-input-split-valor-1');
+      const v2El = document.getElementById('global-input-split-valor-2');
+      const aviso = document.getElementById('global-split-aviso');
+
+      let v1 = 0;
+      if (v1El && v1El.value) {
+        v1 = parseFloat(v1El.value.replace(/\./g, '').replace(',', '.')) || 0;
+      } else if (v1El && total > 0) {
+        v1 = Math.round((total * 0.6) * 100) / 100;
+        v1El.value = v1.toFixed(2).replace('.', ',');
+        aplicarMascaraMoedaGlobal(v1El);
+      }
+
+      const v2 = Math.max(0, Math.round((total - v1) * 100) / 100);
+      if (v2El) {
+        v2El.value = v2.toFixed(2).replace('.', ',');
+        aplicarMascaraMoedaGlobal(v2El);
+      }
+
+      if (aviso) {
+        const soma = Math.round((v1 + v2) * 100) / 100;
+        const ok = Math.abs(soma - total) < 0.01 && total > 0;
+        aviso.className = ok ? 'text-[10px] font-bold text-emerald-600 dark:text-emerald-400' : 'text-[10px] font-bold text-rose-500';
+        aviso.textContent = `Total dividido: R$ ${soma.toFixed(2).replace('.', ',')} de R$ ${total.toFixed(2).replace('.', ',')} ${ok ? '✓' : '(Divergente)'}`;
+      }
+    }
+
+    function validarSplitGlobalManual() {
+      const valStr = document.getElementById('global-input-valor')?.value || '0';
+      const total = parseFloat(valStr.replace(/\./g, '').replace(',', '.')) || 0;
+      const v1Str = document.getElementById('global-input-split-valor-1')?.value || '0';
+      const v2Str = document.getElementById('global-input-split-valor-2')?.value || '0';
+      const v1 = parseFloat(v1Str.replace(/\./g, '').replace(',', '.')) || 0;
+      const v2 = parseFloat(v2Str.replace(/\./g, '').replace(',', '.')) || 0;
+      const soma = Math.round((v1 + v2) * 100) / 100;
+      const aviso = document.getElementById('global-split-aviso');
+      if (aviso) {
+        const ok = Math.abs(soma - total) < 0.01 && total > 0;
+        aviso.className = ok ? 'text-[10px] font-bold text-emerald-600 dark:text-emerald-400' : 'text-[10px] font-bold text-rose-500';
+        aviso.textContent = `Total dividido: R$ ${soma.toFixed(2).replace('.', ',')} de R$ ${total.toFixed(2).replace('.', ',')} ${ok ? '✓' : '(Divergente)'}`;
+      }
+    }
     function mudarAbaModalGlobal(tipo) {
       abaAtualGlobal = tipo;
       document.getElementById('global-input-tipo').value = tipo;
+
+      const blocoSplitContainer = document.getElementById('global-bloco-split-container');
+      if (blocoSplitContainer) {
+        if (tipo === 'despesa') {
+          blocoSplitContainer.classList.remove('hidden');
+        } else {
+          blocoSplitContainer.classList.add('hidden');
+          const chk = document.getElementById('global-check-split');
+          if (chk) { chk.checked = false; toggleSplitGlobalLancamento(); }
+        }
+      }
 
       // Abas visuais
       const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
@@ -1641,6 +1731,7 @@
           const cat = document.getElementById('global-select-categoria').value;
           const conta = document.getElementById('global-select-conta').value;
           const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
+          const chkSplit = document.getElementById('global-check-split');
 
           const fd = new FormData();
           fd.append('data', data);
@@ -1648,8 +1739,38 @@
           fd.append('valor', valor);
           fd.append('descricao', desc);
           fd.append('categoria', cat);
-          fd.append('conta', conta);
           fd.append('pago', pago);
+
+          if (tipo === 'despesa' && chkSplit && chkSplit.checked) {
+            const c1 = document.getElementById('global-select-split-conta-1')?.value || '1';
+            const c2 = document.getElementById('global-select-split-conta-2')?.value || '2';
+            const v1Str = document.getElementById('global-input-split-valor-1')?.value || '0';
+            const v2Str = document.getElementById('global-input-split-valor-2')?.value || '0';
+            const v1 = parseFloat(v1Str.replace(/\./g, '').replace(',', '.')) || 0;
+            const v2 = parseFloat(v2Str.replace(/\./g, '').replace(',', '.')) || 0;
+
+            if (v1 <= 0 || v2 <= 0) {
+              showToast('Atenção', 'Informe valores válidos para ambas as contas no pagamento dividido.', true);
+              btn.disabled = false;
+              btn.textContent = 'Salvar Transação';
+              return;
+            }
+            if (Math.abs((v1 + v2) - valor) > 0.01) {
+              showToast('Atenção', `A soma (R$ ${(v1+v2).toFixed(2)}) deve ser igual ao valor total da despesa (R$ ${valor.toFixed(2)}).`, true);
+              btn.disabled = false;
+              btn.textContent = 'Salvar Transação';
+              return;
+            }
+
+            fd.append('split_pagamento', '1');
+            fd.append('conta', c1);
+            fd.append('conta_2', c2);
+            fd.append('valor_1', v1.toFixed(2));
+            fd.append('valor_2', v2.toFixed(2));
+          } else {
+            fd.append('split_pagamento', '0');
+            fd.append('conta', conta);
+          }
 
           if (conta.startsWith('cartao_')) {
             const parcelas = document.getElementById('global-select-cartao-parcelas').value;
@@ -1888,18 +2009,60 @@
         </div>
 
         <!-- 3. CAMPOS ESPECÍFICOS DE DESPESA / RECEITA -->
-        <div id="bloco-campos-padrao" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria*</label>
-            <select id="global-select-categoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-              <!-- Populado dinamicamente -->
-            </select>
+        <div id="bloco-campos-padrao" class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria*</label>
+              <select id="global-select-categoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <!-- Populado dinamicamente -->
+              </select>
+            </div>
+            <div id="global-wrap-conta-unica">
+              <label id="global-label-conta" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta / Forma*</label>
+              <select id="global-select-conta" onchange="verificarContaCartaoGlobal()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <!-- Populado dinamicamente -->
+              </select>
+            </div>
           </div>
-          <div>
-            <label id="global-label-conta" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta / Forma*</label>
-            <select id="global-select-conta" onchange="verificarContaCartaoGlobal()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-              <!-- Populado dinamicamente -->
-            </select>
+
+          <!-- Bloco Dividir Pagamento em 2 Contas (Split em Despesas) -->
+          <div id="global-bloco-split-container" class="p-3 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700 dark:text-slate-300">
+                <input type="checkbox" id="global-check-split" onchange="toggleSplitGlobalLancamento()" class="rounded text-emerald-600 focus:ring-emerald-500">
+                <span>💳 Dividir despesa em 2 contas</span>
+              </label>
+              <span class="text-[10px] text-slate-400 font-medium">Ex: Mercado Pago + Dinheiro</span>
+            </div>
+            <div id="global-campos-split" class="hidden space-y-2.5 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Conta 1 (Principal)</label>
+                  <select id="global-select-split-conta-1" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Valor Conta 1 (R$)</label>
+                  <input type="text" id="global-input-split-valor-1" placeholder="0,00" oninput="aplicarMascaraMoedaGlobal(this); calcularSplitGlobalRestante();"
+                         class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Conta 2</label>
+                  <select id="global-select-split-conta-2" class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Valor Conta 2 (R$)</label>
+                  <input type="text" id="global-input-split-valor-2" placeholder="0,00" oninput="aplicarMascaraMoedaGlobal(this); validarSplitGlobalManual();"
+                         class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+              </div>
+              <div id="global-split-aviso" class="text-[10px] font-bold text-slate-400">
+                Total dividido: R$ 0,00 de R$ 0,00
+              </div>
+            </div>
           </div>
         </div>
 

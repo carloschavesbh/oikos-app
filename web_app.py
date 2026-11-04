@@ -1771,7 +1771,11 @@ async def api_criar_lancamento(
     escopo_edicao: Optional[str] = Form("somente_esta"),
     parcelas: Optional[int] = Form(1),
     fatura_destino: Optional[str] = Form("atual"),
-    responsavel: Optional[str] = Form(None)
+    responsavel: Optional[str] = Form(None),
+    split_pagamento: Optional[Any] = Form(0),
+    conta_2: Optional[str] = Form(None),
+    valor_1: Optional[Any] = Form(None),
+    valor_2: Optional[Any] = Form(None)
 ):
     """Insere ou atualiza transação de receita ou despesa no banco SQLite com Categoria, Subcategoria, Juros, Desconto, Motivo e Escopo de Recorrência."""
     valor_num = converter_valor_monetario(valor)
@@ -1909,6 +1913,49 @@ async def api_criar_lancamento(
                 "status": "sucesso",
                 "sucesso": True,
                 "mensagem": msg_crd,
+                "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
+            }
+
+        # Tratar divisão de despesa comum em 2 contas (Split)
+        eh_split_lanc = str(split_pagamento).strip().lower() in ("1", "true", "on", "yes") and tipo.strip().lower() == "despesa"
+        if eh_split_lanc:
+            try:
+                v1_lanc = converter_valor_monetario(valor_1)
+            except Exception:
+                v1_lanc = round(valor_num / 2.0, 2)
+            try:
+                v2_lanc = converter_valor_monetario(valor_2)
+            except Exception:
+                v2_lanc = round(valor_num - v1_lanc, 2)
+
+            if v1_lanc <= 0 or v2_lanc <= 0:
+                return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": "No pagamento dividido, os valores de ambas as contas devem ser maiores que zero."})
+            if round(v1_lanc + v2_lanc, 2) != round(valor_num, 2):
+                return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": f"A soma das duas contas (R$ {v1_lanc:.2f} + R$ {v2_lanc:.2f} = R$ {v1_lanc+v2_lanc:.2f}) não confere com o total da despesa (R$ {valor_num:.2f})."})
+
+            cid_1, cnome_1 = resolver_conta_bancaria(conn, conta)
+            cid_2, cnome_2 = resolver_conta_bancaria(conn, conta_2 or "Dinheiro / Carteira")
+
+            # Cria Transação 1
+            desc_1 = f"{descricao.strip()} (1/2 via {cnome_1})"
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, juros, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'split_1')
+            """, (str(data)[:10], desc_1, v1_lanc, categoria, subcat_str, cnome_1, cid_1, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str))
+
+            # Cria Transação 2
+            desc_2 = f"{descricao.strip()} (2/2 via {cnome_2})"
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, juros, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, ?, ?, 0, 0, ?, 'split_2')
+            """, (str(data)[:10], desc_2, v2_lanc, categoria, subcat_str, cnome_2, cid_2, pago_int, afeta_saldo, motivo_ajuste_str))
+            conn.commit()
+
+            res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+            return {
+                "status": "sucesso",
+                "sucesso": True,
+                "mensagem": f"Despesa '{descricao.strip()}' de {formatar_moeda_br(valor_num)} dividida com sucesso: {cnome_1} ({formatar_moeda_br(v1_lanc)}) e {cnome_2} ({formatar_moeda_br(v2_lanc)})!",
                 "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
             }
 
@@ -4119,7 +4166,9 @@ def calcular_metricas_drive_consolidado(conn, turnos=None, ano=None, mes=None):
     cur.execute("""
         SELECT id, data, valor_bruto, desconto, valor_pago, litros, combustivel,
                preco_litro, posto, hodometro, observacao, COALESCE(app_desconto, '') as app_desconto,
-               COALESCE(conta, 'Dinheiro / Carteira') as conta, transacao_id
+               COALESCE(conta, 'Dinheiro / Carteira') as conta, transacao_id,
+               COALESCE(split_pagamento, 0) as split_pagamento,
+               conta_2, conta_2_id, valor_pago_1, valor_pago_2, transacao_2_id
         FROM veiculo_abastecimentos
         ORDER BY data DESC, id DESC
     """)
@@ -4165,6 +4214,15 @@ def calcular_metricas_drive_consolidado(conn, turnos=None, ano=None, mes=None):
 
         economia_badge = f"Economia de {formatar_moeda_br(economia)} ({pct_economia:.1f}%) via {app_nome}" if economia > 0 else ""
 
+        eh_split = int(a["split_pagamento"] or 0) == 1
+        c2_str = str(a["conta_2"] or "").strip()
+        val_1 = round(float(a["valor_pago_1"] if a["valor_pago_1"] is not None else val_pago), 2)
+        val_2 = round(float(a["valor_pago_2"] or 0.0), 2)
+        if eh_split and c2_str:
+            conta_label = f"{a['conta']} ({formatar_moeda_br(val_1)}) + {c2_str} ({formatar_moeda_br(val_2)})"
+        else:
+            conta_label = a["conta"] or "Dinheiro / Carteira"
+
         abastecimentos.append({
             "id": a["id"],
             "data": dt_str,
@@ -4181,6 +4239,13 @@ def calcular_metricas_drive_consolidado(conn, turnos=None, ano=None, mes=None):
             "preco_bomba_litro": preco_bomba_litro,
             "posto": a["posto"] or "Posto de Combustível",
             "conta": a["conta"] or "Dinheiro / Carteira",
+            "conta_label": conta_label,
+            "split_pagamento": 1 if eh_split else 0,
+            "conta_2": c2_str,
+            "conta_2_id": a["conta_2_id"],
+            "valor_pago_1": val_1,
+            "valor_pago_2": val_2,
+            "transacao_2_id": a["transacao_2_id"],
             "hodometro": float(a["hodometro"] or 0.0),
             "observacao": obs_str,
             "transacao_id": a["transacao_id"]
@@ -5116,45 +5181,112 @@ async def api_drive_abastecimento_editar(request: Request, abastecimento_id: int
         except (TypeError, ValueError):
             hodo_val = 0.0
 
-        cur.execute("""
-            UPDATE veiculo_abastecimentos
-            SET data = ?, hodometro = ?, combustivel = ?, litros = ?, preco_litro = ?,
-                valor_bruto = ?, desconto = ?, valor_pago = ?, conta = ?, conta_id = ?,
-                posto = ?, observacao = ?, app_desconto = ?
-            WHERE id = ?
-        """, (data_raw, hodo_val, comb_nome, lits, calc_preco, val_bomba,
-              desc_val, val_pago, conta_nome, conta_id, posto_nome, obs_txt,
-              app_nome, abastecimento_id))
+        # Tratar divisão de pagamento (Split)
+        raw_split = data.get("split_pagamento")
+        eh_split = str(raw_split).strip().lower() in ("1", "true", "on", "yes")
+
+        c2_raw = data.get("conta_2")
+        c2_id, c2_nome = resolver_conta_bancaria(conn, c2_raw) if (eh_split and c2_raw) else (None, "")
+        
+        if eh_split:
+            try:
+                val_pago_1 = converter_valor_monetario(data.get("valor_pago_1"))
+            except Exception:
+                val_pago_1 = round(val_pago / 2.0, 2)
+            try:
+                val_pago_2 = converter_valor_monetario(data.get("valor_pago_2"))
+            except Exception:
+                val_pago_2 = round(val_pago - val_pago_1, 2)
+
+            if val_pago_1 <= 0 or val_pago_2 <= 0:
+                return JSONResponse(status_code=400, content={"sucesso": False, "erro": "No pagamento dividido, os valores de ambas as contas devem ser maiores que zero."})
+            if round(val_pago_1 + val_pago_2, 2) != round(val_pago, 2):
+                return JSONResponse(status_code=400, content={"sucesso": False, "erro": f"A soma das duas contas (R$ {val_pago_1:.2f} + R$ {val_pago_2:.2f} = R$ {val_pago_1+val_pago_2:.2f}) não confere com o total pago (R$ {val_pago:.2f})."})
+        else:
+            val_pago_1 = val_pago
+            val_pago_2 = 0.0
+            c2_nome = ""
+            c2_id = None
 
         trans_id = row["transacao_id"]
+        trans_2_id = row["transacao_2_id"] if "transacao_2_id" in row.keys() else None
+
+        motivo_desc = f"Economia via {app_nome}" if desc_val > 0 else ""
+
+        # Sincronização da Transação 1
         if not trans_id:
             cur.execute("""
                 SELECT id FROM transacoes 
                 WHERE tipo = 'despesa' 
                   AND categoria = 'Combustível (Trabalho)' 
                   AND (data = ? OR data = ?)
-                  AND valor = ?
                 LIMIT 1
-            """, (str(row["data"])[:10], data_raw, float(row["valor_pago"] or 0.0)))
+            """, (str(row["data"])[:10], data_raw))
             r_t = cur.fetchone()
             if r_t:
                 trans_id = r_t[0]
-                cur.execute("UPDATE veiculo_abastecimentos SET transacao_id = ? WHERE id = ?", (trans_id, abastecimento_id))
+
+        desc_trans_1 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}" + (f" (1/2 via {conta_nome})" if eh_split else "")
+        val_tr_1 = val_pago_1 if eh_split else val_pago
 
         if trans_id:
-            desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
-            motivo_desc = f"Economia via {app_nome}" if desc_val > 0 else ""
             cur.execute("""
                 UPDATE transacoes
                 SET data = ?, descricao = ?, valor = ?, conta = ?, conta_id = ?,
-                    desconto = ?, motivo_ajuste = ?
+                    desconto = ?, motivo_ajuste = ?, status_rateio = ?
                 WHERE id = ?
-            """, (data_raw, desc_trans, val_pago, conta_nome, conta_id, desc_val, motivo_desc, trans_id))
+            """, (data_raw, desc_trans_1, val_tr_1, conta_nome, conta_id, desc_val, motivo_desc, ('split_1' if eh_split else None), trans_id))
+        else:
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?, ?)
+            """, (data_raw, desc_trans_1, val_tr_1, conta_nome, conta_id, desc_val, motivo_desc, ('split_1' if eh_split else None)))
+            trans_id = cur.lastrowid
+
+        # Sincronização da Transação 2
+        if eh_split:
+            desc_trans_2 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (2/2 via {c2_nome})"
+            if trans_2_id:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET data = ?, descricao = ?, valor = ?, conta = ?, conta_id = ?,
+                        desconto = 0, motivo_ajuste = ?, status_rateio = 'split_2'
+                    WHERE id = ?
+                """, (data_raw, desc_trans_2, val_pago_2, c2_nome, c2_id, motivo_desc, trans_2_id))
+            else:
+                cur.execute("""
+                    INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                    VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, 0, ?, 'split_2')
+                """, (data_raw, desc_trans_2, val_pago_2, c2_nome, c2_id, motivo_desc))
+                trans_2_id = cur.lastrowid
+        else:
+            # Se deixou de ser split, remove transação 2 se existia
+            if trans_2_id:
+                cur.execute("DELETE FROM transacoes WHERE id = ?", (trans_2_id,))
+                trans_2_id = None
+
+        cur.execute("""
+            UPDATE veiculo_abastecimentos
+            SET data = ?, hodometro = ?, combustivel = ?, litros = ?, preco_litro = ?,
+                valor_bruto = ?, desconto = ?, valor_pago = ?, conta = ?, conta_id = ?,
+                posto = ?, observacao = ?, app_desconto = ?,
+                split_pagamento = ?, conta_2 = ?, conta_2_id = ?, valor_pago_1 = ?, valor_pago_2 = ?,
+                transacao_id = ?, transacao_2_id = ?
+            WHERE id = ?
+        """, (data_raw, hodo_val, comb_nome, lits, calc_preco, val_bomba,
+              desc_val, val_pago, conta_nome, conta_id, posto_nome, obs_txt,
+              app_nome, (1 if eh_split else 0), (c2_nome if eh_split else None), (c2_id if eh_split else None),
+              val_pago_1, val_pago_2, trans_id, trans_2_id, abastecimento_id))
 
         conn.commit()
 
         periodos_dados, _ = calcular_metricas_drive_consolidado(conn)
         dt_fmt = datetime.datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m")
+
+        if eh_split and c2_nome:
+            conta_label = f"{conta_nome} ({formatar_moeda_br(val_pago_1)}) + {c2_nome} ({formatar_moeda_br(val_pago_2)})"
+        else:
+            conta_label = conta_nome
 
         return JSONResponse({
             "sucesso": True,
@@ -5174,6 +5306,14 @@ async def api_drive_abastecimento_editar(request: Request, abastecimento_id: int
                 "pct_economia": pct_economia,
                 "app_desconto": app_nome,
                 "conta": conta_nome,
+                "conta_label": conta_label,
+                "split_pagamento": 1 if eh_split else 0,
+                "conta_2": c2_nome,
+                "conta_2_id": c2_id,
+                "valor_pago_1": val_pago_1,
+                "valor_pago_2": val_pago_2,
+                "transacao_id": trans_id,
+                "transacao_2_id": trans_2_id,
                 "hodometro": hodo_val,
                 "observacao": obs_txt
             },
@@ -5193,12 +5333,13 @@ async def api_drive_abastecimento_excluir(request: Request, abastecimento_id: in
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT transacao_id, data, valor_pago FROM veiculo_abastecimentos WHERE id = ?", (abastecimento_id,))
+        cur.execute("SELECT transacao_id, transacao_2_id, data, valor_pago FROM veiculo_abastecimentos WHERE id = ?", (abastecimento_id,))
         row = cur.fetchone()
         if not row:
             return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Abastecimento não encontrado."})
 
         trans_id = row["transacao_id"]
+        trans_2_id = row["transacao_2_id"] if "transacao_2_id" in row.keys() else None
         dt_antiga = str(row["data"])[:10]
         val_antigo = float(row["valor_pago"] or 0.0)
 
@@ -5219,6 +5360,8 @@ async def api_drive_abastecimento_excluir(request: Request, abastecimento_id: in
 
         if trans_id:
             cur.execute("DELETE FROM transacoes WHERE id = ?", (trans_id,))
+        if trans_2_id:
+            cur.execute("DELETE FROM transacoes WHERE id = ?", (trans_2_id,))
 
         conn.commit()
 
@@ -5252,7 +5395,11 @@ async def api_motorista_abastecer(
     conta_pagamento: Optional[str] = Form(None),
     desconto: Optional[Any] = Form(0.0),
     tanque_cheio: Optional[int] = Form(0),
-    observacao: Optional[str] = Form("")
+    observacao: Optional[str] = Form(""),
+    split_pagamento: Optional[Any] = Form(0),
+    conta_2: Optional[str] = Form(None),
+    valor_pago_1: Optional[Any] = Form(None),
+    valor_pago_2: Optional[Any] = Form(None)
 ):
     """
     Registra abastecimento real do veículo e gera transação de saída:
@@ -5340,25 +5487,73 @@ async def api_motorista_abastecer(
             cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
             conn.commit()
 
-        # 1. Registrar transação financeira de despesa estritamente pelo Valor Pago Real
-        desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
+        # Tratar divisão de pagamento (Split)
+        eh_split = str(split_pagamento).strip().lower() in ("1", "true", "on", "yes")
         motivo_desc = f"Economia via {app_nome}" if desc_val > 0 else ""
-        cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste)
-            VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?)
-        """, (data_iso, desc_trans, val_pago, conta_nome, conta_id, desc_val, motivo_desc))
-        trans_id = cur.lastrowid
 
-        # 2. Registrar na tabela veiculo_abastecimentos (Drivvo)
-        cur.execute("""
-            INSERT INTO veiculo_abastecimentos (
-                data, hodometro, combustivel, litros, preco_litro, valor_bruto,
-                desconto, valor_pago, conta, conta_id, tanque_cheio, posto,
-                observacao, transacao_id, app_desconto, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        """, (data_raw_str, hodo_val, comb_nome, lits, calc_preco, val_bomba,
-              desc_val, val_pago, conta_nome, conta_id, tq_cheio,
-              posto_nome, obs_txt, trans_id, app_nome))
+        if eh_split:
+            try:
+                v1 = converter_valor_monetario(valor_pago_1)
+            except Exception:
+                v1 = round(val_pago / 2.0, 2)
+            try:
+                v2 = converter_valor_monetario(valor_pago_2)
+            except Exception:
+                v2 = round(val_pago - v1, 2)
+
+            if v1 <= 0 or v2 <= 0:
+                raise HTTPException(status_code=400, detail="No pagamento dividido, os valores de ambas as contas devem ser maiores que zero.")
+            if round(v1 + v2, 2) != round(val_pago, 2):
+                raise HTTPException(status_code=400, detail=f"A soma das duas contas (R$ {v1:.2f} + R$ {v2:.2f} = R$ {v1+v2:.2f}) não confere com o total pago (R$ {val_pago:.2f}).")
+
+            cid_1, cnome_1 = resolver_conta_bancaria(conn, conta_nome)
+            cid_2, cnome_2 = resolver_conta_bancaria(conn, conta_2 or "Dinheiro / Carteira")
+
+            # 1. Registrar 2 movimentações de saída vinculadas
+            desc_trans_1 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (1/2 via {cnome_1})"
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?, 'split_1')
+            """, (data_iso, desc_trans_1, v1, cnome_1, cid_1, desc_val, motivo_desc))
+            trans_id = cur.lastrowid
+
+            desc_trans_2 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (2/2 via {cnome_2})"
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, 0, ?, 'split_2')
+            """, (data_iso, desc_trans_2, v2, cnome_2, cid_2, motivo_desc))
+            trans_2_id = cur.lastrowid
+
+            # 2. Registrar exatamente 1 registro no Drive com as litragens e consumo únicos
+            cur.execute("""
+                INSERT INTO veiculo_abastecimentos (
+                    data, hodometro, combustivel, litros, preco_litro, valor_bruto,
+                    desconto, valor_pago, conta, conta_id, tanque_cheio, posto,
+                    observacao, transacao_id, app_desconto, split_pagamento,
+                    conta_2, conta_2_id, valor_pago_1, valor_pago_2, transacao_2_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, datetime('now'))
+            """, (data_raw_str, hodo_val, comb_nome, lits, calc_preco, val_bomba,
+                  desc_val, val_pago, cnome_1, cid_1, tq_cheio,
+                  posto_nome, obs_txt, trans_id, app_nome, cnome_2, cid_2, v1, v2, trans_2_id))
+        else:
+            cid_1, cnome_1 = resolver_conta_bancaria(conn, conta_nome)
+            desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
+            cur.execute("""
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste)
+                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?)
+            """, (data_iso, desc_trans, val_pago, cnome_1, cid_1, desc_val, motivo_desc))
+            trans_id = cur.lastrowid
+
+            cur.execute("""
+                INSERT INTO veiculo_abastecimentos (
+                    data, hodometro, combustivel, litros, preco_litro, valor_bruto,
+                    desconto, valor_pago, conta, conta_id, tanque_cheio, posto,
+                    observacao, transacao_id, app_desconto, split_pagamento,
+                    conta_2, conta_2_id, valor_pago_1, valor_pago_2, transacao_2_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, NULL, ?, 0.0, NULL, datetime('now'))
+            """, (data_raw_str, hodo_val, comb_nome, lits, calc_preco, val_bomba,
+                  desc_val, val_pago, cnome_1, cid_1, tq_cheio,
+                  posto_nome, obs_txt, trans_id, app_nome, val_pago))
 
         conn.commit()
         msg_extra = f" • {badge_economia}" if badge_economia else ""
