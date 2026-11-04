@@ -7330,9 +7330,15 @@ async def api_desfazer_pagamento(transacao_id: int, request: Request):
             for c in dados["contas"]
         ]
 
+        is_receita = (res.get("tipo") == "receita")
+        termo_acao = "Recebimento" if is_receita else "Pagamento"
+        efeito_saldo = "deduzido do saldo de caixa" if is_receita else "recomposto no saldo"
+        msg_retorno = f"{termo_acao} de '{res['descricao']}' revertido com sucesso! O valor de {formatar_moeda_br(res['valor_estornado'])} foi {efeito_saldo}."
+
         return {
             "sucesso": True,
-            "mensagem": f"Pagamento de '{res['descricao']}' revertido com sucesso! O valor de {formatar_moeda_br(res['valor_estornado'])} foi recomposto.",
+            "mensagem": msg_retorno,
+            "tipo": res.get("tipo", "despesa"),
             "transacao_id": transacao_id,
             "status": "pendente",
             "valor_estornado": res["valor_estornado"],

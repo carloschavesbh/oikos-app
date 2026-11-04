@@ -1109,7 +1109,11 @@ def desfazer_pagamento_transacao(
         """, (transacao_id, float(valor_estornado), decimal_to_cents(to_decimal(valor_estornado)), conta_id, motivo))
 
     hoje_iso = date.today().isoformat()
-    novo_status = 'atrasada' if (data_venc and str(data_venc) < hoje_iso) else 'pendente'
+    # Se for receita, o status ao reverter para nao-pago e 'pendente'; se despesa com data passada, 'atrasada'
+    if tipo == 'receita':
+        novo_status = 'pendente'
+    else:
+        novo_status = 'atrasada' if (data_venc and str(data_venc) < hoje_iso) else 'pendente'
 
     cur.execute("""
         UPDATE transacoes
@@ -1124,7 +1128,8 @@ def desfazer_pagamento_transacao(
         "valor_estornado": valor_estornado,
         "data_vencimento": str(data_venc),
         "conta_id": cid_debitada,
-        "status": novo_status
+        "status": novo_status,
+        "tipo": tipo
     }
 
 

@@ -709,13 +709,13 @@
             <!-- Ações Compactas -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
               <div class="inline-flex items-center gap-1.5">
-                <!-- Ação Primária Compacta (Pagar ou Desfazer) -->
-                {% if t.tipo == 'despesa' and t.pago == 1 %}
+                <!-- Ação Primária Compacta (Pagar, Receber ou Desfazer) -->
+                {% if t.pago == 1 %}
                 <button type="button"
-                        onclick="confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}', '{{ t.valor | moeda }}')" 
+                        onclick="confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}', '{{ t.valor | moeda }}', '{{ t.tipo }}')" 
                         id="btn-acao-{{ t.id }}"
-                        title="Desfazer pagamento (reverter para pendente)"
-                        aria-label="Desfazer pagamento de {{ t.descricao }}"
+                        title="{% if t.tipo == 'receita' %}Desfazer recebimento{% else %}Desfazer pagamento{% endif %} (reverter para pendente)"
+                        aria-label="{% if t.tipo == 'receita' %}Desfazer recebimento{% else %}Desfazer pagamento{% endif %} de {{ t.descricao }}"
                         class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-amber-500/10 dark:hover:bg-amber-500/15 text-slate-400 hover:text-amber-600 dark:text-slate-500 dark:hover:text-amber-400 border border-transparent hover:border-amber-500/20 dark:hover:border-amber-500/30 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
                 </button>
@@ -761,10 +761,10 @@
                     <div id="item-menu-desfazer-container-{{ t.id }}">
                       {% if t.pago == 1 %}
                       <button type="button"
-                              onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\'") }}', '{{ t.valor | moeda }}')"
+                              onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\'") }}', '{{ t.valor | moeda }}', '{{ t.tipo }}')"
                               class="w-full flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                        <span>Desfazer Pagamento</span>
+                        <span>{% if t.tipo == 'receita' %}Desfazer Recebimento{% else %}Desfazer Pagamento{% endif %}</span>
                       </button>
                       {% elif t.tipo == 'despesa' %}
                       <button type="button"
@@ -1348,7 +1348,7 @@
     }
   }
 
-  function baixarGrupo(grupoId, ids, desc, val) {
+  async function baixarGrupo(grupoId, ids, desc, val) {
     if (!ids || ids.length === 0) return;
     let valNum = 0;
     if (typeof val === 'number') {
@@ -1589,9 +1589,15 @@
     }
   }
 
-  // Desfazer Pagamento com Confirmação e Restauração de Linha
-  async function confirmarDesfazerPagamento(id, desc, val) {
-    const msg = val ? `Deseja realmente desfazer o pagamento de "${desc}" (${val}) e retornar a conta para pendente?` : `Deseja desfazer o pagamento de "${desc}" e retornar a conta para pendente?`;
+  // Desfazer Pagamento ou Recebimento com Confirmação e Restauração de Linha
+  async function confirmarDesfazerPagamento(id, desc, val, tipo) {
+    const linha = document.getElementById(`linha-tr-${id}`);
+    const tipoReal = tipo || (linha ? (linha.dataset.tipo || 'despesa') : 'despesa');
+    const isReceita = (tipoReal === 'receita');
+    const termoAcao = isReceita ? 'recebimento' : 'pagamento';
+    const termoTitulo = isReceita ? 'Recebimento Desfeito!' : 'Pagamento Desfeito!';
+
+    const msg = val ? `Deseja realmente desfazer o ${termoAcao} de "${desc}" (${val}) e retornar para pendente?` : `Deseja desfazer o ${termoAcao} de "${desc}" e retornar para pendente?`;
     if (!confirm(msg)) return;
 
     const btn = document.getElementById(`btn-acao-${id}`);
@@ -1604,23 +1610,22 @@
       const res = await fetch(`/api/pagamento/desfazer/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motivo: 'Desfazer pagamento solicitado pelo usuário em Lançamentos' })
+        body: JSON.stringify({ motivo: `Desfazer ${termoAcao} solicitado pelo usuário em Lançamentos` })
       });
       const data = await res.json();
 
       if (data.sucesso) {
-        showToast('Pagamento Desfeito!', data.mensagem);
+        showToast(termoTitulo, data.mensagem);
 
         // Atualizar linha visualmente para PENDENTE / ATRASADA
-        const linha = document.getElementById(`linha-tr-${id}`);
         if (linha) {
           linha.setAttribute('data-pago', '0');
           const tdStatus = linha.querySelector('.badge-status-pago') || linha.querySelector('.badge-status-pendente');
           
-          // Verificar se a data original já venceu
+          // Verificar se a data original já venceu (apenas para despesas)
           const dataVenc = data.data_vencimento || '';
           const hojeStr = new Date().toISOString().slice(0, 10);
-          const ehAtrasada = dataVenc && dataVenc < hojeStr;
+          const ehAtrasada = !isReceita && dataVenc && dataVenc < hojeStr;
 
           if (ehAtrasada) {
             linha.setAttribute('data-atrasada', '1');
@@ -1640,23 +1645,32 @@
 
           if (btn) {
             btn.disabled = false;
-            btn.classList.remove('opacity-50', 'bg-amber-500/15', 'text-amber-600', 'border-amber-500/30', 'hover:bg-amber-500');
-            btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30', 'hover:bg-emerald-500', 'hover:text-white');
-            btn.title = 'Registrar pagamento';
-            btn.setAttribute('aria-label', `Registrar pagamento de ${desc}`);
-            btn.onclick = () => baixarConta(id, desc);
-            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
+            if (isReceita) {
+              // Para receita pendente, ocultamos o botão primário ou definimos ação de receber
+              btn.classList.add('hidden');
+            } else {
+              btn.classList.remove('opacity-50', 'bg-amber-500/15', 'text-amber-600', 'border-amber-500/30', 'hover:bg-amber-500');
+              btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30', 'hover:bg-emerald-500', 'hover:text-white');
+              btn.title = 'Registrar pagamento';
+              btn.setAttribute('aria-label', `Registrar pagamento de ${desc}`);
+              btn.onclick = () => baixarConta(id, desc);
+              btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
+            }
           }
 
           // Atualizar opção no menu ⋯
           const menuContainer = document.getElementById(`item-menu-desfazer-container-${id}`);
           if (menuContainer) {
-            menuContainer.innerHTML = `<button type="button"
-                    onclick="fecharTodosMenusAcoes(); baixarConta(${id}, '${desc.replace(/'/g, "\\'")}')"
-                    class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              <span>Registrar Pagamento</span>
-            </button>`;
+            if (isReceita) {
+              menuContainer.innerHTML = '';
+            } else {
+              menuContainer.innerHTML = `<button type="button"
+                      onclick="fecharTodosMenusAcoes(); baixarConta(${id}, '${desc.replace(/'/g, "\\'")}')"
+                      class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                <span>Registrar Pagamento</span>
+              </button>`;
+            }
           }
         }
       } else {
