@@ -1363,6 +1363,130 @@
         aviso.textContent = `Total dividido: R$ ${soma.toFixed(2).replace('.', ',')} de R$ ${total.toFixed(2).replace('.', ',')} ${ok ? '✓' : '(Divergente)'}`;
       }
     }
+
+    async function interpretarTransacaoComIA() {
+      const input = document.getElementById('ia-input-texto');
+      const btn = document.getElementById('btn-interpretar-ia');
+      const spinner = document.getElementById('ia-spinner');
+      const btnLabel = document.getElementById('ia-btn-label');
+      const statusEl = document.getElementById('ia-interpretar-status');
+
+      const texto = (input?.value || '').trim();
+      if (!texto) {
+        showToast('Atenção', 'Digite ou cole uma frase para a IA interpretar.', true);
+        input?.focus();
+        return;
+      }
+
+      btn.disabled = true;
+      if (spinner) spinner.classList.remove('hidden');
+      if (btnLabel) btnLabel.textContent = 'Interpretando...';
+      if (statusEl) {
+        statusEl.textContent = 'Processando com IA...';
+        statusEl.className = 'text-[10px] text-emerald-500 font-semibold animate-pulse';
+      }
+
+      try {
+        const res = await fetch('/api/ia/interpretar-transacao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texto: texto })
+        });
+        const data = await res.json();
+
+        if (data.sucesso && data.dados) {
+          const d = data.dados;
+
+          // 1. Alterna para a aba correspondente (despesa ou receita)
+          const tipoAlvo = (d.tipo || 'despesa').toLowerCase() === 'receita' ? 'receita' : 'despesa';
+          mudarAbaModalGlobal(tipoAlvo);
+
+          // 2. Preenche o Valor formatado
+          const inpVal = document.getElementById('global-input-valor');
+          if (inpVal && d.valor) {
+            inpVal.value = Number(d.valor).toFixed(2).replace('.', ',');
+            aplicarMascaraMoedaGlobal(inpVal);
+          }
+
+          // 3. Preenche a Data
+          const inpData = document.getElementById('global-input-data');
+          if (inpData && d.data) {
+            inpData.value = d.data;
+            if (typeof atualizarPreviaCartaoGlobal === 'function') {
+              atualizarPreviaCartaoGlobal();
+            }
+          }
+
+          // 4. Preenche a Descrição
+          const inpDesc = document.getElementById('global-input-descricao');
+          if (inpDesc && d.descricao) {
+            inpDesc.value = d.descricao;
+          }
+
+          // 5. Preenche Categoria
+          const selCat = document.getElementById('global-select-categoria');
+          if (selCat && d.categoria_sugerida) {
+            const catSugerida = d.categoria_sugerida.trim();
+            let achou = false;
+            for (let opt of selCat.options) {
+              if (opt.value.toLowerCase() === catSugerida.toLowerCase() || opt.textContent.toLowerCase().includes(catSugerida.toLowerCase())) {
+                selCat.value = opt.value;
+                achou = true;
+                break;
+              }
+            }
+            if (!achou) {
+              const newOpt = document.createElement('option');
+              newOpt.value = catSugerida;
+              newOpt.textContent = catSugerida;
+              selCat.appendChild(newOpt);
+              selCat.value = catSugerida;
+            }
+          }
+
+          // 6. Preenche Conta/Forma
+          const selConta = document.getElementById('global-select-conta');
+          if (selConta && d.conta_sugerida) {
+            const contaSug = d.conta_sugerida.toLowerCase();
+            for (let opt of selConta.options) {
+              const txt = opt.textContent.toLowerCase();
+              if (txt.includes(contaSug) || 
+                  (contaSug.includes('mercado') && txt.includes('mercado')) || 
+                  (contaSug.includes('dinheiro') && txt.includes('dinheiro')) || 
+                  (contaSug.includes('99') && txt.includes('99'))) {
+                selConta.value = opt.value;
+                verificarContaCartaoGlobal();
+                break;
+              }
+            }
+          }
+
+          showToast('IA Interpretou!', 'Confira os dados sugeridos e clique em Salvar.');
+          if (statusEl) {
+            statusEl.textContent = 'Interpretado com sucesso! ✓';
+            statusEl.className = 'text-[10px] text-emerald-600 dark:text-emerald-400 font-bold';
+          }
+        } else {
+          showToast('Aviso da IA', data.erro || 'Não foi possível extrair dados desta frase.', true);
+          if (statusEl) {
+            statusEl.textContent = 'Não compreendido';
+            statusEl.className = 'text-[10px] text-rose-500 font-semibold';
+          }
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message || 'Falha ao conectar com o serviço de IA.', true);
+        if (statusEl) {
+          statusEl.textContent = 'Erro de conexão';
+          statusEl.className = 'text-[10px] text-rose-500 font-semibold';
+        }
+      } finally {
+        btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnLabel) btnLabel.textContent = 'Interpretar';
+      }
+    }
+
+
     function mudarAbaModalGlobal(tipo) {
       abaAtualGlobal = tipo;
       document.getElementById('global-input-tipo').value = tipo;
@@ -1985,6 +2109,28 @@
       <!-- Formulário Unificado com Preservação de Estado -->
       <form id="form-transacao-global" onsubmit="submeterTransacaoGlobal(event)" class="p-5 space-y-4">
         <input type="hidden" id="global-input-tipo" name="tipo" value="despesa">
+
+        <!-- ENTRADA RÁPIDA EM LINGUAGEM NATURAL VIA IA (GEMINI API) -->
+        <div id="container-ia-rapida-global" class="p-3 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-purple-500/10 border border-emerald-500/25 dark:border-emerald-500/35 rounded-2xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <span>✨</span> Lançamento Rápido com IA
+            </span>
+            <span id="ia-interpretar-status" class="text-[10px] text-slate-400 font-medium">Linguagem natural</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1">
+              <input type="text" id="ia-input-texto" placeholder="Digite ou cole: ex. 'Paguei 89 de luz hoje no Mercado Pago'"
+                     class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                     onkeydown="if (event.key === 'Enter') { event.preventDefault(); interpretarTransacaoComIA(); }">
+            </div>
+            <button type="button" id="btn-interpretar-ia" onclick="interpretarTransacaoComIA()"
+                    class="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer">
+              <span id="ia-spinner" class="hidden animate-spin text-xs">🌀</span>
+              <span id="ia-btn-label">Interpretar</span>
+            </button>
+          </div>
+        </div>
 
         <!-- 1. Valor e Data -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">

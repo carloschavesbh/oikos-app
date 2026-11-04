@@ -29,7 +29,13 @@ import conciliacao_service
 from google import genai
 from google.genai import types
 
-client = genai.Client(api_key="AQ.Ab8RN6LEqt1vtNMt6G4zuvVHh5m5fZEj6szuYf7hQUnz4zUQsg")
+_gemini_api_key_env = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+client = None
+if _gemini_api_key_env:
+    try:
+        client = genai.Client(api_key=_gemini_api_key_env)
+    except Exception as _e_init:
+        logger.warning(f"[Gemini] Não foi possível inicializar client global: {_e_init}")
 
 import patrimonio_service
 import objetivos_service
@@ -6380,6 +6386,222 @@ def processar_fallback_nlp(mensagem: str, conn: sqlite3.Connection) -> Tuple[Opt
         return None, f"💰 Saldos Atuais: {txt_saldos} (Consolidado Livre: {formatar_moeda_br(saldo_livre)})."
 
     return None, "Olá! Posso registrar despesas (ex: 'gastei 50 de gasolina no MP'), turnos da 99 ('turno de hoje 150 online e 40 dinheiro') ou informar saldos atuais."
+
+
+
+# =============================================================================
+# IA - INTERPRETAÇÃO DE TRANSAÇÕES EM LINGUAGEM NATURAL (/api/ia/interpretar-transacao)
+# =============================================================================
+
+def interpretar_frase_transacao_com_fallback(texto: str, conn: sqlite3.Connection) -> Dict[str, Any]:
+    """
+    Interpreta texto em linguagem natural combinando Gemini API estruturado
+    com fallback semântico local resiliente.
+    """
+    hoje_date = date.today()
+    hoje_iso = hoje_date.isoformat()
+    ontem_iso = (hoje_date - timedelta(days=1)).isoformat()
+    anteontem_iso = (hoje_date - timedelta(days=2)).isoformat()
+
+    # 1. Carrega categorias e contas reais do banco
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE categoria IS NOT NULL AND TRIM(categoria) != ''")
+    cats_db = [r[0] for r in cur.fetchall()]
+    if not cats_db:
+        cats_db = ["Alimentação", "Moradia/Contas", "HABITAÇÃO", "Transporte", "Combustível", "Saúde", "Pessoal", "Salário", "99 / Chaves (Carlos)"]
+
+    cur.execute("SELECT nome FROM contas_config WHERE tipo != 'cofrinho'")
+    contas_db = [r[0] for r in cur.fetchall()]
+    if not contas_db:
+        contas_db = ["Mercado Pago", "Dinheiro / Carteira", "99Pay"]
+
+    # 2. Tenta Gemini API se houver GEMINI_API_KEY no ambiente
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client_gemini = genai.Client(api_key=api_key)
+            prompt_sistema = f"""Você é um assistente financeiro especialista em extrair dados de transações a partir de texto em linguagem natural.
+Data de referência de HOJE: {hoje_iso}.
+Data de ONTEM: {ontem_iso}.
+Data de ANTEONTEM: {anteontem_iso}.
+
+Categorias válidas disponíveis no banco: {cats_db}.
+Contas disponíveis no banco: {contas_db}.
+
+Extraia estritamente um JSON estruturado com o formato:
+{{
+  "tipo": "despesa" ou "receita",
+  "descricao": string com o motivo/local curto e conciso (ex: "Luz", "Almoço", "Corrida 99"),
+  "valor": float positivo,
+  "data": "YYYY-MM-DD",
+  "categoria_sugerida": string (selecione a mais próxima da lista de categorias válidas),
+  "conta_sugerida": string (selecione a mais próxima da lista de contas disponíveis)
+}}
+"""
+            resp = client_gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=texto,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.1,
+                    system_instruction=prompt_sistema
+                )
+            )
+            if resp and resp.text:
+                dados_gemini = json.loads(resp.text)
+                if isinstance(dados_gemini, dict) and "valor" in dados_gemini:
+                    return {
+                        "sucesso": True,
+                        "motor": "gemini-api",
+                        "dados": {
+                            "tipo": str(dados_gemini.get("tipo", "despesa")).lower().strip(),
+                            "descricao": str(dados_gemini.get("descricao", "Transação")).strip(),
+                            "valor": float(dados_gemini.get("valor", 0.0)),
+                            "data": str(dados_gemini.get("data", hoje_iso))[:10],
+                            "categoria_sugerida": str(dados_gemini.get("categoria_sugerida", "Outros")).strip(),
+                            "conta_sugerida": str(dados_gemini.get("conta_sugerida", "Mercado Pago")).strip()
+                        }
+                    }
+        except Exception as e:
+            logger.warning(f"[IA Transação] Falha ao processar com Gemini API: {e}. Acionando fallback semântico.")
+
+    # 3. Fallback Semântico Local Determinístico (Alta Resiliência e Offline-first)
+    t_lower = texto.lower().strip()
+
+    # Identificar Tipo (receita vs despesa)
+    palavras_receita = ["recebi", "ganhei", "entrou", "salario", "salário", "pix recebido", "deposito", "depósito", "corrida", "venda", "recebimento"]
+    eh_receita = any(w in t_lower for w in palavras_receita) and not any(w in t_lower for w in ["paguei", "gastei", "comprei"])
+    tipo = "receita" if eh_receita else "despesa"
+
+    # Identificar Valor
+    m_val = re.search(r'(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)', t_lower)
+    valor = 0.0
+    if m_val:
+        v_str = m_val.group(1).replace(',', '.')
+        try:
+            valor = float(v_str)
+        except ValueError:
+            valor = 0.0
+
+    if valor <= 0:
+        return {"sucesso": False, "erro": "Não foi possível identificar o valor da transação no texto."}
+
+    # Identificar Data
+    data_res = hoje_iso
+    if "anteontem" in t_lower:
+        data_res = anteontem_iso
+    elif "ontem" in t_lower:
+        data_res = ontem_iso
+    elif "hoje" in t_lower:
+        data_res = hoje_iso
+    else:
+        m_dia = re.search(r'(?:dia\s*)?(\d{1,2})(?:/(\d{1,2}))?', t_lower)
+        if m_dia and m_dia.group(1) and not (m_val and m_dia.group(1) == m_val.group(1)):
+            dia = int(m_dia.group(1))
+            mes = int(m_dia.group(2)) if m_dia.group(2) else hoje_date.month
+            ano = hoje_date.year
+            try:
+                data_res = date(ano, mes, dia).isoformat()
+            except Exception:
+                data_res = hoje_iso
+
+    # Identificar Conta
+    conta_sug = "Mercado Pago"
+    if any(k in t_lower for k in ["dinheiro", "carteira", "em espécie", "especie", "bolso", "saque"]):
+        conta_sug = "Dinheiro / Carteira"
+    elif any(k in t_lower for k in ["99pay", "99 pay", "saldo 99", "app 99"]):
+        conta_sug = "99Pay"
+    elif any(k in t_lower for k in ["mercado pago", "mercadopago", "mp", "pix"]):
+        conta_sug = "Mercado Pago"
+    elif any(k in t_lower for k in ["inter", "cartao inter", "cartão inter"]):
+        conta_sug = "Cartão Inter Aparecida"
+
+    # Identificar Categoria e Descrição
+    cat_sug = "Outros"
+    desc_sug = "Despesa Diversa" if tipo == "despesa" else "Receita Diversa"
+
+    if any(k in t_lower for k in ["luz", "energia", "enel", "cemig", "cpfl"]):
+        cat_sug = "Moradia/Contas"
+        desc_sug = "Conta de Luz / Energia"
+    elif any(k in t_lower for k in ["agua", "água", "sabesp", "copasa", "sanepar"]):
+        cat_sug = "Moradia/Contas"
+        desc_sug = "Conta de Água"
+    elif any(k in t_lower for k in ["internet", "claro", "vivo", "tim", "fibra", "banda larga"]):
+        cat_sug = "Moradia/Contas"
+        desc_sug = "Internet / Telefonia"
+    elif any(k in t_lower for k in ["gasolina", "combustivel", "combustível", "etanol", "diesel", "posto", "abastecer", "abastecimento"]):
+        cat_sug = "Combustível (Trabalho)"
+        desc_sug = "Combustível"
+    elif any(k in t_lower for k in ["almoço", "almoco", "jantar", "refeição", "refeicao", "lanche", "mcdonalds", "burger", "restaurante", "pizza"]):
+        cat_sug = "Alimentação"
+        desc_sug = "Almoço / Refeição" if "almoço" in t_lower or "almoco" in t_lower else "Alimentação"
+    elif any(k in t_lower for k in ["mercado", "supermercado", "compras", "feira", "açougue", "acougue", "padaria"]):
+        cat_sug = "Supermercado"
+        desc_sug = "Supermercado"
+    elif any(k in t_lower for k in ["corrida", "99", "uber", "passageiro", "viagem"]):
+        if tipo == "receita":
+            cat_sug = "99 / Chaves (Carlos)"
+            desc_sug = "Corrida 99"
+        else:
+            cat_sug = "Transporte"
+            desc_sug = "Corrida de Aplicativo"
+    elif any(k in t_lower for k in ["farmacia", "farmácia", "remedio", "remédio", "droga", "medicamento"]):
+        cat_sug = "Saúde"
+        desc_sug = "Farmácia / Medicamentos"
+    elif any(k in t_lower for k in ["salario", "salário", "adiantamento", "pagamento salário"]):
+        cat_sug = "Salário"
+        desc_sug = "Salário"
+    else:
+        limpo = re.sub(r'(paguei|gastei|comprei|recebi|ganhei|ontem|hoje|anteontem|no\s+mercado\s+pago|no\s+dinheiro|na\s+99pay|r\$|\d+(?:[.,]\d+)?|de\s+)', '', t_lower)
+        limpo = limpo.strip().capitalize()
+        if limpo:
+            desc_sug = limpo
+        cat_sug = "Alimentação" if "almoço" in desc_sug.lower() else "Moradia/Contas"
+
+    return {
+        "sucesso": True,
+        "motor": "fallback_local",
+        "dados": {
+            "tipo": tipo,
+            "descricao": desc_sug,
+            "valor": valor,
+            "data": data_res,
+            "categoria_sugerida": cat_sug,
+            "conta_sugerida": conta_sug
+        }
+    }
+
+
+@app.post("/api/ia/interpretar-transacao")
+async def api_ia_interpretar_transacao(request: Request):
+    """
+    Endpoint de IA para interpretar uma frase em linguagem natural e extrair dados
+    estruturados de transação para pré-preenchimento no frontend.
+    """
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            body = await request.json()
+            texto = str(body.get("texto", "")).strip()
+        else:
+            form = await request.form()
+            texto = str(form.get("texto", "")).strip()
+
+        if not texto:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Texto não fornecido para interpretação."})
+
+        conn = conectar_db()
+        try:
+            resultado = interpretar_frase_transacao_com_fallback(texto, conn)
+            return JSONResponse(resultado)
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"[API IA Interpretar] Erro inesperado: {e}")
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": f"Erro interno ao interpretar transação: {str(e)}"})
 
 
 @app.post("/api/chat")
