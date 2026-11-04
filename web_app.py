@@ -26,6 +26,9 @@ import saldo_service
 import planejamento_service
 import conciliacao_service
 
+import logging
+logger = logging.getLogger("oikos")
+
 from google import genai
 from google.genai import types
 
@@ -36,6 +39,19 @@ if _gemini_api_key_env:
         client = genai.Client(api_key=_gemini_api_key_env)
     except Exception as _e_init:
         logger.warning(f"[Gemini] Não foi possível inicializar client global: {_e_init}")
+
+def obter_gemini_client():
+    global client
+    _key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not _key:
+        return None
+    if client is None:
+        try:
+            client = genai.Client(api_key=_key)
+        except Exception as _e:
+            logger.warning(f"[Gemini Client] Erro ao instanciar client sob demanda: {_e}")
+            return None
+    return client
 
 import patrimonio_service
 import objetivos_service
@@ -6248,10 +6264,11 @@ def executar_acao_ia(conn: sqlite3.Connection, action: Dict[str, Any]) -> Tuple[
         else:
             categoria_oficial = "Outros"
 
+        data_trans = str(action.get("data", hoje)).strip() or hoje
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
-        """, (hoje, descricao, valor, tipo, categoria_oficial, conta_oficial, conta_id))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, status_pagamento, afeta_saldo_bancario)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'pago', 1)
+        """, (data_trans, descricao, valor, tipo, categoria_oficial, conta_oficial, conta_id))
         conn.commit()
         return True, f"{tipo.capitalize()} '{descricao}' de {formatar_moeda_br(valor)} registrada em {conta_oficial} ({categoria_oficial})."
 
@@ -6310,12 +6327,15 @@ def executar_acao_ia(conn: sqlite3.Connection, action: Dict[str, Any]) -> Tuple[
 
 def processar_fallback_nlp(mensagem: str, conn: sqlite3.Connection) -> Tuple[Optional[Dict[str, Any]], str]:
     """
-    Parser NLP local para quando a API remota estiver temporariamente em manutenção ou 503.
+    Parser NLP local resiliente para o Assistente Oikos:
+    - Reconhece registro de turnos da 99
+    - Informa saldos e consolidados
+    - Reconhece e lança gastos/receitas em linguagem natural via interpretação semântica
     """
     txt = mensagem.lower().strip()
     hoje = date.today().isoformat()
 
-    # 1. Turno de motorista: ex "Turno de hoje 150 online e 40 dinheiro"
+    # 1. Turno de motorista: ex "Turno de hoje 150 online e 40 dinheiro", "turno 150 on e 40 din"
     m_turno = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:on|online).*?(\d+(?:[.,]\d+)?)\s*(?:din|dinheiro|físico|fisico|pix)", txt)
     if not m_turno:
         m_turno = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:din|dinheiro|físico|fisico|pix).*?(\d+(?:[.,]\d+)?)\s*(?:on|online)", txt)
@@ -6333,51 +6353,8 @@ def processar_fallback_nlp(mensagem: str, conn: sqlite3.Connection) -> Tuple[Opt
         ok, msg = executar_acao_ia(conn, action)
         return action, msg
 
-    # 2. Despesa: ex "gastei 50 de gasolina no MP", "paguei 80 no mercado no cartão"
-    m_gasto = re.search(r"(?:gastei|paguei|comprei|gasto de|despesa de)\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)", txt)
-    if m_gasto:
-        valor = float(m_gasto.group(1).replace(",", "."))
-        conta = "Mercado Pago"
-        if any(k in txt for k in ["dinheiro", "carteira", "bolso", "especie"]):
-            conta = "Dinheiro / Carteira"
-        elif any(k in txt for k in ["99", "99pay"]):
-            conta = "99Pay"
-        elif any(k in txt for k in ["mp", "mercado pago", "cartão", "cartao"]):
-            conta = "Mercado Pago"
-
-        if any(k in txt for k in ["gasolina", "combustivel", "combustível", "etanol", "posto"]):
-            desc = "Gasolina"
-            cat = "Combustível (Trabalho)"
-        elif any(k in txt for k in ["mercado", "supermercado", "feira"]):
-            desc = "Supermercado"
-            cat = "Supermercado / Feira"
-        elif any(k in txt for k in ["lanche", "almoço", "almoco", "restaurante", "comida"]):
-            desc = "Almoço / Refeição"
-            cat = "Restaurante"
-        elif any(k in txt for k in ["remedio", "remédio", "farmacia", "farmácia"]):
-            desc = "Farmácia"
-            cat = "Medicamentos"
-        else:
-            desc = "Despesa"
-            cat = "Outros"
-
-        action = {"acao": "transacao", "tipo": "despesa", "valor": valor, "descricao": desc, "categoria": cat, "conta": conta}
-        ok, msg = executar_acao_ia(conn, action)
-        return action, msg
-
-    # 3. Receita: ex "recebi 120 da corrida", "ganhei 50"
-    m_rec = re.search(r"(?:recebi|ganhei|receita de|entrada de)\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)", txt)
-    if m_rec:
-        valor = float(m_rec.group(1).replace(",", "."))
-        conta = "99Pay" if "99" in txt else ("Dinheiro / Carteira" if "dinheiro" in txt else "Mercado Pago")
-        desc = "Corrida / Serviço" if any(k in txt for k in ["corrida", "viagem", "uber", "99"]) else "Receita"
-        cat = "99 / Chaves (Carlos)" if any(k in txt for k in ["corrida", "viagem", "uber", "99"]) else "Outros"
-        action = {"acao": "transacao", "tipo": "receita", "valor": valor, "descricao": desc, "categoria": cat, "conta": conta}
-        ok, msg = executar_acao_ia(conn, action)
-        return action, msg
-
-    # 4. Consulta de Saldo: ex "qual meu saldo", "quanto tenho no MP"
-    if any(k in txt for k in ["saldo", "quanto tenho", "extrato", "caixa"]):
+    # 2. Consulta de Saldo: ex "qual meu saldo", "quanto tenho no MP", "saldos", "extrato"
+    if any(k in txt for k in ["saldo", "quanto tenho", "extrato", "caixa", "meus saldos"]):
         res_saldo = saldo_service.calcular_saldo_consolidado(conn)
         saldo_livre = float(res_saldo.get("saldo_consolidado", 0.0))
         contas_lista = res_saldo.get("contas", [])
@@ -6385,7 +6362,33 @@ def processar_fallback_nlp(mensagem: str, conn: sqlite3.Connection) -> Tuple[Opt
         txt_saldos = " | ".join(partes)
         return None, f"💰 Saldos Atuais: {txt_saldos} (Consolidado Livre: {formatar_moeda_br(saldo_livre)})."
 
-    return None, "Olá! Posso registrar despesas (ex: 'gastei 50 de gasolina no MP'), turnos da 99 ('turno de hoje 150 online e 40 dinheiro') ou informar saldos atuais."
+    # 3. Lançamento de Gastos e Receitas em Linguagem Natural
+    res_ia = interpretar_frase_transacao_com_fallback(mensagem, conn)
+    if res_ia and res_ia.get("sucesso") and res_ia.get("dados"):
+        d = res_ia["dados"]
+        valor = float(d.get("valor", 0.0))
+        if valor > 0 and d.get("descricao"):
+            palavras_transacao = [
+                "gastei", "paguei", "comprei", "abasteci", "coloquei", "recebi", "ganhei",
+                "lançar", "lancar", "registrar", "adicionar", "gasto", "despesa", "receita",
+                "gasolina", "combustivel", "combustível", "etanol", "mercado", "supermercado",
+                "almoço", "almoco", "lanche", "restaurante", "farmacia", "farmácia", "remedio",
+                "remédio", "luz", "agua", "água", "internet", "corrida", "uber", "99"
+            ]
+            if any(k in txt for k in palavras_transacao) or "r$" in txt:
+                action = {
+                    "acao": "transacao",
+                    "tipo": d.get("tipo", "despesa"),
+                    "valor": valor,
+                    "descricao": d.get("descricao", "Lançamento"),
+                    "categoria": d.get("categoria_sugerida", "Outros"),
+                    "conta": d.get("conta_sugerida", "Mercado Pago"),
+                    "data": d.get("data", hoje)
+                }
+                ok, msg = executar_acao_ia(conn, action)
+                return action, msg
+
+    return None, "Olá, Carlos! Sou o Assistente Oikos. Posso registrar seus gastos (ex: 'gastei 50 no mercado' ou 'paguei 89 de luz no MP'), turnos da 99 ('turno de hoje 150 online e 40 dinheiro') ou informar saldos atuais ('qual meu saldo')."
 
 
 
@@ -6609,6 +6612,7 @@ async def api_chat(request: Request):
     """
     Endpoint de Chat Inteligente integrado com Gemini API nativo e financas_casa.db.
     Recebe { "mensagem": str }.
+    Trata erros sem retornar 500, oferecendo feedback claro e processamento resiliente.
     """
     conn = conectar_db()
     try:
@@ -6643,7 +6647,7 @@ Status do Turno de Hoje (Oikos Drive):
 {ctx['turno_hoje']}
 
 --- INSTRUÇÕES DE AÇÃO ---
-1. Se a mensagem for sobre LANÇAR UM GASTO ou RECEITA (ex: "gastei 50 no mercado no cartão", "recebi 120 da corrida", "gastei 50 de gasolina no MP"):
+1. Se a mensagem for sobre LANÇAR UM GASTO ou RECEITA (ex: "gastei 50 no mercado no cartão", "recebi 120 da corrida", "gastei 50 de gasolina no MP", "paguei 89 de luz hoje"):
    Você DEVE incluir OBRIGATORIAMENTE na PRIMEIRA LINHA da resposta um comando no formato:
    ACTION: {{"acao": "transacao", "tipo": "despesa"|"receita", "valor": float, "descricao": "<descrição curta>", "categoria": "<categoria>", "conta": "Mercado Pago"|"Dinheiro / Carteira"|"99Pay"}}
    Seguido imediatamente na próxima linha por uma confirmação curta e direta do registro.
@@ -6657,14 +6661,17 @@ Status do Turno de Hoje (Oikos Drive):
    Responda de forma direta e curta em 1 linha com os números exatos dos saldos acima, sem linha ACTION.
 """
 
+        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        client_gemini = obter_gemini_client() if api_key else None
+        
         modelos = ["gemini-2.5-flash", "gemini-3.8-flash"]
         resposta_texto = None
 
-        if client and hasattr(client, "aio"):
+        if client_gemini and hasattr(client_gemini, "aio"):
             for mod in modelos:
                 try:
                     resp = await asyncio.wait_for(
-                        client.aio.models.generate_content(
+                        client_gemini.aio.models.generate_content(
                             model=mod,
                             contents=mensagem,
                             config=types.GenerateContentConfig(
@@ -6672,12 +6679,13 @@ Status do Turno de Hoje (Oikos Drive):
                                 temperature=0.2
                             )
                         ),
-                        timeout=2.0
+                        timeout=5.0
                     )
                     if resp and resp.text:
                         resposta_texto = resp.text.strip()
                         break
-                except Exception:
+                except Exception as ex_gemini:
+                    logger.warning(f"[Chat IA] Modelo {mod} indisponível ou falhou: {ex_gemini}")
                     continue
 
         acao_executada = None
@@ -6693,25 +6701,39 @@ Status do Turno de Hoje (Oikos Drive):
                         resposta_limpa = msg_act
                     resposta_texto = resposta_limpa
                 except Exception as ex_act:
-                    pass
+                    logger.warning(f"[Chat IA] Falha ao processar ACTION da IA: {ex_act}")
         else:
+            # Fallback local semântico e contextual
             acao_executada, resposta_texto = processar_fallback_nlp(mensagem, conn)
 
         return JSONResponse({
             "sucesso": True,
             "resposta": resposta_texto or "Comando processado com sucesso.",
-            "acao": acao_executada
+            "acao": acao_executada,
+            "modo": "gemini" if (client_gemini and resposta_texto and not acao_executada) else "local",
+            "chave_configurada": bool(api_key)
         })
     except Exception as e:
         conn.rollback()
+        logger.error(f"[Chat IA] Erro capturado em api_chat: {e}")
         try:
-            _, fallback_resp = processar_fallback_nlp(mensagem, conn)
-            return JSONResponse({"sucesso": True, "resposta": fallback_resp})
+            acao_fb, fallback_resp = processar_fallback_nlp(mensagem, conn)
+            return JSONResponse({
+                "sucesso": True,
+                "resposta": fallback_resp,
+                "acao": acao_fb,
+                "modo": "fallback",
+                "chave_configurada": False
+            })
         except Exception:
-            return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e), "resposta": "Desculpe, ocorreu uma instabilidade momentânea. Tente novamente."})
+            return JSONResponse(status_code=200, content={
+                "sucesso": False,
+                "resposta": "Desculpe, ocorreu uma instabilidade momentânea ao processar sua mensagem. Tente novamente.",
+                "erro": str(e),
+                "modo": "erro"
+            })
     finally:
         conn.close()
-
 
 # ============================================================================
 # ROTAS DO MÓDULO DE PATRIMÔNIO & BENS

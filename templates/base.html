@@ -1055,14 +1055,15 @@
       if (form) form.dispatchEvent(new Event('submit', { cancelable: true }));
     }
 
-    async function executarEnviarMensagemChat(e) {
+    async function enviarMensagemOikosChat(e) {
       if (e) e.preventDefault();
       const input = document.getElementById('oikos-chat-input');
       const messagesContainer = document.getElementById('oikos-chat-messages');
       const typingIndicator = document.getElementById('oikos-chat-typing');
       const sendBtn = document.getElementById('oikos-chat-send-btn');
+      const btnIcon = document.getElementById('oikos-chat-btn-icon');
       
-      const texto = (input.value || '').trim();
+      const texto = (input?.value || '').trim();
       if (!texto) return;
 
       // 1. Renderiza mensagem do usuário
@@ -1073,14 +1074,23 @@
           ${escapeHtml(texto)}
         </div>
       `;
-      messagesContainer.appendChild(userBubble);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-      // Limpa input e bloqueia envio temporariamente
+      // Insere antes do typingIndicator se ele existir no DOM
+      if (typingIndicator && typingIndicator.parentNode === messagesContainer) {
+        messagesContainer.insertBefore(userBubble, typingIndicator);
+      } else {
+        messagesContainer.appendChild(userBubble);
+      }
+
+      // Limpa input e bloqueia envio durante a requisição
       input.value = '';
       input.disabled = true;
       if (sendBtn) sendBtn.disabled = true;
-      if (typingIndicator) typingIndicator.classList.remove('hidden');
+      if (btnIcon) btnIcon.textContent = '⏳';
+      if (typingIndicator) {
+        typingIndicator.classList.remove('hidden');
+        messagesContainer.appendChild(typingIndicator); // Mantém sempre no final
+      }
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
       try {
@@ -1089,12 +1099,45 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mensagem: texto })
         });
-        const data = await response.json();
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          throw new Error('Resposta inválida do servidor.');
+        }
 
         if (typingIndicator) typingIndicator.classList.add('hidden');
 
+        if (!response.ok || (data && data.sucesso === false)) {
+          // Balão de aviso/erro amigável no chat
+          const avisoTexto = (data && (data.erro || data.resposta)) || 'Não foi possível processar seu pedido.';
+          const avisoBubble = document.createElement('div');
+          avisoBubble.className = 'flex gap-2 items-start';
+          avisoBubble.innerHTML = `
+            <div class="w-6 h-6 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs shrink-0 font-bold">
+              ⚠️
+            </div>
+            <div class="bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60 rounded-2xl rounded-tl-none px-3.5 py-2.5 max-w-[85%] leading-relaxed shadow-sm">
+              ${escapeHtml(avisoTexto)}
+            </div>
+          `;
+          messagesContainer.appendChild(avisoBubble);
+          return;
+        }
+
         // Formata resposta do assistente (quebras de linha e negrito)
-        const respostaFormatada = formatarRespostaChat(data.resposta || 'Sem resposta.');
+        const respostaFormatada = formatarRespostaChat(data.resposta || 'Comando processado com sucesso.');
+
+        let acaoBadgeHtml = '';
+        if (data.acao) {
+          acaoBadgeHtml = `
+            <div class="mt-2 pt-2 border-t border-emerald-500/20 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+              <span>✓</span> Lançamento registrado no extrato
+            </div>
+          `;
+          showToast('Assistente Oikos', 'Ação registrada com sucesso!');
+        }
 
         const botBubble = document.createElement('div');
         botBubble.className = 'flex gap-2 items-start';
@@ -1103,14 +1146,12 @@
             🤖
           </div>
           <div class="bg-slate-100 dark:bg-slate-800/90 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/60 rounded-2xl rounded-tl-none px-3.5 py-2.5 max-w-[85%] leading-relaxed shadow-sm">
-            ${respostaFormatada}
+            <div>${respostaFormatada}</div>
+            ${acaoBadgeHtml}
           </div>
         `;
         messagesContainer.appendChild(botBubble);
 
-        if (data.acao) {
-          showToast('Ação Realizada!', 'Lançamento registrado com sucesso pela IA.');
-        }
       } catch (err) {
         if (typingIndicator) typingIndicator.classList.add('hidden');
         const errBubble = document.createElement('div');
@@ -1120,17 +1161,23 @@
             ⚠️
           </div>
           <div class="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 rounded-2xl rounded-tl-none px-3.5 py-2.5 max-w-[85%] leading-relaxed shadow-sm">
-            Desculpe, ocorreu uma instabilidade ao conectar com o assistente.
+            ${escapeHtml(err.message || 'Desculpe, ocorreu uma instabilidade ao conectar com o assistente.')}
           </div>
         `;
         messagesContainer.appendChild(errBubble);
       } finally {
         input.disabled = false;
         if (sendBtn) sendBtn.disabled = false;
+        if (btnIcon) btnIcon.textContent = '➤';
         input.focus();
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     }
+
+    // Aliases para compatibilidade total
+    window.enviarMensagemOikosChat = enviarMensagemOikosChat;
+    window.executarEnviarMensagemChat = enviarMensagemOikosChat;
+
 
     function escapeHtml(str) {
       return str.replace(/[&<>'"]/g, 
@@ -2049,12 +2096,26 @@
               Olá, Carlos! Sou a inteligência do Oikos. Como posso te apoiar nas metas de hoje?
             </div>
           </div>
+          <!-- Indicador de Digitando / Pensando -->
+          <div id="oikos-chat-typing" class="hidden flex gap-2 items-center text-slate-400 text-xs py-1">
+            <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0">
+              🤖
+            </div>
+            <div class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 rounded-2xl rounded-tl-none px-3.5 py-1.5 flex items-center gap-2 shadow-sm text-slate-500 dark:text-slate-400">
+              <span class="inline-flex gap-1 items-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.2s]"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.4s]"></span>
+              </span>
+              <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300">Assistente pensando...</span>
+            </div>
+          </div>
         </div>
         <!-- Input do Chat -->
         <form id="oikos-chat-form" onsubmit="enviarMensagemOikosChat(event)" class="p-2.5 border-t border-slate-200 dark:border-slate-800 flex items-center gap-1.5 shrink-0 bg-slate-50 dark:bg-slate-950/60">
           <input type="text" id="oikos-chat-input" placeholder="Pergunte sobre seus saldos, metas..." class="flex-1 px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-          <button type="submit" class="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition active:scale-95 cursor-pointer">
-            ➤
+          <button type="submit" id="oikos-chat-send-btn" class="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition active:scale-95 cursor-pointer" aria-label="Enviar mensagem">
+            <span id="oikos-chat-btn-icon">➤</span>
           </button>
         </form>
       </div>
