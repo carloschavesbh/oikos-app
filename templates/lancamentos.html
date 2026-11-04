@@ -167,7 +167,7 @@
           {% for t in transacoes_atrasadas %}
           <tr class="linha-transacao linha-transacao-passada bg-amber-500/5 hover:bg-amber-500/15 transition group border-l-2 border-l-rose-500" 
               data-tipo="{{ t.tipo }}" 
-              data-pago="0" 
+              data-pago="0" data-valor="{{ t.valor }}" data-conta="{{ t.conta }}" 
               data-atrasada="1"
               data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="1"
@@ -596,7 +596,7 @@
           <!-- LINHA INDIVIDUAL NORMAL -->
           <tr class="linha-transacao hover:bg-slate-50 dark:hover:bg-slate-800/30 transition group" 
               data-tipo="{{ t.tipo }}" 
-              data-pago="{{ t.pago }}" 
+              data-pago="{{ t.pago }}" data-valor="{{ t.valor }}" data-conta="{{ t.conta }}" 
               data-atrasada="{% if t.is_atrasada %}1{% else %}0{% endif %}"
               data-is-pagaleve="{% if t.is_pagaleve %}1{% else %}0{% endif %}"
               data-mes-passado="0"
@@ -1348,10 +1348,24 @@
     }
   }
 
-  async function baixarGrupo(grupoId, ids, desc, val) {
+  function baixarGrupo(grupoId, ids, desc, val) {
     if (!ids || ids.length === 0) return;
-    const msg = `Deseja registrar o pagamento de todos os ${ids.length} itens pendentes de "${desc}" (${val})?`;
-    if (!confirm(msg)) return;
+    let valNum = 0;
+    if (typeof val === 'number') {
+      valNum = val;
+    } else if (typeof val === 'string') {
+      valNum = parseFloat(val.replace(/[^0-9,-]+/g, '').replace(',', '.')) || 0;
+    }
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        modo: 'grupo',
+        ids: ids,
+        desc: `${desc} (${ids.length} itens)`,
+        valorOriginal: valNum,
+        titulo: 'Registrar Pagamento do Grupo'
+      });
+      return;
+    }
 
     const btn = document.getElementById(`btn-acao-grupo-${grupoId}`);
     if (btn) {
@@ -1484,8 +1498,29 @@
     }
   }
 
-  // Baixa Imediata com Toast e botão [Desfazer]
-  async function baixarConta(id, desc) {
+  // Baixa com Modal Unificado (Juros, Desconto e Total Dinâmico)
+  function baixarConta(id, desc, val, contaNome, contaId) {
+    const linha = document.getElementById(`linha-tr-${id}`);
+    const valorOriginal = val !== undefined ? val : (linha ? parseFloat(linha.dataset.valor || '0') : 0);
+    const conta = contaNome || (linha ? (linha.dataset.conta || '') : '');
+    const dataTransacao = linha ? (linha.dataset.dataIso || '') : '';
+
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        id: id,
+        desc: desc,
+        valorOriginal: valorOriginal,
+        contaNome: conta,
+        contaId: contaId,
+        dataPagamento: dataTransacao,
+        titulo: 'Registrar Pagamento'
+      });
+      return;
+    }
+  }
+
+  // Baixa Direta Fallback
+  async function baixarContaLegado(id, desc) {
     const btn = document.getElementById(`btn-acao-${id}`);
     if (btn) {
       btn.disabled = true;

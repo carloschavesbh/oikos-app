@@ -229,6 +229,14 @@
           <span class="text-xs text-slate-500 dark:text-slate-400">
             Total desta fatura: <strong class="text-slate-900 dark:text-white font-black text-xs sm:text-sm">{{ crd.total_fatura | moeda }}</strong>
           </span>
+          {% if crd.total_fatura > 0 %}
+          <button type="button"
+                  onclick="pagarFaturaCartao()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1 cursor-pointer">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+            <span>Pagar Fatura</span>
+          </button>
+          {% endif %}
         </div>
       </div>
 
@@ -1137,6 +1145,38 @@
     }
   }
 
+  // Pagar Fatura do Cartão via Modal Unificado com suporte a Juros/Desconto
+  function pagarFaturaCartao() {
+    {% if cartao_ativo %}
+    const comprasPendentes = {{ cartao_ativo.compras | selectattr('pago', 'equalto', 0) | map(attribute='id') | list | tojson }};
+    const totalFatura = {{ cartao_ativo.total_fatura | tojson }};
+    const nomeCartao = {{ cartao_ativo.nome | tojson }};
+    const mesAno = {{ nome_mes_ano | tojson }};
+
+    if (!comprasPendentes || comprasPendentes.length === 0) {
+      if (typeof showToast === 'function') {
+        showToast('Fatura Liquidada', 'Todos os lançamentos desta fatura já constam como quitados.', false);
+      } else {
+        alert('Esta fatura já está quitada.');
+      }
+      return;
+    }
+
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        modo: 'grupo',
+        ids: comprasPendentes,
+        desc: `Fatura ${nomeCartao} - ${mesAno} (${comprasPendentes.length} compras)`,
+        valorOriginal: totalFatura,
+        titulo: 'Pagar Fatura do Cartão'
+      });
+    }
+    {% else %}
+    if (typeof showToast === 'function') {
+      showToast('Nenhum Cartão', 'Nenhum cartão selecionado para pagamento.', true);
+    }
+    {% endif %}
+  }
 </script>
 <!-- MODAL EDITAR COMPRA DO CARTÃO -->
 <div id="modal-editar-compra-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">

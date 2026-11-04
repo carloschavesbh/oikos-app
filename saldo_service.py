@@ -492,7 +492,7 @@ def calcular_saldo_conta(
 
     # Busca todas as movimentações consolidadas da conta a partir da data base
     query = """
-        SELECT id, data, valor, tipo, conta_id, conta_destino_id, afeta_saldo_bancario, conta
+        SELECT id, data, COALESCE(valor_pago, valor) as valor, tipo, conta_id, conta_destino_id, afeta_saldo_bancario, conta
         FROM transacoes
         WHERE pago = 1 
           AND (afeta_saldo_bancario = 1 OR afeta_saldo_bancario IS NULL)
@@ -982,8 +982,8 @@ def registrar_pagamento(
     total_pago_anterior = cents_to_decimal(total_pago_anterior_cents)
     saldo_devedor_atual = max(Decimal("0.00"), val_orig - total_pago_anterior)
 
-    # Condição 13: Validação de limite do saldo devedor
-    if tipo_ajuste_valor == "normal" and val_pago_dec > saldo_devedor_atual:
+    # Condição 13: Validação de limite do saldo devedor (permite excesso se houver declaração de juros/encargos)
+    if tipo_ajuste_valor == "normal" and float(valor_encargos or 0.0) == 0.0 and val_pago_dec > saldo_devedor_atual:
         excesso = val_pago_dec - saldo_devedor_atual
         raise ValueError(
             f"O valor do pagamento (R$ {val_pago_dec:.2f}) excede o saldo devedor restante da obrigação (R$ {saldo_devedor_atual:.2f}) em R$ {excesso:.2f}. "
@@ -1030,15 +1030,17 @@ def registrar_pagamento(
     if nome_conta_pag:
         cur.execute("""
             UPDATE transacoes
-            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta = ?, conta_id = ?, afeta_saldo_bancario = ?
+            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta = ?, conta_id = ?, afeta_saldo_bancario = ?,
+                valor_pago = ?, juros = ?, desconto = ?
             WHERE id = ?
-        """, (novo_pago, novo_status, data_pagamento, nome_conta_pag, conta_id, afeta_saldo_bancario, transacao_id))
+        """, (novo_pago, novo_status, data_pagamento, nome_conta_pag, conta_id, afeta_saldo_bancario, float(val_pago_dec), float(valor_encargos), float(valor_desconto), transacao_id))
     else:
         cur.execute("""
             UPDATE transacoes
-            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta_id = ?, afeta_saldo_bancario = ?
+            SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta_id = ?, afeta_saldo_bancario = ?,
+                valor_pago = ?, juros = ?, desconto = ?
             WHERE id = ?
-        """, (novo_pago, novo_status, data_pagamento, conta_id, afeta_saldo_bancario, transacao_id))
+        """, (novo_pago, novo_status, data_pagamento, conta_id, afeta_saldo_bancario, float(val_pago_dec), float(valor_encargos), float(valor_desconto), transacao_id))
     conn.commit()
 
     return {
@@ -1111,7 +1113,7 @@ def desfazer_pagamento_transacao(
 
     cur.execute("""
         UPDATE transacoes
-        SET pago = 0, status_pagamento = ?, data_liquidacao = NULL
+        SET pago = 0, status_pagamento = ?, data_liquidacao = NULL, valor_pago = NULL, juros = 0.0, desconto = 0.0
         WHERE id = ?
     """, (novo_status, transacao_id))
     conn.commit()

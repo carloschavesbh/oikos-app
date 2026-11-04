@@ -1174,6 +1174,204 @@
       }
     }
 
+
+    // --- GERENCIAMENTO DE BAIXA E PAGAMENTO COM JUROS E DESCONTO ---
+    let configBaixaGlobal = null;
+
+    async function abrirModalBaixaGlobal(cfg) {
+      configBaixaGlobal = cfg || {};
+      const modal = document.getElementById('modal-baixa-pagamento-global');
+      if (!modal) return;
+
+      const titulo = document.getElementById('modal-baixa-titulo');
+      const subtitulo = document.getElementById('modal-baixa-subtitulo');
+      const valOrigFmt = document.getElementById('modal-baixa-valor-original-fmt');
+      const valOrigNum = document.getElementById('modal-baixa-valor-original');
+      const inpJuros = document.getElementById('modal-baixa-juros');
+      const inpDesc = document.getElementById('modal-baixa-desconto');
+      const inpData = document.getElementById('modal-baixa-data-pagamento');
+      const selConta = document.getElementById('modal-baixa-select-conta');
+      const hidId = document.getElementById('modal-baixa-transacao-id');
+      const hidModo = document.getElementById('modal-baixa-modo');
+      const hidGrupoIds = document.getElementById('modal-baixa-grupo-ids');
+
+      if (titulo) titulo.textContent = cfg.titulo || 'Registrar Pagamento';
+      if (subtitulo) subtitulo.textContent = cfg.desc || '';
+      if (hidId) hidId.value = cfg.id || '';
+      if (hidModo) hidModo.value = cfg.modo || 'individual';
+      if (hidGrupoIds) hidGrupoIds.value = Array.isArray(cfg.ids) ? cfg.ids.join(',') : (cfg.ids || '');
+
+      const valNominal = parseFloat(cfg.valorOriginal || cfg.valor || 0);
+      if (valOrigNum) valOrigNum.value = valNominal.toFixed(2);
+      if (valOrigFmt) valOrigFmt.textContent = valNominal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+      if (inpJuros) inpJuros.value = '0,00';
+      if (inpDesc) inpDesc.value = '0,00';
+
+      const hojeIso = new Date().toISOString().split('T')[0];
+      if (inpData) inpData.value = cfg.dataPagamento || hojeIso;
+
+      if (selConta && selConta.options.length === 0) {
+        const dados = await carregarOpcoesTransacaoGlobal();
+        if (dados && dados.contas) {
+          selConta.innerHTML = dados.contas.map(c => {
+            const texto = formatarTextoOpcaoConta(c);
+            return `<option value="${c.id}">${texto}</option>`;
+          }).join('');
+        }
+      }
+
+      if (selConta) {
+        let contaSet = false;
+        if (cfg.contaId) {
+          for (let opt of selConta.options) {
+            if (opt.value === String(cfg.contaId)) {
+              selConta.value = opt.value;
+              contaSet = true;
+              break;
+            }
+          }
+        }
+        if (!contaSet && cfg.contaNome) {
+          for (let opt of selConta.options) {
+            if (opt.textContent.toLowerCase().includes(cfg.contaNome.toLowerCase())) {
+              selConta.value = opt.value;
+              contaSet = true;
+              break;
+            }
+          }
+        }
+        if (!contaSet) {
+          for (let opt of selConta.options) {
+            if (opt.textContent.toLowerCase().includes('mercado pago')) {
+              selConta.value = opt.value;
+              break;
+            }
+          }
+        }
+      }
+
+      recalcularTotalBaixaGlobal();
+      modal.classList.remove('hidden');
+    }
+
+    function fecharModalBaixaGlobal() {
+      const modal = document.getElementById('modal-baixa-pagamento-global');
+      if (modal) modal.classList.add('hidden');
+      configBaixaGlobal = null;
+    }
+
+    function recalcularTotalBaixaGlobal() {
+      const orig = parseFloat(document.getElementById('modal-baixa-valor-original')?.value || '0');
+      const jurosRaw = (document.getElementById('modal-baixa-juros')?.value || '0').replace(/\./g, '').replace(',', '.');
+      const descRaw = (document.getElementById('modal-baixa-desconto')?.value || '0').replace(/\./g, '').replace(',', '.');
+      
+      const juros = parseFloat(jurosRaw) || 0;
+      const desc = parseFloat(descRaw) || 0;
+
+      const total = Math.max(0, orig + juros - desc);
+      const valTotalInput = document.getElementById('modal-baixa-valor-total');
+      const valTotalFmt = document.getElementById('modal-baixa-valor-total-fmt');
+      if (valTotalInput) valTotalInput.value = total.toFixed(2);
+      if (valTotalFmt) valTotalFmt.textContent = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    async function submeterBaixaPagamentoGlobal(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-baixa-global');
+      const spinner = document.getElementById('btn-submit-baixa-spinner');
+      const btnTxt = document.getElementById('btn-submit-baixa-texto');
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.classList.remove('hidden');
+      if (btnTxt) btnTxt.textContent = 'Processando...';
+
+      const hidId = document.getElementById('modal-baixa-transacao-id')?.value;
+      const modo = document.getElementById('modal-baixa-modo')?.value || 'individual';
+      const grupoIdsStr = document.getElementById('modal-baixa-grupo-ids')?.value || '';
+      const valorOrig = parseFloat(document.getElementById('modal-baixa-valor-original')?.value || '0');
+      const juros = parseFloat((document.getElementById('modal-baixa-juros')?.value || '0').replace(/\./g, '').replace(',', '.')) || 0;
+      const desconto = parseFloat((document.getElementById('modal-baixa-desconto')?.value || '0').replace(/\./g, '').replace(',', '.')) || 0;
+      const valorPago = parseFloat(document.getElementById('modal-baixa-valor-total')?.value || '0');
+      const contaId = parseInt(document.getElementById('modal-baixa-select-conta')?.value || '1', 10);
+      const dataPagamento = document.getElementById('modal-baixa-data-pagamento')?.value;
+
+      try {
+        let url = '';
+        let bodyData = {};
+
+        if (modo === 'pagaleve') {
+          url = '/api/pagaleve/pagar-selecionadas';
+          const ids = grupoIdsStr.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x));
+          bodyData = {
+            parcela_ids: ids,
+            juros: juros,
+            desconto: desconto,
+            valor_pago: valorPago,
+            conta_id: contaId,
+            data_pagamento: dataPagamento
+          };
+        } else if (modo === 'grupo') {
+          url = '/api/grupo/baixar';
+          const ids = grupoIdsStr.split(',').map(x => parseInt(x.trim(), 10)).filter(x => !isNaN(x));
+          bodyData = {
+            transacao_ids: ids,
+            juros: juros,
+            desconto: desconto,
+            valor_pago: valorPago,
+            conta_id: contaId,
+            data_pagamento: dataPagamento
+          };
+        } else {
+          url = `/api/baixa/${hidId}`;
+          bodyData = {
+            valor_original: valorOrig,
+            juros: juros,
+            desconto: desconto,
+            valor_pago: valorPago,
+            conta_id: contaId,
+            data_pagamento: dataPagamento
+          };
+        }
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const dataJson = await res.json();
+
+        if (res.ok && dataJson.sucesso) {
+          showToast('Baixa Concluída!', dataJson.mensagem || 'Pagamento registrado com sucesso!');
+          fecharModalBaixaGlobal();
+          setTimeout(() => window.location.reload(), 600);
+        } else {
+          showToast('Erro ao Baixar', dataJson.erro || 'Falha na operação.', true);
+          if (btn) btn.disabled = false;
+          if (spinner) spinner.classList.add('hidden');
+          if (btnTxt) btnTxt.textContent = 'Confirmar Pagamento';
+        }
+      } catch (err) {
+        showToast('Erro de Conexão', err.message || 'Falha de comunicação com o servidor.', true);
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.classList.add('hidden');
+        if (btnTxt) btnTxt.textContent = 'Confirmar Pagamento';
+      }
+    }
+
+    // Alias global
+    window.abrirModalBaixa = function(id, desc, val, contaNome, contaId) {
+      abrirModalBaixaGlobal({
+        id: id,
+        desc: desc,
+        valorOriginal: parseFloat(val) || 0,
+        contaNome: contaNome,
+        contaId: contaId,
+        modo: 'individual'
+      });
+    };
+
+
+
     // Aliases para compatibilidade total
     window.enviarMensagemOikosChat = enviarMensagemOikosChat;
     window.executarEnviarMensagemChat = enviarMensagemOikosChat;
@@ -2436,6 +2634,104 @@
           </button>
         </div>
 
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ===================================================================== -->
+  <!-- MODAL GLOBAL DE CONFIRMAÇÃO DE BAIXA E REGISTRO DE PAGAMENTO COM JUROS/DESCONTO -->
+  <!-- ===================================================================== -->
+  <div id="modal-baixa-pagamento-global" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 sm:p-6 shadow-2xl space-y-4 my-8">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+            💸
+          </div>
+          <div>
+            <h3 class="font-extrabold text-base text-slate-900 dark:text-white" id="modal-baixa-titulo">Registrar Pagamento</h3>
+            <p id="modal-baixa-subtitulo" class="text-xs text-slate-500 dark:text-slate-400 font-medium truncate max-w-xs"></p>
+          </div>
+        </div>
+        <button type="button" onclick="fecharModalBaixaGlobal()" class="p-1 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <form id="form-baixa-pagamento-global" onsubmit="submeterBaixaPagamentoGlobal(event)" class="space-y-3.5">
+        <input type="hidden" id="modal-baixa-transacao-id" name="transacao_id">
+        <input type="hidden" id="modal-baixa-modo" name="modo" value="individual">
+        <input type="hidden" id="modal-baixa-grupo-ids" name="grupo_ids" value="">
+
+        <!-- a) Valor Original (apenas leitura / referência) -->
+        <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/60 flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-600 dark:text-slate-400">Valor Original da Obrigação:</span>
+          <span id="modal-baixa-valor-original-fmt" class="text-sm font-extrabold text-slate-900 dark:text-white">R$ 0,00</span>
+          <input type="hidden" id="modal-baixa-valor-original" value="0.00">
+        </div>
+
+        <!-- b) Juros / Multa e c) Desconto -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-rose-600 dark:text-rose-400 mb-1">Juros / Multa (+) (R$)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2.5 text-xs font-bold text-rose-400">R$</span>
+              <input type="text" id="modal-baixa-juros" name="juros" value="0,00"
+                     oninput="aplicarMascaraMoedaGlobal(this); recalcularTotalBaixaGlobal();"
+                     class="w-full pl-9 pr-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 text-xs sm:text-sm font-bold focus:ring-2 focus:ring-rose-500 focus:outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-emerald-600 dark:text-emerald-400 mb-1">Desconto (-) (R$)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2.5 text-xs font-bold text-emerald-400">R$</span>
+              <input type="text" id="modal-baixa-desconto" name="desconto" value="0,00"
+                     oninput="aplicarMascaraMoedaGlobal(this); recalcularTotalBaixaGlobal();"
+                     class="w-full pl-9 pr-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 text-xs sm:text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- d) Valor Total a Pagar em destaque atualizado dinamicamente -->
+        <div class="p-3.5 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
+          <div>
+            <span class="block text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Valor Total a Pagar</span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400">Débito efetivo no saldo</span>
+          </div>
+          <div class="text-right">
+            <span id="modal-baixa-valor-total-fmt" class="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400">R$ 0,00</span>
+            <input type="hidden" id="modal-baixa-valor-total" name="valor_pago" value="0.00">
+          </div>
+        </div>
+
+        <!-- e) Seletor da Conta e Data do Pagamento -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta de Débito*</label>
+            <select id="modal-baixa-select-conta" name="conta_id" required
+                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data do Pagamento*</label>
+            <input type="date" id="modal-baixa-data-pagamento" name="data_pagamento" required
+                   class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Rodapé com Ações -->
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="fecharModalBaixaGlobal()"
+                  class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" id="btn-submit-baixa-global"
+                  class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md active:scale-95 transition flex items-center gap-1.5 cursor-pointer">
+            <span id="btn-submit-baixa-spinner" class="hidden">⏳</span>
+            <span id="btn-submit-baixa-texto">Confirmar Pagamento</span>
+          </button>
+        </div>
       </form>
     </div>
   </div>

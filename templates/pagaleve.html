@@ -290,7 +290,7 @@
                       ✓ Pago
                     </span>
                     {% else %}
-                    <button type="button" onclick='baixarParcelaPl({{ p.id }}, {{ p.descricao | tojson }})'
+                    <button type="button" onclick='baixarParcelaPl({{ p.id }}, {{ p.descricao | tojson }}, {{ p.valor }})'
                       id="btn-baixa-pl-{{ p.id }}"
                       class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] border border-amber-500/40 transition active:scale-95 cursor-pointer">
                       ⚡ Baixar
@@ -479,7 +479,7 @@
                       ✓ Pago
                     </span>
                     {% else %}
-                    <button type="button" onclick='baixarParcelaPl({{ p.id }}, {{ p.descricao | tojson }})'
+                    <button type="button" onclick='baixarParcelaPl({{ p.id }}, {{ p.descricao | tojson }}, {{ p.valor }})'
                       id="btn-baixa-pl-{{ p.id }}"
                       class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-[10px] border border-amber-500/40 transition active:scale-95 cursor-pointer">
                       ⚡ Baixar
@@ -1071,75 +1071,39 @@
     atualizarBarraSelecionadasPl();
   }
 
-  async function pagarParcelasSelecionadasPl() {
+  function pagarParcelasSelecionadasPl() {
     const marcados = Array.from(document.querySelectorAll('.chk-parcela-pl:checked'));
     if (!marcados.length) return;
 
     const ids = marcados.map(el => parseInt(el.dataset.id, 10));
     const total = marcados.reduce((acc, el) => acc + parseFloat(el.dataset.valor || '0'), 0);
     const contaSelect = document.getElementById('select-conta-lote-pl');
-    const contaId = parseInt(contaSelect.value || '1', 10);
+    const contaId = parseInt(contaSelect?.value || '1', 10);
 
-    if (!confirm(`Confirmar a liquidação de ${ids.length} parcela(s) no valor total de ${formatarMoedaJS(total)}?`)) {
-      return;
-    }
-
-    const btn = document.getElementById('btn-confirmar-lote-pl');
-    btn.disabled = true;
-    btn.textContent = '⏳ Liquidando...';
-
-    try {
-      const res = await fetch('/api/pagaleve/pagar-selecionadas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          parcela_ids: ids,
-          conta_id: contaId
-        })
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        modo: 'pagaleve',
+        ids: ids,
+        desc: `Paga Leve (${ids.length} parcelas selecionadas)`,
+        valorOriginal: total,
+        contaId: contaId,
+        titulo: 'Pagar Parcelas Selecionadas'
       });
-      const data = await res.json();
-      if (res.ok && data.sucesso) {
-        if (typeof showToast === 'function') showToast('Parcelas Liquidadas!', data.mensagem);
-        setTimeout(() => location.reload(), 600);
-      } else {
-        alert(data.erro || 'Erro ao liquidar parcelas selecionadas.');
-        btn.disabled = false;
-        atualizarBarraSelecionadasPl();
-      }
-    } catch (err) {
-      alert('Erro de conexão ao liquidar parcelas.');
-      btn.disabled = false;
-      atualizarBarraSelecionadasPl();
+      return;
     }
   }
 
-  // Baixa individual rápida
-  async function baixarParcelaPl(id, desc) {
-    const btn = document.getElementById(`btn-baixa-pl-${id}`);
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = '⏳...';
-    }
-
-    try {
-      const res = await fetch(`/api/baixa/${id}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.sucesso) {
-        if (typeof showToast === 'function') showToast('Parcela Baixada!', data.mensagem);
-        setTimeout(() => location.reload(), 600);
-      } else {
-        if (typeof showToast === 'function') showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = '⚡ Baixar';
-        }
-      }
-    } catch (err) {
-      if (typeof showToast === 'function') showToast('Erro de Conexão', err.message, true);
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '⚡ Baixar';
-      }
+  // Baixa individual com Modal Unificado (Juros, Desconto e Total Dinâmico)
+  function baixarParcelaPl(id, desc, valor) {
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        modo: 'individual',
+        id: id,
+        desc: desc,
+        valorOriginal: valor || 0,
+        titulo: 'Baixar Parcela Paga Leve'
+      });
+      return;
     }
   }
 </script>

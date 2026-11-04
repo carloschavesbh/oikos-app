@@ -779,61 +779,7 @@
   </div>
 </div>
 
-<!-- ===================================================================== -->
-<!-- [ MODAL 1: BAIXA DE CONTA (MANTIDO E PRESERVADO) ]                    -->
-<!-- ===================================================================== -->
-<div id="modal-baixa" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
-    <div class="text-center">
-      <span class="text-3xl">💸</span>
-      <h3 class="text-base font-extrabold text-slate-900 dark:text-white mt-1">Registrar Pagamento</h3>
-      <p id="modal-baixa-desc" class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 font-medium"></p>
-    </div>
-
-    <form id="form-baixa-conta" onsubmit="submeterBaixaConta(event)" class="space-y-3">
-      <input type="hidden" id="modal-baixa-id" name="id">
-
-      <div>
-        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor Efetivamente Pago</label>
-        <div class="relative">
-          <span class="absolute left-3 top-2.5 text-xs font-bold text-slate-400">R$</span>
-          <input type="text" id="modal-baixa-valor" name="valor" required
-                 oninput="mascaraMoedaModal(this)"
-                 class="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-        </div>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data do Pagamento</label>
-        <input type="date" id="modal-baixa-data" name="data" required value="{{ d.hoje_str }}"
-               class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta de Saída (Débito)</label>
-        <select id="modal-baixa-conta" name="conta" required
-                class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          {% for c in d.contas %}
-          <option value="{{ c.nome }}" {% if 'mercado' in c.nome.lower() %}selected{% endif %}>
-            {{ c.nome }} ({{ c.saldo_atual | moeda }})
-          </option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
-        <button type="button" onclick="fecharModalBaixa()"
-                class="touch-target px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-          Cancelar
-        </button>
-        <button type="submit" id="btn-confirmar-baixa"
-                class="touch-target px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md transition">
-          Confirmar Baixa
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
+<!-- Modal de baixa transferido para modal-baixa-pagamento-global em base.html -->
 
 <!-- ===================================================================== -->
 <!-- [ MODAL 2: INFORMAÇÕES DO SALDO E METODOLOGIA ]                      -->
@@ -1059,74 +1005,23 @@
     }
   }
 
-  // Modal de Baixa de Conta
+  // Modal de Baixa de Conta Unificado (com suporte completo a Juros e Desconto)
   function abrirModalBaixa(id, desc, val, contaNome, contaId) {
-    document.getElementById('modal-baixa-id').value = id;
-    document.getElementById('modal-baixa-desc').textContent = desc;
-
-    let v = parseFloat(val) || 0;
-    let partes = v.toFixed(2).split('.');
-    let inteiro = partes[0].replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-    document.getElementById('modal-baixa-valor').value = inteiro + ',' + partes[1];
-
-    if (contaNome) {
-      const sel = document.getElementById('modal-baixa-conta');
-      for (let i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].value === contaNome) {
-          sel.selectedIndex = i;
-          break;
-        }
-      }
+    if (typeof abrirModalBaixaGlobal === 'function') {
+      abrirModalBaixaGlobal({
+        id: id,
+        desc: desc,
+        valorOriginal: val,
+        contaNome: contaNome,
+        contaId: contaId,
+        titulo: 'Registrar Pagamento'
+      });
     }
-    document.getElementById('modal-baixa').classList.remove('hidden');
   }
 
   function fecharModalBaixa() {
-    document.getElementById('modal-baixa').classList.add('hidden');
-  }
-
-  function mascaraMoedaModal(input) {
-    let v = input.value.replace(/\D/g, '');
-    v = (v / 100).toFixed(2) + '';
-    v = v.replace('.', ',');
-    v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
-    input.value = v;
-  }
-
-  async function submeterBaixaConta(e) {
-    e.preventDefault();
-    const btn = document.getElementById('btn-confirmar-baixa');
-    btn.disabled = true;
-    btn.textContent = 'Baixando...';
-
-    const id = document.getElementById('modal-baixa-id').value;
-    const valorStr = document.getElementById('modal-baixa-valor').value.replace(/\./g, '').replace(',', '.');
-    const data = document.getElementById('modal-baixa-data').value;
-    const conta = document.getElementById('modal-baixa-conta').value;
-
-    const fd = new FormData();
-    fd.append('valor_pago', valorStr);
-    fd.append('data_pagamento', data);
-    fd.append('conta', conta);
-
-    try {
-      const res = await fetch(`/api/lancamentos/${id}/baixar`, {
-        method: 'POST',
-        body: fd
-      });
-      const dataJson = await res.json();
-      if (dataJson.sucesso) {
-        showToast('Sucesso', dataJson.mensagem || 'Pagamento registrado com sucesso!');
-        fecharModalBaixa();
-        setTimeout(() => location.reload(), 800);
-      } else {
-        showToast('Erro', dataJson.erro || 'Falha ao registrar pagamento', true);
-      }
-    } catch (err) {
-      showToast('Erro', err.message, true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Confirmar Baixa';
+    if (typeof fecharModalBaixaGlobal === 'function') {
+      fecharModalBaixaGlobal();
     }
   }
 

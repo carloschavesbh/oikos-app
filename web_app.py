@@ -763,9 +763,9 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     fat_99_mes = float(prod_99.get("total_mes_bruto", 0.0))
     fat_99_semana = float(prod_99.get("semana", {}).get("bruto", 0.0))
 
-    # 3. Despesas do Mês (Pagas + Pendentes do Mês)
+    # 3. Despesas do Mês (Pagas com valor liquidado + Pendentes do Mês)
     cur.execute("""
-        SELECT COALESCE(SUM(valor), 0) FROM transacoes
+        SELECT COALESCE(SUM(COALESCE(valor_pago, valor)), 0) FROM transacoes
         WHERE tipo = 'despesa' AND pago = 1 AND data >= ? AND data <= ?
     """, (inicio_mes_str, fim_mes_str))
     despesas_pagas_mes = float(cur.fetchone()[0] or 0.0)
@@ -3617,28 +3617,48 @@ async def api_pagaleve_pagar_selecionadas(request: Request):
         if not pendentes:
             return JSONResponse(status_code=400, content={"sucesso": False, "erro": "As parcelas selecionadas já estão quitadas."})
 
-        total_liquidado = round(sum(float(r["valor"] or 0.0) for r in pendentes), 2)
+        def _sanitizar_pl(v_raw):
+            if v_raw is None: return 0.0
+            if isinstance(v_raw, (int, float)): return float(v_raw)
+            s = str(v_raw).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".").strip()
+            try: return float(s) if s else 0.0
+            except Exception: return 0.0
+
+        juros_pl = _sanitizar_pl(data.get("juros") or data.get("valor_encargos"))
+        desconto_pl = _sanitizar_pl(data.get("desconto") or data.get("valor_desconto"))
+
+        nominal_total = round(sum(float(r["valor"] or 0.0) for r in pendentes), 2)
+        total_liquidado = round(nominal_total + juros_pl - desconto_pl, 2)
         qtd_liquidadas = len(pendentes)
-        obs_lote = f"Saída única Paga Leve ({qtd_liquidadas} parcela(s) - {formatar_moeda_br(total_liquidado)}) debitada em {conta_nome}"
+        obs_lote = f"Saída Paga Leve ({qtd_liquidadas} parcela(s) - {formatar_moeda_br(total_liquidado)}) debitada em {conta_nome}"
+        if juros_pl > 0: obs_lote += f" [+Juros: {formatar_moeda_br(juros_pl)}]"
+        if desconto_pl > 0: obs_lote += f" [-Desc: {formatar_moeda_br(desconto_pl)}]"
 
         grupos_afetados = set()
-        for r in pendentes:
+        for idx, r in enumerate(pendentes):
             pid = int(r["id"])
             val_p = float(r["valor"] or 0.0)
             if r["grupo_parcelamento"]:
                 grupos_afetados.add(r["grupo_parcelamento"])
 
+            # Atribui juros/desconto na primeira parcela para ajuste contábil exato
+            j_parc = juros_pl if idx == 0 else 0.0
+            d_parc = desconto_pl if idx == 0 else 0.0
+            val_efetivo = round(val_p + j_parc - d_parc, 2)
+
             saldo_service.registrar_pagamento(
                 conn=conn,
                 transacao_id=pid,
                 data_pagamento=data_pagamento,
-                valor_pago=val_p,
+                valor_pago=val_efetivo,
                 conta_id=conta_id,
                 afeta_saldo_bancario=1,
                 considerado_no_marco=0,
                 forma_pagamento="Pix",
                 observacao=obs_lote,
-                tipo_ajuste_valor="normal"
+                tipo_ajuste_valor="juros_multa" if j_parc > 0 else ("desconto" if d_parc > 0 else "normal"),
+                valor_encargos=j_parc,
+                valor_desconto=d_parc
             )
 
         # Atualiza status para 'quitada' nos contratos que não possuem mais parcelas pendentes
@@ -5850,6 +5870,7 @@ async def api_dados():
 @app.post("/api/contas_pagar/pagar/{transacao_id}")
 @app.post("/api/obrigacoes/baixar")
 @app.post("/api/obrigacoes/baixar/{transacao_id}")
+@app.post("/api/lancamentos/{transacao_id}/baixar")
 async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None):
     """
     Executa a baixa imediata e oficial de uma conta a pagar no banco SQLite:
@@ -5884,11 +5905,42 @@ async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None)
         if not resumo:
             raise HTTPException(status_code=404, detail="Obrigação não encontrada.")
 
-        val_devedor = float(resumo["saldo_devedor"])
-        if val_devedor <= 0:
-            val_devedor = float(resumo.get("valor_original") or 0.0)
+        val_nominal = float(resumo.get("valor_original") or resumo.get("saldo_devedor") or 0.0)
 
-        hoje_str = str(payload.get("data_pagamento") or date.today().strftime("%Y-%m-%d"))[:10]
+        def _sanitizar_moeda(v_raw):
+            if v_raw is None:
+                return 0.0
+            if isinstance(v_raw, (int, float)):
+                return float(v_raw)
+            s = str(v_raw).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".").strip()
+            try:
+                return float(s) if s else 0.0
+            except Exception:
+                return 0.0
+
+        juros = _sanitizar_moeda(payload.get("juros") or payload.get("valor_encargos"))
+        desconto = _sanitizar_moeda(payload.get("desconto") or payload.get("valor_desconto"))
+
+        raw_vp = payload.get("valor_pago") or payload.get("valor")
+        if raw_vp is not None and str(raw_vp).strip() != "":
+            val_pago = _sanitizar_moeda(raw_vp)
+        else:
+            val_pago = round(val_nominal + juros - desconto, 2)
+
+        if juros == 0.0 and desconto == 0.0 and abs(val_pago - val_nominal) > 0.001:
+            dif = round(val_pago - val_nominal, 2)
+            if dif > 0:
+                juros = dif
+            elif dif < 0:
+                desconto = abs(dif)
+
+        tipo_ajuste = "normal"
+        if juros > 0:
+            tipo_ajuste = "juros_multa"
+        elif desconto > 0:
+            tipo_ajuste = "desconto"
+
+        hoje_str = str(payload.get("data_pagamento") or payload.get("data") or date.today().strftime("%Y-%m-%d"))[:10]
 
         # Identificar conta financeira de débito válida em contas_config
         cur = conn.cursor()
@@ -5933,19 +5985,25 @@ async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None)
 
         conta_nome = mapa_id.get(conta_id, "Mercado Pago")
 
+        obs_baixa = f"Baixa de conta a pagar: {resumo['descricao']} ({resumo.get('categoria') or 'Geral'})"
+        if juros > 0:
+            obs_baixa += f" [+Juros: {formatar_moeda_br(juros)}]"
+        if desconto > 0:
+            obs_baixa += f" [-Desc: {formatar_moeda_br(desconto)}]"
+
         saldo_service.registrar_pagamento(
             conn=conn,
             transacao_id=transacao_id,
             data_pagamento=hoje_str,
-            valor_pago=val_devedor,
+            valor_pago=val_pago,
             conta_id=conta_id,
             afeta_saldo_bancario=1,
             considerado_no_marco=0,
             forma_pagamento=str(payload.get("forma_pagamento") or "Pix"),
-            observacao=f"Baixa de conta a pagar: {resumo['descricao']} ({resumo.get('categoria') or 'Geral'})",
-            tipo_ajuste_valor="normal",
-            valor_encargos=0.0,
-            valor_desconto=0.0
+            observacao=obs_baixa,
+            tipo_ajuste_valor=tipo_ajuste,
+            valor_encargos=juros,
+            valor_desconto=desconto
         )
         conn.commit()
 
@@ -5965,11 +6023,14 @@ async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None)
 
         return {
             "sucesso": True,
-            "mensagem": f"Baixa de '{resumo['descricao']}' ({formatar_moeda_br(val_devedor)}) debitada de {conta_nome}!",
+            "mensagem": f"Baixa de '{resumo['descricao']}' ({formatar_moeda_br(val_pago)}) debitada de {conta_nome}!",
             "transacao_id": transacao_id,
             "status": "PAGA",
             "data_liquidacao": hoje_str,
-            "valor_baixado": val_devedor,
+            "valor_baixado": val_pago,
+            "valor_original": val_nominal,
+            "juros": juros,
+            "desconto": desconto,
             "conta_id": conta_id,
             "conta_nome": conta_nome,
             "novo_saldo_conta": novo_saldo_conta_fmt,
@@ -6785,36 +6846,53 @@ async def api_grupo_baixar(request: Request):
         baixadas = 0
         total_baixado = 0.0
 
+        def _sanitizar_grp(v_raw):
+            if v_raw is None: return 0.0
+            if isinstance(v_raw, (int, float)): return float(v_raw)
+            s = str(v_raw).replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".").strip()
+            try: return float(s) if s else 0.0
+            except Exception: return 0.0
+
+        juros_grp = _sanitizar_grp(payload.get("juros") or payload.get("valor_encargos"))
+        desconto_grp = _sanitizar_grp(payload.get("desconto") or payload.get("valor_desconto"))
+        conta_req = payload.get("conta_id") or payload.get("conta")
+        data_pagamento = str(payload.get("data_pagamento") or hoje_str)[:10]
+
         cur.execute("SELECT id, nome FROM contas_config WHERE nome = 'Mercado Pago'")
         r_mp = cur.fetchone()
         cid_padrao = r_mp["id"] if r_mp else 1
 
-        for tid in transacao_ids:
+        for idx, tid in enumerate(transacao_ids):
             cur.execute("SELECT id, pago, valor, conta, conta_id, descricao FROM transacoes WHERE id = ?", (tid,))
             r = cur.fetchone()
             if r and r["pago"] == 0:
                 val = float(r["valor"] or 0.0)
-                cid = r["conta_id"] if r["conta_id"] else cid_padrao
+                cid = conta_req if conta_req else (r["conta_id"] if r["conta_id"] else cid_padrao)
+                j_item = juros_grp if idx == 0 else 0.0
+                d_item = desconto_grp if idx == 0 else 0.0
+                val_item_pago = round(val + j_item - d_item, 2)
                 try:
                     saldo_service.registrar_pagamento(
                         conn=conn,
                         transacao_id=tid,
-                        data_pagamento=hoje_str,
-                        valor_pago=val,
+                        data_pagamento=data_pagamento,
+                        valor_pago=val_item_pago,
                         conta_id=cid,
                         afeta_saldo_bancario=1,
                         considerado_no_marco=0,
-                        forma_pagamento="Pix"
+                        forma_pagamento="Pix",
+                        tipo_ajuste_valor="juros_multa" if j_item > 0 else ("desconto" if d_item > 0 else "normal"),
+                        valor_encargos=j_item,
+                        valor_desconto=d_item
                     )
                 except Exception:
-                    # Fallback direto se já houver registro parcial
                     cur.execute("""
                         UPDATE transacoes
-                        SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?
+                        SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?, valor_pago = ?, juros = ?, desconto = ?
                         WHERE id = ?
-                    """, (hoje_str, tid))
+                    """, (data_pagamento, val_item_pago, j_item, d_item, tid))
                 baixadas += 1
-                total_baixado += val
+                total_baixado += val_item_pago
 
         conn.commit()
         return {
