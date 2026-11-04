@@ -4060,6 +4060,250 @@ async def api_salvar_limite_categoria(
         conn.close()
 
 
+def calcular_metricas_drive_consolidado(conn, turnos=None, ano=None, mes=None):
+    """Calcula de forma consolidada os indicadores operacionais de Drive por período."""
+    hoje = date.today()
+    if ano is None:
+        ano = hoje.year
+    if mes is None or mes < 1 or mes > 12:
+        mes = hoje.month
+
+    hoje_str = hoje.strftime("%Y-%m-%d")
+    eh_mes_atual = (ano == hoje.year and mes == hoje.month)
+    ultimo_dia = calendar.monthrange(ano, mes)[1]
+    inicio_mes = f"{ano}-{mes:02d}-01"
+    fim_mes = f"{ano}-{mes:02d}-{ultimo_dia:02d}"
+
+    MESES_PT = [
+        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+    mes_nome = MESES_PT[mes]
+
+    cur = conn.cursor()
+    cur.execute("SELECT date(?, 'weekday 0', '-6 days'), date(?, 'weekday 0')", (hoje_str, hoje_str))
+    row_sem = cur.fetchone()
+    inicio_semana = row_sem[0] if row_sem else (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
+    fim_semana = row_sem[1] if row_sem else (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
+
+    dia_ref = min(hoje.day if eh_mes_atual else ultimo_dia, ultimo_dia)
+    data_ref_drive = date(ano, mes, dia_ref)
+    prod_99 = saldo_service.obter_producao_consolidada_99(conn, data_ref=data_ref_drive)
+    total_mes_bruto = float(prod_99.get("total_mes_bruto", 0.0))
+    semana_bruto = float(prod_99.get("semana", {}).get("bruto", 0.0))
+
+    if turnos is None:
+        cur.execute("""
+            SELECT id, data, horas, km, ganho_bruto, combustivel, status_turno
+            FROM turnos
+            ORDER BY data DESC, id DESC
+        """)
+        turnos = []
+        for r in cur.fetchall():
+            turnos.append({
+                "id": r["id"],
+                "data": str(r["data"])[:10],
+                "km": float(r["km"] or 0.0),
+                "ganho_bruto": float(r["ganho_bruto"] or 0.0),
+                "combustivel": float(r["combustivel"] or 0.0),
+                "horas": float(r["horas"] or 0.0),
+                "status_turno": str(r["status_turno"] or "FINALIZADO")
+            })
+
+    cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
+    cols_ab = [c[1] if isinstance(c, tuple) else c["name"] for c in cur.fetchall()]
+    if "app_desconto" not in cols_ab:
+        cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
+        conn.commit()
+
+    cur.execute("""
+        SELECT id, data, valor_bruto, desconto, valor_pago, litros, combustivel,
+               preco_litro, posto, hodometro, observacao, COALESCE(app_desconto, '') as app_desconto,
+               COALESCE(conta, 'Dinheiro / Carteira') as conta, transacao_id
+        FROM veiculo_abastecimentos
+        ORDER BY data DESC, id DESC
+    """)
+    abasts_raw = cur.fetchall()
+    abastecimentos = []
+    for a in abasts_raw:
+        dt_str = str(a["data"])[:10]
+        try:
+            dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
+        except Exception:
+            dt_fmt = dt_str
+
+        val_pago = round(float(a["valor_pago"] or 0.0), 2)
+        val_bomba = round(float(a["valor_bruto"] or val_pago), 2)
+        economia = round(max(0.0, val_bomba - val_pago), 2) if val_bomba > val_pago else round(float(a["desconto"] or 0.0), 2)
+        if val_bomba < val_pago + economia:
+            val_bomba = round(val_pago + economia, 2)
+
+        pct_economia = round((economia / val_bomba) * 100.0, 1) if (val_bomba > 0 and economia > 0) else 0.0
+        lits = round(float(a["litros"] or 0.0), 3)
+        preco_real_litro = round(val_pago / lits, 3) if lits > 0 else float(a["preco_litro"] or 0.0)
+        preco_bomba_litro = round(val_bomba / lits, 3) if lits > 0 else preco_real_litro
+
+        app_raw = (a["app_desconto"] or "").strip()
+        obs_str = a["observacao"] or ""
+        if not app_raw or app_raw == "Nenhum":
+            if economia > 0:
+                obs_low = obs_str.lower()
+                if "99" in obs_low:
+                    app_nome = "99 Abastece"
+                elif "shell" in obs_low:
+                    app_nome = "Shell Box"
+                elif "soutag" in obs_low:
+                    app_nome = "SouTag"
+                elif "premmia" in obs_low:
+                    app_nome = "Premmia"
+                else:
+                    app_nome = "Posto / Outro"
+            else:
+                app_nome = "Nenhum"
+        else:
+            app_nome = app_raw
+
+        economia_badge = f"Economia de {formatar_moeda_br(economia)} ({pct_economia:.1f}%) via {app_nome}" if economia > 0 else ""
+
+        abastecimentos.append({
+            "id": a["id"],
+            "data": dt_str,
+            "data_formatada": dt_fmt,
+            "valor_bomba": val_bomba,
+            "valor_pago": val_pago,
+            "economia": economia,
+            "pct_economia": pct_economia,
+            "app_desconto": app_nome,
+            "economia_badge": economia_badge,
+            "litros": lits,
+            "combustivel": a["combustivel"] or "Etanol",
+            "preco_litro": preco_real_litro,
+            "preco_bomba_litro": preco_bomba_litro,
+            "posto": a["posto"] or "Posto de Combustível",
+            "conta": a["conta"] or "Dinheiro / Carteira",
+            "hodometro": float(a["hodometro"] or 0.0),
+            "observacao": obs_str,
+            "transacao_id": a["transacao_id"]
+        })
+
+    tot_litros_global = sum(a["litros"] for a in abastecimentos)
+    tot_pago_global = sum(a["valor_pago"] for a in abastecimentos)
+    tot_km_global = sum(t["km"] for t in turnos)
+    custo_km_global = round(tot_pago_global / tot_km_global, 2) if (tot_km_global > 0 and tot_pago_global > 0) else 0.28
+    kml_global = round(tot_km_global / tot_litros_global, 2) if (tot_litros_global > 0 and tot_km_global > 0) else 0.0
+
+    def calcular_metricas(p_tipo):
+        if p_tipo == "hoje":
+            t_filtro = [t for t in turnos if t["data"] == hoje_str]
+            a_filtro = [a for a in abastecimentos if a["data"] == hoje_str]
+            bruto = sum(t["ganho_bruto"] for t in t_filtro)
+            abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
+            tot_km = sum(t["km"] for t in t_filtro)
+            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
+            comb_est = sum(t["combustivel"] for t in t_filtro)
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else (custo_km_global if tot_km > 0 else 0.0)
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
+            caixa_liquido = bruto - abast_real
+            sub_bruto = f"{len(t_filtro)} turno(s) hoje"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{len(a_filtro)} abastecimento(s) hoje"
+            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km hoje" if kml_periodo > 0 else f"{round(tot_km, 1)} km hoje"
+            sub_liq = "Bruto (-) Valor Pago Real"
+
+        elif p_tipo == "semana":
+            t_filtro = [t for t in turnos if inicio_semana <= t["data"] <= fim_semana]
+            a_filtro = [a for a in abastecimentos if inicio_semana <= a["data"] <= fim_semana]
+            bruto = sum(t["ganho_bruto"] for t in t_filtro) if t_filtro else semana_bruto
+            abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
+            tot_km = sum(t["km"] for t in t_filtro)
+            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
+            comb_est = sum(t["combustivel"] for t in t_filtro)
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
+            caixa_liquido = bruto - abast_real
+            sub_bruto = f"{formatar_moeda_br(bruto)} na semana"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
+            sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
+
+        elif p_tipo == "mes":
+            t_filtro = [t for t in turnos if inicio_mes <= t["data"] <= fim_mes]
+            a_filtro = [a for a in abastecimentos if inicio_mes <= a["data"] <= fim_mes]
+            soma_turnos_mes = sum(t["ganho_bruto"] for t in t_filtro)
+            if eh_mes_atual:
+                bruto = total_mes_bruto if total_mes_bruto > soma_turnos_mes else soma_turnos_mes
+            else:
+                bruto = soma_turnos_mes
+            abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
+            tot_km = sum(t["km"] for t in t_filtro)
+            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
+            comb_est = sum(t["combustivel"] for t in t_filtro)
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
+            caixa_liquido = bruto - abast_real
+            sub_bruto = f"{formatar_moeda_br(bruto)} em {mes_nome}"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
+            sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
+
+        else: # todos
+            t_filtro = turnos
+            a_filtro = abastecimentos
+            bruto = total_mes_bruto
+            abast_real = sum(a["valor_pago"] for a in a_filtro)
+            tot_litros = sum(a["litros"] for a in a_filtro)
+            tot_econ = sum(a["economia"] for a in a_filtro)
+            tot_km = sum(t["km"] for t in t_filtro)
+            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
+            comb_est = sum(t["combustivel"] for t in t_filtro)
+            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
+            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
+            caixa_liquido = bruto - abast_real
+            sub_bruto = "Acumulado Histórico"
+            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
+            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km" if kml_periodo > 0 else f"{round(tot_km, 1)} km registrados"
+            sub_liq = "Bruto (-) Valor Pago Real"
+
+        h_fechadas = round(tot_horas, 2)
+        ganho_hora = round(bruto / h_fechadas, 2) if (h_fechadas > 0 and bruto > 0) else 0.0
+        sub_horas = f"Ganho Médio: {formatar_moeda_br(ganho_hora)}/h" if ganho_hora > 0 else "Sem horas fechadas"
+
+        return {
+            "bruto": bruto,
+            "abastecido_real": abast_real,
+            "consumo_estimado_km": consumo_km,
+            "km_por_litro": kml_periodo,
+            "economia_total": tot_econ,
+            "litros_total": round(tot_litros, 2),
+            "caixa_liquido": caixa_liquido,
+            "total_km": round(tot_km, 1),
+            "total_horas": round(tot_horas, 1),
+            "ganho_hora": ganho_hora,
+            "ganho_hora_formatado": formatar_moeda_br(ganho_hora) + "/h" if ganho_hora > 0 else "--",
+            "sub_horas": sub_horas,
+            "combustivel_estimado_total": comb_est,
+            "sub_bruto": sub_bruto,
+            "sub_abast": sub_abast,
+            "sub_km": sub_km,
+            "sub_liq": sub_liq,
+            "turnos_count": len(t_filtro)
+        }
+
+    periodos_dados = {
+        "hoje": calcular_metricas("hoje"),
+        "semana": calcular_metricas("semana"),
+        "mes": calcular_metricas("mes"),
+        "todos": calcular_metricas("todos")
+    }
+
+    return periodos_dados, abastecimentos
+
+
 @app.get("/drive", response_class=HTMLResponse)
 @app.get("/motorista", response_class=HTMLResponse)
 @app.get("/oikos-drive", response_class=HTMLResponse)
@@ -4306,199 +4550,8 @@ async def pagina_motorista(
 
     turno_ativo_json = json.dumps(turno_ativo, default=str) if turno_ativo else "null"
 
-    # Abastecimentos reais registrados (Drivvo)
-    cur.execute("PRAGMA table_info(veiculo_abastecimentos)")
-    cols_abast = [c["name"] for c in cur.fetchall()]
-    if "app_desconto" not in cols_abast:
-        cur.execute("ALTER TABLE veiculo_abastecimentos ADD COLUMN app_desconto TEXT DEFAULT 'Nenhum'")
-        conn.commit()
-
-    cur.execute("""
-        SELECT id, data, valor_bruto, desconto, valor_pago, litros, combustivel,
-               preco_litro, posto, hodometro, observacao, COALESCE(app_desconto, '') as app_desconto,
-               COALESCE(conta, 'Dinheiro / Carteira') as conta
-        FROM veiculo_abastecimentos
-        ORDER BY data DESC, id DESC
-    """)
-    abasts_raw = cur.fetchall()
-    abastecimentos = []
-    for a in abasts_raw:
-        dt_str = str(a["data"])[:10]
-        try:
-            dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m")
-        except Exception:
-            dt_fmt = dt_str
-
-        val_pago = round(float(a["valor_pago"] or 0.0), 2)
-        val_bomba = round(float(a["valor_bruto"] or val_pago), 2)
-        economia = round(max(0.0, val_bomba - val_pago), 2) if val_bomba > val_pago else round(float(a["desconto"] or 0.0), 2)
-        if val_bomba < val_pago + economia:
-            val_bomba = round(val_pago + economia, 2)
-
-        pct_economia = round((economia / val_bomba) * 100.0, 1) if (val_bomba > 0 and economia > 0) else 0.0
-        lits = round(float(a["litros"] or 0.0), 3)
-        # Preço Real por Litro = Valor Pago Real / Litros
-        preco_real_litro = round(val_pago / lits, 3) if lits > 0 else float(a["preco_litro"] or 0.0)
-        preco_bomba_litro = round(val_bomba / lits, 3) if lits > 0 else preco_real_litro
-
-        app_raw = (a["app_desconto"] or "").strip()
-        obs_str = a["observacao"] or ""
-        if not app_raw or app_raw == "Nenhum":
-            if economia > 0:
-                obs_low = obs_str.lower()
-                if "99" in obs_low:
-                    app_nome = "99 Abastece"
-                elif "shell" in obs_low:
-                    app_nome = "Shell Box"
-                elif "soutag" in obs_low:
-                    app_nome = "SouTag"
-                elif "premmia" in obs_low:
-                    app_nome = "Premmia"
-                else:
-                    app_nome = "Posto / Outro"
-            else:
-                app_nome = "Nenhum"
-        else:
-            app_nome = app_raw
-
-        economia_badge = f"Economia de {formatar_moeda_br(economia)} ({pct_economia:.1f}%) via {app_nome}" if economia > 0 else ""
-
-        abastecimentos.append({
-            "id": a["id"],
-            "data": dt_str,
-            "data_formatada": dt_fmt,
-            "valor_bomba": val_bomba,
-            "valor_pago": val_pago,
-            "economia": economia,
-            "pct_economia": pct_economia,
-            "app_desconto": app_nome,
-            "economia_badge": economia_badge,
-            "litros": lits,
-            "combustivel": a["combustivel"] or "Etanol",
-            "preco_litro": preco_real_litro,
-            "preco_bomba_litro": preco_bomba_litro,
-            "posto": a["posto"] or "Posto de Combustível",
-            "conta": a["conta"] or "Dinheiro / Carteira",
-            "hodometro": float(a["hodometro"] or 0.0),
-            "observacao": obs_str
-        })
-
-    # Totais globais de abastecimento real para referência de consumo (km/L e custo/km)
-    tot_litros_global = sum(a["litros"] for a in abastecimentos)
-    tot_pago_global = sum(a["valor_pago"] for a in abastecimentos)
-    tot_km_global = sum(t["km"] for t in turnos)
-    custo_km_global = round(tot_pago_global / tot_km_global, 2) if (tot_km_global > 0 and tot_pago_global > 0) else 0.28
-    kml_global = round(tot_km_global / tot_litros_global, 2) if (tot_litros_global > 0 and tot_km_global > 0) else 0.0
-
-    # CÁLCULO DOS 4 INDICADORES OPERACIONAIS POR PERÍODO
-    def calcular_metricas(p_tipo):
-        if p_tipo == "hoje":
-            t_filtro = [t for t in turnos if t["data"] == hoje_str]
-            a_filtro = [a for a in abastecimentos if a["data"] == hoje_str]
-            bruto = sum(t["ganho_bruto"] for t in t_filtro)
-            abast_real = sum(a["valor_pago"] for a in a_filtro)
-            tot_litros = sum(a["litros"] for a in a_filtro)
-            tot_econ = sum(a["economia"] for a in a_filtro)
-            tot_km = sum(t["km"] for t in t_filtro)
-            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
-            comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else (custo_km_global if tot_km > 0 else 0.0)
-            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
-            caixa_liquido = bruto - abast_real
-            sub_bruto = f"{len(t_filtro)} turno(s) hoje"
-            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{len(a_filtro)} abastecimento(s) hoje"
-            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km hoje" if kml_periodo > 0 else f"{round(tot_km, 1)} km hoje"
-            sub_liq = "Bruto (-) Valor Pago Real"
-
-        elif p_tipo == "semana":
-            t_filtro = [t for t in turnos if inicio_semana <= t["data"] <= fim_semana]
-            a_filtro = [a for a in abastecimentos if inicio_semana <= a["data"] <= fim_semana]
-            bruto = sum(t["ganho_bruto"] for t in t_filtro) if t_filtro else semana_bruto
-            abast_real = sum(a["valor_pago"] for a in a_filtro)
-            tot_litros = sum(a["litros"] for a in a_filtro)
-            tot_econ = sum(a["economia"] for a in a_filtro)
-            tot_km = sum(t["km"] for t in t_filtro)
-            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
-            comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
-            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
-            caixa_liquido = bruto - abast_real
-            sub_bruto = f"{formatar_moeda_br(bruto)} na semana"
-            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
-            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
-            sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
-
-        elif p_tipo == "mes":
-            t_filtro = [t for t in turnos if inicio_mes <= t["data"] <= fim_mes]
-            a_filtro = [a for a in abastecimentos if inicio_mes <= a["data"] <= fim_mes]
-            soma_turnos_mes = sum(t["ganho_bruto"] for t in t_filtro)
-            if eh_mes_atual:
-                bruto = total_mes_bruto if total_mes_bruto > soma_turnos_mes else soma_turnos_mes
-            else:
-                bruto = soma_turnos_mes
-            abast_real = sum(a["valor_pago"] for a in a_filtro)
-            tot_litros = sum(a["litros"] for a in a_filtro)
-            tot_econ = sum(a["economia"] for a in a_filtro)
-            tot_km = sum(t["km"] for t in t_filtro)
-            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
-            comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
-            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
-            caixa_liquido = bruto - abast_real
-            sub_bruto = f"{formatar_moeda_br(bruto)} em {mes_nome}"
-            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
-            sub_km = f"{kml_periodo:.1f} km/L em {round(tot_km, 1)} km" if kml_periodo > 0 else f"R$ {comb_est:.2f} em {round(tot_km, 1)} km"
-            sub_liq = f"R$ {bruto:.2f} - R$ {abast_real:.2f}"
-
-        else: # todos
-            t_filtro = turnos
-            a_filtro = abastecimentos
-            bruto = total_mes_bruto
-            abast_real = sum(a["valor_pago"] for a in a_filtro)
-            tot_litros = sum(a["litros"] for a in a_filtro)
-            tot_econ = sum(a["economia"] for a in a_filtro)
-            tot_km = sum(t["km"] for t in t_filtro)
-            tot_horas = sum(t["horas"] for t in t_filtro if t["status_turno"].upper() != "EM_ANDAMENTO")
-            comb_est = sum(t["combustivel"] for t in t_filtro)
-            consumo_km = round(abast_real / tot_km, 2) if (tot_km > 0 and abast_real > 0) else custo_km_global
-            kml_periodo = round(tot_km / tot_litros, 2) if (tot_km > 0 and tot_litros > 0) else kml_global
-            caixa_liquido = bruto - abast_real
-            sub_bruto = "Acumulado Histórico"
-            sub_abast = f"{tot_litros:.2f} L • Econ: {formatar_moeda_br(tot_econ)}" if tot_econ > 0 else f"{tot_litros:.2f} L abastecidos"
-            sub_km = f"{kml_periodo:.1f} km/L • {round(tot_km, 1)} km" if kml_periodo > 0 else f"{round(tot_km, 1)} km registrados"
-            sub_liq = "Bruto (-) Valor Pago Real"
-
-        h_fechadas = round(tot_horas, 2)
-        ganho_hora = round(bruto / h_fechadas, 2) if (h_fechadas > 0 and bruto > 0) else 0.0
-        sub_horas = f"Ganho Médio: {formatar_moeda_br(ganho_hora)}/h" if ganho_hora > 0 else "Sem horas fechadas"
-
-        return {
-            "bruto": bruto,
-            "abastecido_real": abast_real,
-            "consumo_estimado_km": consumo_km,
-            "km_por_litro": kml_periodo,
-            "economia_total": tot_econ,
-            "litros_total": round(tot_litros, 2),
-            "caixa_liquido": caixa_liquido,
-            "total_km": round(tot_km, 1),
-            "total_horas": round(tot_horas, 1),
-            "ganho_hora": ganho_hora,
-            "ganho_hora_formatado": formatar_moeda_br(ganho_hora) + "/h" if ganho_hora > 0 else "--",
-            "sub_horas": sub_horas,
-            "combustivel_estimado_total": comb_est,
-            "sub_bruto": sub_bruto,
-            "sub_abast": sub_abast,
-            "sub_km": sub_km,
-            "sub_liq": sub_liq,
-            "turnos_count": len(t_filtro)
-        }
-
-    periodos_dados = {
-        "hoje": calcular_metricas("hoje"),
-        "semana": calcular_metricas("semana"),
-        "mes": calcular_metricas("mes"),
-        "todos": calcular_metricas("todos")
-    }
+    # Indicadores e abastecimentos consolidados
+    periodos_dados, abastecimentos = calcular_metricas_drive_consolidado(conn, turnos=turnos, ano=ano, mes=mes)
 
     filtro_ativo = filtro if filtro in periodos_dados else "semana"
     metricas_ativas = periodos_dados[filtro_ativo]
@@ -4976,6 +5029,210 @@ async def api_adicionar_tempo_pausa(
         conn.close()
 
 
+
+@app.post("/api/drive/abastecimentos/{abastecimento_id}")
+@app.put("/api/drive/abastecimentos/{abastecimento_id}")
+@app.post("/api/drive/abastecimentos/{abastecimento_id}/editar")
+async def api_drive_abastecimento_editar(request: Request, abastecimento_id: int):
+    """Edita um abastecimento real (Drivvo) e atualiza a transação financeira vinculada."""
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM veiculo_abastecimentos WHERE id = ?", (abastecimento_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Abastecimento não encontrado."})
+
+        data_raw = str(data.get("data") or row["data"] or "").strip()[:10]
+        if not data_raw:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Data do abastecimento é obrigatória."})
+
+        comb_nome = str(data.get("combustivel") or row["combustivel"] or "Etanol").strip()
+        posto_nome = str(data.get("posto") or row["posto"] or "Posto de Combustível").strip()
+        obs_txt = str(data.get("observacao") if data.get("observacao") is not None else (row["observacao"] or "")).strip()
+
+        try:
+            val_pago = converter_valor_monetario(data.get("valor_pago"))
+        except Exception:
+            val_pago = float(row["valor_pago"] or 0.0)
+
+        try:
+            lits = converter_valor_monetario(data.get("litros"))
+        except Exception:
+            lits = float(row["litros"] or 0.0)
+
+        if val_pago <= 0 or lits <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Valor pago real e litros devem ser maiores que zero."})
+
+        raw_bomba = data.get("valor_bomba") or data.get("valor_bruto")
+        try:
+            val_bomba = converter_valor_monetario(raw_bomba) if raw_bomba else 0.0
+        except Exception:
+            val_bomba = 0.0
+
+        try:
+            desc_in = converter_valor_monetario(data.get("desconto")) if data.get("desconto") else 0.0
+        except Exception:
+            desc_in = 0.0
+
+        raw_app = data.get("app_desconto") or data.get("origem_desconto")
+        app_nome = str(raw_app).strip() if (raw_app and str(raw_app).strip() != "") else (row["app_desconto"] or "Nenhum")
+
+        if desc_in > 0 and val_bomba <= val_pago:
+            desc_val = desc_in
+            val_bomba = round(val_pago + desc_val, 2)
+        elif val_bomba >= val_pago and val_bomba > 0:
+            desc_val = round(max(0.0, val_bomba - val_pago), 2)
+        else:
+            desc_val = round(max(0.0, desc_in), 2)
+            val_bomba = round(val_pago + desc_val, 2)
+
+        pct_economia = round((desc_val / val_bomba) * 100.0, 1) if (val_bomba > 0 and desc_val > 0) else 0.0
+        calc_preco = round(val_pago / lits, 3)
+
+        raw_conta = data.get("conta") or data.get("conta_pagamento") or row["conta"] or "Mercado Pago"
+        conta_nome = str(raw_conta).strip()
+        if "mercado" in conta_nome.lower():
+            conta_id = 1
+            conta_nome = "Mercado Pago"
+        elif "99" in conta_nome.lower():
+            conta_id = 1779
+            conta_nome = "99Pay"
+        elif "dinheiro" in conta_nome.lower() or "carteira" in conta_nome.lower():
+            conta_id = 2
+            conta_nome = "Dinheiro / Carteira"
+        else:
+            conta_id = row["conta_id"] or 1
+
+        try:
+            hodo_val = float(data.get("hodometro") if data.get("hodometro") is not None else (row["hodometro"] or 0.0))
+        except (TypeError, ValueError):
+            hodo_val = 0.0
+
+        cur.execute("""
+            UPDATE veiculo_abastecimentos
+            SET data = ?, hodometro = ?, combustivel = ?, litros = ?, preco_litro = ?,
+                valor_bruto = ?, desconto = ?, valor_pago = ?, conta = ?, conta_id = ?,
+                posto = ?, observacao = ?, app_desconto = ?
+            WHERE id = ?
+        """, (data_raw, hodo_val, comb_nome, lits, calc_preco, val_bomba,
+              desc_val, val_pago, conta_nome, conta_id, posto_nome, obs_txt,
+              app_nome, abastecimento_id))
+
+        trans_id = row["transacao_id"]
+        if not trans_id:
+            cur.execute("""
+                SELECT id FROM transacoes 
+                WHERE tipo = 'despesa' 
+                  AND categoria = 'Combustível (Trabalho)' 
+                  AND (data = ? OR data = ?)
+                  AND valor = ?
+                LIMIT 1
+            """, (str(row["data"])[:10], data_raw, float(row["valor_pago"] or 0.0)))
+            r_t = cur.fetchone()
+            if r_t:
+                trans_id = r_t[0]
+                cur.execute("UPDATE veiculo_abastecimentos SET transacao_id = ? WHERE id = ?", (trans_id, abastecimento_id))
+
+        if trans_id:
+            desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
+            motivo_desc = f"Economia via {app_nome}" if desc_val > 0 else ""
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?, descricao = ?, valor = ?, conta = ?, conta_id = ?,
+                    desconto = ?, motivo_ajuste = ?
+                WHERE id = ?
+            """, (data_raw, desc_trans, val_pago, conta_nome, conta_id, desc_val, motivo_desc, trans_id))
+
+        conn.commit()
+
+        periodos_dados, _ = calcular_metricas_drive_consolidado(conn)
+        dt_fmt = datetime.datetime.strptime(data_raw, "%Y-%m-%d").strftime("%d/%m")
+
+        return JSONResponse({
+            "sucesso": True,
+            "mensagem": f"Abastecimento de {formatar_moeda_br(val_pago)} ({lits:.2f}L a R$ {calc_preco:.3f}/L) atualizado com sucesso!",
+            "abastecimento": {
+                "id": abastecimento_id,
+                "data": data_raw,
+                "data_formatada": dt_fmt,
+                "posto": posto_nome,
+                "combustivel": comb_nome,
+                "litros": lits,
+                "preco_litro": calc_preco,
+                "preco_bomba_litro": round(val_bomba / lits, 3) if lits > 0 else calc_preco,
+                "valor_bomba": val_bomba,
+                "valor_pago": val_pago,
+                "economia": desc_val,
+                "pct_economia": pct_economia,
+                "app_desconto": app_nome,
+                "conta": conta_nome,
+                "hodometro": hodo_val,
+                "observacao": obs_txt
+            },
+            "periodos_dados": periodos_dados
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/drive/abastecimentos/{abastecimento_id}/excluir")
+@app.delete("/api/drive/abastecimentos/{abastecimento_id}")
+async def api_drive_abastecimento_excluir(request: Request, abastecimento_id: int):
+    """Exclui um abastecimento e sua respectiva transação financeira."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT transacao_id, data, valor_pago FROM veiculo_abastecimentos WHERE id = ?", (abastecimento_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Abastecimento não encontrado."})
+
+        trans_id = row["transacao_id"]
+        dt_antiga = str(row["data"])[:10]
+        val_antigo = float(row["valor_pago"] or 0.0)
+
+        cur.execute("DELETE FROM veiculo_abastecimentos WHERE id = ?", (abastecimento_id,))
+
+        if not trans_id:
+            cur.execute("""
+                SELECT id FROM transacoes 
+                WHERE tipo = 'despesa' 
+                  AND categoria = 'Combustível (Trabalho)' 
+                  AND data = ?
+                  AND valor = ?
+                LIMIT 1
+            """, (dt_antiga, val_antigo))
+            r_t = cur.fetchone()
+            if r_t:
+                trans_id = r_t[0]
+
+        if trans_id:
+            cur.execute("DELETE FROM transacoes WHERE id = ?", (trans_id,))
+
+        conn.commit()
+
+        periodos_dados, _ = calcular_metricas_drive_consolidado(conn)
+        return JSONResponse({
+            "sucesso": True,
+            "mensagem": "Abastecimento excluído com sucesso!",
+            "periodos_dados": periodos_dados
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
 
 @app.post("/motorista/abastecer")
 @app.post("/api/abastecer")

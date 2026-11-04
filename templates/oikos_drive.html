@@ -594,17 +594,18 @@
               <th class="py-3 px-3 sm:px-4">Preço Real / L</th>
               <th class="py-3 px-3 sm:px-4 text-right">Bomba vs Pago Real</th>
               <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Hodômetro</th>
+              <th class="py-3 px-2 sm:px-3 text-center w-20">Ações</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+          <tbody id="tbody-abastecimentos" class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
             {% for a in abastecimentos %}
-            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+            <tr id="abast-row-{{ a.id }}" data-id="{{ a.id }}" data-date="{{ a.data }}" class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
               <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-mono text-xs">
                 {{ a.data_formatada }}
               </td>
               <td class="py-3 px-3 sm:px-4 text-slate-900 dark:text-white font-medium">
                 <div class="flex flex-wrap items-center gap-1.5">
-                  <span>{{ a.posto }}</span>
+                  <span class="posto-nome">{{ a.posto }}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{{ a.combustivel }}</span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">{{ a.conta }}</span>
                 </div>
@@ -634,11 +635,27 @@
               <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-500 dark:text-slate-400 font-mono text-xs">
                 {% if a.hodometro > 0 %}{{ a.hodometro | int }} km{% else %}--{% endif %}
               </td>
+              <td class="py-3 px-2 sm:px-3 text-center whitespace-nowrap">
+                <div class="flex items-center justify-center gap-1">
+                  <button type="button" 
+                          onclick='abrirModalEditarAbastecimento({{ a | tojson }})'
+                          title="Editar abastecimento"
+                          class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                  </button>
+                  <button type="button"
+                          onclick='excluirAbastecimento({{ a.id }}, {{ a.posto | tojson }}, {{ a.valor_pago | tojson }})'
+                          title="Excluir abastecimento"
+                          class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </td>
             </tr>
             {% endfor %}
             {% if not abastecimentos %}
-            <tr>
-              <td colspan="6" class="text-center py-6 text-slate-400 text-xs">
+            <tr id="linha-sem-abastecimentos">
+              <td colspan="7" class="text-center py-6 text-slate-400 text-xs">
                 Nenhum abastecimento Drivvo registrado ainda.
               </td>
             </tr>
@@ -2495,6 +2512,367 @@
   atualizar();
   setInterval(atualizar, 1000);
 })();
+
+  // ==========================================
+  // FUNÇÕES: EDITAR E EXCLUIR ABASTECIMENTO
+  // ==========================================
+
+  function calcularPrecoLitroEdit(origem) {
+    const vb = parseFloat(document.getElementById('edit-abast-valor-bomba').value || 0);
+    const pb = parseFloat(document.getElementById('edit-abast-preco-bomba').value || 0);
+    let lt = parseFloat(document.getElementById('edit-abast-litros').value || 0);
+    let vp = parseFloat(document.getElementById('edit-abast-valor-pago').value || 0);
+
+    if (origem === 'bomba' || origem === 'preco_bomba') {
+      if (vb > 0 && pb > 0) {
+        lt = Number((vb / pb).toFixed(3));
+        document.getElementById('edit-abast-litros').value = lt;
+      }
+      if (vb > 0 && vp === 0) {
+        vp = vb;
+        document.getElementById('edit-abast-valor-pago').value = vp.toFixed(2);
+      }
+    } else if (origem === 'litros') {
+      if (vb > 0 && lt > 0 && pb === 0) {
+        document.getElementById('edit-abast-preco-bomba').value = (vb / lt).toFixed(3);
+      }
+    }
+
+    if (vb > vp && vb > 0 && vp > 0) {
+      document.getElementById('edit-abast-desconto').value = (vb - vp).toFixed(2);
+    } else {
+      document.getElementById('edit-abast-desconto').value = '0.00';
+    }
+
+    const badge = document.getElementById('edit-abast-preco-real-badge');
+    if (vp > 0 && lt > 0) {
+      const precoReal = vp / lt;
+      badge.textContent = `R$ ${precoReal.toFixed(3)} / L`;
+      if (vb > vp) {
+        const econ = vb - vp;
+        const pct = ((econ / vb) * 100).toFixed(1);
+        badge.innerHTML = `R$ ${precoReal.toFixed(3)} / L <span class="text-[10px] text-emerald-500 font-bold block sm:inline sm:ml-1">(-${formatarMoeda(econ)} / ${pct}%)</span>`;
+      }
+    } else {
+      badge.textContent = 'R$ 0,000 / L';
+    }
+  }
+
+  function atualizarDescontoEdit() {
+    calcularPrecoLitroEdit('pago');
+  }
+
+  function abrirModalEditarAbastecimento(a) {
+    document.getElementById('edit-abast-id').value = a.id;
+    document.getElementById('edit-abast-data').value = a.data;
+    document.getElementById('edit-abast-combustivel').value = a.combustivel || 'Etanol';
+    document.getElementById('edit-abast-valor-bomba').value = a.valor_bomba ? Number(a.valor_bomba).toFixed(2) : '';
+    document.getElementById('edit-abast-preco-bomba').value = a.preco_bomba_litro ? Number(a.preco_bomba_litro).toFixed(3) : '';
+    document.getElementById('edit-abast-litros').value = a.litros ? Number(a.litros).toFixed(3) : '';
+    document.getElementById('edit-abast-valor-pago').value = a.valor_pago ? Number(a.valor_pago).toFixed(2) : '';
+    document.getElementById('edit-abast-desconto').value = a.economia ? Number(a.economia).toFixed(2) : '0.00';
+    document.getElementById('edit-abast-app').value = a.app_desconto || 'Nenhum';
+    document.getElementById('edit-abast-posto').value = a.posto || '';
+    document.getElementById('edit-abast-conta').value = a.conta || 'Mercado Pago';
+    document.getElementById('edit-abast-hodometro').value = a.hodometro > 0 ? a.hodometro : '';
+    document.getElementById('edit-abast-obs').value = a.observacao || '';
+
+    calcularPrecoLitroEdit('pago');
+
+    document.getElementById('modal-editar-abastecimento').classList.remove('hidden');
+  }
+
+  function fecharModalEditarAbastecimento() {
+    document.getElementById('modal-editar-abastecimento').classList.add('hidden');
+  }
+
+  async function salvarEdicaoAbastecimento(event) {
+    event.preventDefault();
+    const btn = document.getElementById('btn-submit-editar-abastecer');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    const id = document.getElementById('edit-abast-id').value;
+    const form = event.target;
+    const fd = new FormData(form);
+
+    const vpEl = document.getElementById('edit-abast-valor-pago');
+    const ltEl = document.getElementById('edit-abast-litros');
+    const vbEl = document.getElementById('edit-abast-valor-bomba');
+    const descEl = document.getElementById('edit-abast-desconto');
+
+    if (vpEl) fd.set('valor_pago', parseFloat(vpEl.value || 0).toFixed(2));
+    if (ltEl) fd.set('litros', parseFloat(ltEl.value || 0).toFixed(3));
+    if (vbEl && vbEl.value) fd.set('valor_bomba', parseFloat(vbEl.value || 0).toFixed(2));
+    if (descEl && descEl.value) fd.set('desconto', parseFloat(descEl.value || 0).toFixed(2));
+
+    try {
+      const res = await fetch(`/api/drive/abastecimentos/${id}`, {
+        method: 'POST',
+        body: fd
+      });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Abastecimento Atualizado!', data.mensagem);
+        fecharModalEditarAbastecimento();
+
+        // 1. Atualiza os dados dos períodos e recalcula os cards instantaneamente
+        if (data.periodos_dados) {
+          Object.assign(DADOS_PERIODOS, data.periodos_dados);
+          const btnAtivo = document.querySelector('.btn-periodo.bg-amber-500');
+          const periodoAtivo = btnAtivo ? btnAtivo.id.replace('btn-filtro-', '') : FILTRO_INICIAL;
+          filtrarPeriodo(periodoAtivo);
+        }
+
+        // 2. Atualiza a linha na tabela sem recarregar a tela
+        const row = document.getElementById(`abast-row-${id}`);
+        if (row && data.abastecimento) {
+          const ab = data.abastecimento;
+          row.setAttribute('data-date', ab.data);
+
+          let econHtml = '';
+          if (ab.economia && ab.economia > 0) {
+            econHtml = `
+              <div class="mt-1">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  🏷️ Economia de ${formatarMoeda(ab.economia)} (${ab.pct_economia}%) via ${ab.app_desconto}
+                </span>
+              </div>
+            `;
+          }
+
+          let bombaPrecoHtml = '';
+          if (ab.economia && ab.economia > 0) {
+            bombaPrecoHtml = `<span class="block text-[10px] text-slate-400 line-through font-mono">Bomba: R$ ${Number(ab.preco_bomba_litro).toFixed(3)}</span>`;
+          }
+
+          let bombaPagoHtml = '';
+          if (ab.valor_bomba && ab.valor_bomba > ab.valor_pago) {
+            bombaPagoHtml = `<div class="text-[10px] text-slate-400">Bomba: <span class="line-through">${formatarMoeda(ab.valor_bomba)}</span></div>`;
+          }
+
+          row.innerHTML = `
+            <td class="py-3 px-3 sm:px-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-mono text-xs">
+              ${ab.data_formatada}
+            </td>
+            <td class="py-3 px-3 sm:px-4 text-slate-900 dark:text-white font-medium">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="posto-nome">${ab.posto}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">${ab.combustivel}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">${ab.conta}</span>
+              </div>
+              ${econHtml}
+            </td>
+            <td class="py-3 px-3 sm:px-4 font-bold text-slate-800 dark:text-slate-200">
+              ${ab.litros} L
+            </td>
+            <td class="py-3 px-3 sm:px-4">
+              <span class="font-bold text-emerald-600 dark:text-emerald-400 font-mono">R$ ${Number(ab.preco_litro).toFixed(3)}</span>
+              ${bombaPrecoHtml}
+            </td>
+            <td class="py-3 px-3 sm:px-4 text-right whitespace-nowrap">
+              <div class="font-black text-rose-600 dark:text-rose-400">${formatarMoeda(ab.valor_pago)}</div>
+              ${bombaPagoHtml}
+            </td>
+            <td class="py-3 px-3 sm:px-4 hidden sm:table-cell text-slate-500 dark:text-slate-400 font-mono text-xs">
+              ${ab.hodometro > 0 ? Math.round(ab.hodometro) + ' km' : '--'}
+            </td>
+            <td class="py-3 px-2 sm:px-3 text-center whitespace-nowrap">
+              <div class="flex items-center justify-center gap-1">
+                <button type="button" 
+                        onclick='abrirModalEditarAbastecimento(${JSON.stringify(ab)})'
+                        title="Editar abastecimento"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                </button>
+                <button type="button"
+                        onclick='excluirAbastecimento(${ab.id}, ${JSON.stringify(ab.posto)}, ${ab.valor_pago})'
+                        title="Excluir abastecimento"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </td>
+          `;
+        }
+      } else {
+        showToast('Erro ao Editar', data.erro || 'Falha na atualização', true);
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Salvar Alterações';
+    }
+  }
+
+  async function excluirAbastecimento(id, posto, valorPago) {
+    const valFmt = formatarMoeda(valorPago);
+    const msg = `Deseja realmente excluir o abastecimento de ${valFmt} no ${posto}?`;
+    if (!confirm(msg)) return;
+
+    try {
+      const res = await fetch(`/api/drive/abastecimentos/${id}/excluir`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (data.sucesso) {
+        showToast('Abastecimento Excluído!', data.mensagem);
+
+        // Remove a linha da tabela
+        const row = document.getElementById(`abast-row-${id}`);
+        if (row) {
+          row.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+          setTimeout(() => row.remove(), 300);
+        }
+
+        // Atualiza os dados dos períodos e recalcula os cards instantaneamente
+        if (data.periodos_dados) {
+          Object.assign(DADOS_PERIODOS, data.periodos_dados);
+          const btnAtivo = document.querySelector('.btn-periodo.bg-amber-500');
+          const periodoAtivo = btnAtivo ? btnAtivo.id.replace('btn-filtro-', '') : FILTRO_INICIAL;
+          filtrarPeriodo(periodoAtivo);
+        }
+      } else {
+        showToast('Erro ao Excluir', data.erro || 'Não foi possível excluir', true);
+      }
+    } catch (err) {
+      showToast('Erro de Conexão', err.message, true);
+    }
+  }
+
 </script>
+<!-- ======================================================
+     MODAL EDITAR ABASTECIMENTO REAL (DRIVVO)
+     ====================================================== -->
+<div id="modal-editar-abastecimento" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] overflow-y-auto custom-scroll">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">✏️</span>
+        <h3 class="font-bold text-slate-900 dark:text-white text-base">Editar Abastecimento Real</h3>
+      </div>
+      <button type="button" onclick="fecharModalEditarAbastecimento()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1">✕</button>
+    </div>
+
+    <form onsubmit="salvarEdicaoAbastecimento(event)" class="space-y-3.5">
+      <input type="hidden" id="edit-abast-id" name="id">
+      <input type="hidden" id="edit-abast-desconto" name="desconto" value="0.00">
+
+      <!-- Data e Combustível -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Data</label>
+          <input type="date" name="data" id="edit-abast-data" required 
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Combustível</label>
+          <select name="combustivel" id="edit-abast-combustivel" 
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Etanol">Etanol</option>
+            <option value="Gasolina Comum">Gasolina Comum</option>
+            <option value="Gasolina Aditivada">Gasolina Aditivada</option>
+            <option value="GNV">GNV</option>
+            <option value="Diesel">Diesel</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Valor Total da Bomba e Preço por Litro na Bomba -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Valor na Bomba (R$)</label>
+          <input type="number" step="0.01" min="0.01" name="valor_bomba" id="edit-abast-valor-bomba" placeholder="Ex: 30.00" oninput="calcularPrecoLitroEdit('bomba')"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Preço/L Bomba (R$)</label>
+          <input type="number" step="0.001" min="0.001" name="preco_bomba" id="edit-abast-preco-bomba" placeholder="Ex: 4.490" oninput="calcularPrecoLitroEdit('preco_bomba')"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Litros e Valor Pago Real -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Litros Abastecidos</label>
+          <input type="number" step="0.001" min="0.001" name="litros" id="edit-abast-litros" required placeholder="Ex: 6.680" oninput="calcularPrecoLitroEdit('litros')"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-bold focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Valor Pago Real (R$) *</label>
+          <input type="number" step="0.01" min="0.01" name="valor_pago" id="edit-abast-valor-pago" required placeholder="Ex: 27.00" oninput="calcularPrecoLitroEdit('pago')"
+                 class="w-full px-3 py-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 font-extrabold focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Badge de Preço Real e Economia -->
+      <div id="edit-abast-previa-preco" class="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-xs">
+        <span class="text-slate-500 dark:text-slate-400 font-medium">Preço Real por Litro:</span>
+        <span id="edit-abast-preco-real-badge" class="font-extrabold text-emerald-600 dark:text-emerald-400 font-mono text-sm">R$ 0,000 / L</span>
+      </div>
+
+      <!-- App de Desconto e Posto -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">App de Desconto</label>
+          <select name="app_desconto" id="edit-abast-app" onchange="atualizarDescontoEdit()"
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <option value="Nenhum">Nenhum</option>
+            <option value="99 Abastece">99 Abastece</option>
+            <option value="Shell Box">Shell Box</option>
+            <option value="SouTag">SouTag</option>
+            <option value="Premmia">Premmia</option>
+            <option value="Posto / Outro">Posto / Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Posto / Descrição</label>
+          <input type="text" name="posto" id="edit-abast-posto" placeholder="Ex: Posto Calango Tango"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <!-- Conta e Hodômetro -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Conta de Pagamento</label>
+          <select name="conta" id="edit-abast-conta" required
+                  class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
+            <option value="Mercado Pago">🏦 Mercado Pago</option>
+            <option value="99Pay">🚕 99Pay</option>
+            <option value="Dinheiro / Carteira">💵 Dinheiro / Carteira</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Hodômetro Atual (km)</label>
+          <input type="number" step="1" name="hodometro" id="edit-abast-hodometro" placeholder="Ex: 187755"
+                 class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Observação (Opcional)</label>
+        <input type="text" name="observacao" id="edit-abast-obs" placeholder="Anotações extras..."
+               class="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <!-- Botões -->
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="fecharModalEditarAbastecimento()" 
+                class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-submit-editar-abastecer" 
+                class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+          <span>💾</span> Salvar Alterações
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
 {% endblock %}
 
