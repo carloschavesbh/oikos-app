@@ -1940,6 +1940,48 @@
     }
 
     
+    function definirResponsavelGlobal(val) {
+      const inputResp = document.getElementById('global-select-cartao-responsavel');
+      const inputOutro = document.getElementById('global-responsavel-outro');
+      if (!inputResp) return;
+      const respClean = (val || 'Carlos').trim();
+
+      if (respClean.toLowerCase() === 'outro') {
+        if (inputOutro) {
+          inputOutro.classList.remove('hidden');
+          inputOutro.focus();
+          inputResp.value = inputOutro.value || 'Outro';
+          inputOutro.oninput = () => { inputResp.value = inputOutro.value || 'Outro'; };
+        }
+      } else {
+        if (inputOutro) inputOutro.classList.add('hidden');
+        inputResp.value = respClean;
+      }
+
+      const radios = document.getElementsByName('global_responsavel_radio');
+      let achou = false;
+      for (let r of radios) {
+        if (r.value.toLowerCase() === respClean.toLowerCase()) {
+          r.checked = true;
+          achou = true;
+          break;
+        }
+      }
+      if (!achou && respClean) {
+        for (let r of radios) {
+          if (r.value === 'Outro') {
+            r.checked = true;
+            if (inputOutro) {
+              inputOutro.classList.remove('hidden');
+              inputOutro.value = respClean;
+              inputResp.value = respClean;
+            }
+            break;
+          }
+        }
+      }
+    }
+
     function verificarContaCartaoGlobal() {
       const selConta = document.getElementById('global-select-conta');
       const blocoCartao = document.getElementById('bloco-campos-cartao-global');
@@ -1958,8 +2000,9 @@
         // Seta responsável sugerido se o cartão tiver titular
         const opt = selConta.selectedOptions ? selConta.selectedOptions[0] : null;
         if (opt && opt.dataset.titular) {
-          const selResp = document.getElementById('global-select-cartao-responsavel');
-          if (selResp) selResp.value = opt.dataset.titular;
+          let titSugerido = (opt.dataset.titular || '').trim();
+          if (titSugerido.toLowerCase() === 'aparecida') titSugerido = 'Carlos';
+          definirResponsavelGlobal(titSugerido || 'Carlos');
         }
 
         atualizarPreviaCartaoGlobal();
@@ -2482,37 +2525,54 @@
             </span>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Parcelamento</label>
-              <select id="global-select-cartao-parcelas" onchange="atualizarPreviaCartaoGlobal()"
-                      class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
-                <option value="1">1x (À vista na fatura)</option>
-                <option value="2">2x parcelas</option>
-                <option value="3">3x parcelas</option>
-                <option value="4">4x parcelas</option>
-                <option value="5">5x parcelas</option>
-                <option value="6">6x parcelas</option>
-                <option value="7">7x parcelas</option>
-                <option value="8">8x parcelas</option>
-                <option value="9">9x parcelas</option>
-                <option value="10">10x parcelas</option>
-                <option value="11">11x parcelas</option>
-                <option value="12">12x parcelas</option>
-                <option value="18">18x parcelas</option>
-                <option value="24">24x parcelas</option>
-              </select>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Parcelamento</label>
+            <select id="global-select-cartao-parcelas" onchange="atualizarPreviaCartaoGlobal()"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+              <option value="1">1x (À vista na fatura)</option>
+              <option value="2">2x parcelas</option>
+              <option value="3">3x parcelas</option>
+              <option value="4">4x parcelas</option>
+              <option value="5">5x parcelas</option>
+              <option value="6">6x parcelas</option>
+              <option value="7">7x parcelas</option>
+              <option value="8">8x parcelas</option>
+              <option value="9">9x parcelas</option>
+              <option value="10">10x parcelas</option>
+              <option value="11">11x parcelas</option>
+              <option value="12">12x parcelas</option>
+              <option value="18">18x parcelas</option>
+              <option value="24">24x parcelas</option>
+            </select>
+          </div>
+
+          <!-- Responsável pelo Gasto -->
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Responsável pelo Gasto *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5" id="grid-global-responsavel">
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+                <input type="radio" name="global_responsavel_radio" value="Carlos" class="hidden" checked onchange="definirResponsavelGlobal('Carlos')">
+                <span>Carlos</span>
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+                <input type="radio" name="global_responsavel_radio" value="Fernanda" class="hidden" onchange="definirResponsavelGlobal('Fernanda')">
+                <span>Fernanda</span>
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+                <input type="radio" name="global_responsavel_radio" value="Pedro" class="hidden" onchange="definirResponsavelGlobal('Pedro')">
+                <span>Pedro</span>
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+                <input type="radio" name="global_responsavel_radio" value="Família" class="hidden" onchange="definirResponsavelGlobal('Família')">
+                <span>Família</span>
+              </label>
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+                <input type="radio" name="global_responsavel_radio" value="Outro" class="hidden" onchange="definirResponsavelGlobal('Outro')">
+                <span>Outro</span>
+              </label>
             </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Responsável</label>
-              <select id="global-select-cartao-responsavel"
-                      class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
-                <option value="Carlos">Carlos</option>
-                <option value="Fernanda">Fernanda</option>
-                <option value="Aparecida">Aparecida</option>
-                <option value="Outro">Outro</option>
-              </select>
-            </div>
+            <input type="hidden" id="global-select-cartao-responsavel" name="responsavel" value="Carlos">
+            <input type="text" id="global-responsavel-outro" placeholder="Informe o nome do responsável" class="hidden mt-2 w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-orange-500 focus:outline-none">
           </div>
 
           <div>

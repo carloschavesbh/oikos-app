@@ -1842,11 +1842,19 @@ async def api_criar_lancamento(
             tr_antiga = cur.fetchone()
 
             # 1. Atualiza a transação principal
-            cur.execute("""
-                UPDATE transacoes
-                SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?, juros = ?, desconto = ?, motivo_ajuste = ?
-                WHERE id = ?
-            """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, tid))
+            titular_salvar = (responsavel or "").strip()
+            if titular_salvar:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?, juros = ?, desconto = ?, motivo_ajuste = ?, titular = ?
+                    WHERE id = ?
+                """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, titular_salvar, tid))
+            else:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET data = ?, descricao = ?, valor = ?, tipo = ?, categoria = ?, subcategoria = ?, conta = ?, conta_id = ?, pago = ?, afeta_saldo_bancario = ?, juros = ?, desconto = ?, motivo_ajuste = ?
+                    WHERE id = ?
+                """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, tid))
             
             # Sincroniza veiculo_abastecimentos caso haja vínculo
             try:
@@ -1982,10 +1990,11 @@ async def api_criar_lancamento(
                 "saldo_consolidado": float(res_saldo.get("saldo_consolidado", 0.0))
             }
 
+        titular_ins = (responsavel or "").strip() or "Carlos"
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, juros, desconto, motivo_ajuste)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, juros, desconto, motivo_ajuste, titular)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (str(data)[:10], descricao.strip(), valor_num, tipo, categoria, subcat_str, conta_nome, conta_id, pago_int, afeta_saldo, juros_num, desconto_num, motivo_ajuste_str, titular_ins))
         conn.commit()
 
         res_saldo = saldo_service.calcular_saldo_consolidado(conn)
@@ -2016,7 +2025,8 @@ async def api_editar_lancamento(
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
     motivo_ajuste: Optional[str] = Form(""),
-    escopo_edicao: Optional[str] = Form("somente_esta")
+    escopo_edicao: Optional[str] = Form("somente_esta"),
+    responsavel: Optional[str] = Form(None)
 ):
     if not id:
         raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
@@ -2033,7 +2043,8 @@ async def api_editar_lancamento(
         juros=juros,
         desconto=desconto,
         motivo_ajuste=motivo_ajuste,
-        escopo_edicao=escopo_edicao
+        escopo_edicao=escopo_edicao,
+        responsavel=responsavel
     )
 
 
@@ -2052,7 +2063,8 @@ async def api_editar_lancamento_por_id(
     juros: Optional[Any] = Form(0.0),
     desconto: Optional[Any] = Form(0.0),
     motivo_ajuste: Optional[str] = Form(""),
-    escopo_edicao: Optional[str] = Form("somente_esta")
+    escopo_edicao: Optional[str] = Form("somente_esta"),
+    responsavel: Optional[str] = Form(None)
 ):
     tid = id if (id and str(id).strip()) else (transacao_id if transacao_id != "editar" else None)
     if not tid:
@@ -2070,7 +2082,8 @@ async def api_editar_lancamento_por_id(
         juros=juros,
         desconto=desconto,
         motivo_ajuste=motivo_ajuste,
-        escopo_edicao=escopo_edicao
+        escopo_edicao=escopo_edicao,
+        responsavel=responsavel
     )
 
 
@@ -2970,7 +2983,7 @@ async def pagina_cartoes(
             "bancos_disponiveis": BANCOS_DISPONIVEIS,
             "categorias_despesa": cats_desp_cartao,
             "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
-            "responsaveis": ["Carlos", "Fernanda", "Aparecida", "Outro"],
+            "responsaveis": ["Carlos", "Fernanda", "Pedro", "Família", "Outro"],
             "hoje": date.today().strftime("%Y-%m-%d"),
             "active_tab": "cartoes"
         }

@@ -551,7 +551,7 @@
       <!-- 5. Responsável pelo Gasto -->
       <div>
         <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável pelo Gasto *</label>
-        <div class="grid grid-cols-4 gap-2" id="grid-responsavel-cartao">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2" id="grid-responsavel-cartao">
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
             <input type="radio" name="responsavel_radio" value="Carlos" class="hidden" checked onchange="definirResponsavelCartao('Carlos')">
             <span>Carlos</span>
@@ -561,8 +561,12 @@
             <span>Fernanda</span>
           </label>
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Aparecida" class="hidden" onchange="definirResponsavelCartao('Aparecida')">
-            <span>Aparecida</span>
+            <input type="radio" name="responsavel_radio" value="Pedro" class="hidden" onchange="definirResponsavelCartao('Pedro')">
+            <span>Pedro</span>
+          </label>
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
+            <input type="radio" name="responsavel_radio" value="Família" class="hidden" onchange="definirResponsavelCartao('Família')">
+            <span>Família</span>
           </label>
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
             <input type="radio" name="responsavel_radio" value="Outro" class="hidden" onchange="definirResponsavelCartao('Outro')">
@@ -884,9 +888,12 @@
     const sel = document.getElementById('despesa-cartao-id');
     if (!sel || !sel.selectedOptions || !sel.selectedOptions[0]) return;
     const opt = sel.selectedOptions[0];
-    const titular = opt.dataset.titular || 'Carlos';
+    let titular = (opt.dataset.titular || 'Carlos').trim();
+    if (titular.toLowerCase() === 'aparecida') {
+      titular = 'Carlos';
+    }
 
-    // Se o titular for conhecido, marca ele no radio
+    // Se o titular for conhecido dentre os botões oficiais, marca ele no radio
     const radios = document.getElementsByName('responsavel_radio');
     let achou = false;
     for (let r of radios) {
@@ -898,7 +905,7 @@
       }
     }
     if (!achou) {
-      definirResponsavelCartao(titular);
+      definirResponsavelCartao('Carlos');
     }
     atualizarOpcoesFaturasCartao();
     atualizarPreviaParcelasCartao();
