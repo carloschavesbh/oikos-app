@@ -491,13 +491,19 @@
         </select>
       </div>
 
-      <!-- 2. Valor Total e Data da Compra -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <!-- 2. Valor Base, Juros e Data da Compra -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Total (R$) *</label>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base (R$) *</label>
           <input type="number" step="0.01" min="0.01" id="despesa-cartao-valor" name="valor" required placeholder="0,00"
                  oninput="atualizarPreviaParcelasCartao()"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos (R$)</label>
+          <input type="number" step="0.01" min="0" id="despesa-cartao-juros" name="juros" placeholder="0,00" value="0.00"
+                 oninput="atualizarPreviaParcelasCartao()"
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:border-rose-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Data da Compra *</label>
@@ -505,6 +511,16 @@
                  onchange="atualizarOpcoesFaturasCartao()"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
         </div>
+      </div>
+
+      <!-- Indicador dinâmico do Total na Fatura -->
+      <div id="box-total-fatura-previa" class="flex items-center justify-between px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs">
+        <span class="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+          <span>🧾</span> Total na Fatura:
+        </span>
+        <span id="despesa-cartao-total-fatura-badge" class="font-black text-sm text-orange-600 dark:text-orange-400">
+          R$ 0,00
+        </span>
       </div>
 
       <!-- 3. Descrição da Compra -->
@@ -841,6 +857,8 @@
 
     // Inicializa valores
     document.getElementById('despesa-cartao-valor').value = '';
+    const inputJurosModal = document.getElementById('despesa-cartao-juros');
+    if (inputJurosModal) inputJurosModal.value = '0.00';
     document.getElementById('despesa-cartao-desc').value = '';
     document.getElementById('despesa-cartao-subcategoria').value = '';
     document.getElementById('despesa-cartao-parcelas').value = '1';
@@ -957,26 +975,36 @@
 
   function atualizarPreviaParcelasCartao() {
     const inputValor = document.getElementById('despesa-cartao-valor');
+    const inputJuros = document.getElementById('despesa-cartao-juros');
     const selectParcelas = document.getElementById('despesa-cartao-parcelas');
     const labelPrevia = document.getElementById('previa-parcelas-cartao-texto');
+    const badgeTotalFatura = document.getElementById('despesa-cartao-total-fatura-badge');
     if (!inputValor || !selectParcelas || !labelPrevia) return;
 
-    const valor = parseFloat(inputValor.value || '0');
+    const valorBase = Math.max(0, parseFloat(inputValor.value || '0'));
+    const valorJuros = Math.max(0, parseFloat(inputJuros ? inputJuros.value || '0' : '0'));
+    const totalFatura = valorBase + valorJuros;
     const parcelas = parseInt(selectParcelas.value || '1', 10);
 
-    if (valor <= 0) {
+    if (badgeTotalFatura) {
+      badgeTotalFatura.textContent = totalFatura.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+
+    if (totalFatura <= 0) {
       labelPrevia.textContent = parcelas === 1 ? '1x de R$ 0,00 (À vista)' : `${parcelas}x de R$ 0,00`;
       return;
     }
 
-    const valorParcela = (valor / parcelas).toFixed(2);
+    const valorParcela = (totalFatura / parcelas).toFixed(2);
     const valorParcelaFmt = parseFloat(valorParcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const valorTotalFmt = valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const totalFaturaFmt = totalFatura.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     if (parcelas === 1) {
-      labelPrevia.textContent = `1x de ${valorParcelaFmt} (À vista na fatura)`;
+      labelPrevia.textContent = valorJuros > 0
+        ? `1x de ${valorParcelaFmt} (À vista com juros)`
+        : `1x de ${valorParcelaFmt} (À vista na fatura)`;
     } else {
-      labelPrevia.textContent = `${parcelas}x de ${valorParcelaFmt} (Total: ${valorTotalFmt})`;
+      labelPrevia.textContent = `${parcelas}x de ${valorParcelaFmt} (Total: ${totalFaturaFmt})`;
     }
   }
 
@@ -988,6 +1016,8 @@
 
     const cartaoId = document.getElementById('despesa-cartao-id').value;
     const valor = parseFloat(document.getElementById('despesa-cartao-valor').value || '0');
+    const jurosInput = document.getElementById('despesa-cartao-juros');
+    const juros = Math.max(0, parseFloat(jurosInput ? jurosInput.value || '0' : '0'));
     const dataCompra = document.getElementById('despesa-cartao-data').value;
     const descricao = document.getElementById('despesa-cartao-desc').value.trim();
     const categoria = document.getElementById('despesa-cartao-categoria').value;
@@ -1007,6 +1037,7 @@
     const payload = {
       cartao_id: cartaoId,
       valor: valor,
+      juros: juros,
       data_compra: dataCompra,
       descricao: descricao,
       categoria: categoria,
@@ -1177,6 +1208,25 @@
     }
     {% endif %}
   }
+
+  // Suporte a visualização/screenshot automatizado de demonstração
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('demo_modal_juros') === '1') {
+      setTimeout(() => {
+        abrirModalDespesaCartao();
+        const v = document.getElementById('despesa-cartao-valor');
+        const j = document.getElementById('despesa-cartao-juros');
+        const d = document.getElementById('despesa-cartao-desc');
+        const p = document.getElementById('despesa-cartao-parcelas');
+        if (v) v.value = '170.00';
+        if (j) j.value = '15.00';
+        if (d) d.value = 'Compra no Cartão c/ Juros (Maquininha)';
+        if (p) p.value = '2';
+        atualizarPreviaParcelasCartao();
+      }, 400);
+    }
+  });
 </script>
 <!-- MODAL EDITAR COMPRA DO CARTÃO -->
 <div id="modal-editar-compra-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">

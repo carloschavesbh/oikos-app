@@ -1926,7 +1926,8 @@ async def api_criar_lancamento(
                 subcategoria=subcat_str,
                 responsavel=responsavel,
                 parcelas=int(parcelas or 1),
-                fatura_destino=fatura_destino or "atual"
+                fatura_destino=fatura_destino or "atual",
+                juros=juros_num
             )
             if not ok_crd:
                 return JSONResponse(status_code=400, content={"status": "erro", "sucesso": False, "erro": msg_crd})
@@ -2270,8 +2271,8 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
     finally:
         conn.close()
 
-def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual") -> Tuple[bool, str, List[int]]:
-    """Gera o lançamento ou série de parcelas de uma compra no cartão de crédito na tabela transacoes."""
+def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual", juros: float = 0.0) -> Tuple[bool, str, List[int]]:
+    """Gera o lançamento ou série de parcelas de uma compra no cartão de crédito na tabela transacoes com suporte a juros/encargos."""
     cur = conn.cursor()
     cur.execute("SELECT id, nome, dia_fechamento, dia_vencimento, titular FROM cartoes WHERE id = ?", (cartao_id,))
     crd = cur.fetchone()
@@ -2297,9 +2298,17 @@ def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: st
     ano_base += (mes_base - 1) // 12
     mes_base = ((mes_base - 1) % 12) + 1
 
-    val_parcela = round(valor_total / parcelas_int, 2)
-    dif = round(valor_total - (val_parcela * parcelas_int), 2)
-    val_1 = round(val_parcela + dif, 2)
+    valor_base = float(valor_total)
+    juros_total = max(0.0, float(juros or 0.0))
+    valor_fatura_total = round(valor_base + juros_total, 2)
+
+    val_parcela = round(valor_fatura_total / parcelas_int, 2)
+    dif_val = round(valor_fatura_total - (val_parcela * parcelas_int), 2)
+    val_1 = round(val_parcela + dif_val, 2)
+
+    juros_parcela = round(juros_total / parcelas_int, 2)
+    dif_juros = round(juros_total - (juros_parcela * parcelas_int), 2)
+    juros_1 = round(juros_parcela + dif_juros, 2)
 
     grupo = f"cartao_{cartao_id}_{int(datetime.datetime.now().timestamp())}" if parcelas_int > 1 else None
     subcat_str = (subcategoria or "").strip()
@@ -2314,16 +2323,18 @@ def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: st
         dia_p = min(dia_venc, max_d)
         dt_venc = f"{ano_p:04d}-{mes_p:02d}-{dia_p:02d}"
         v_p = val_1 if i == 1 else val_parcela
+        j_p = juros_1 if i == 1 else juros_parcela
         d_p = f"{descricao.strip()} ({i:02d}/{parcelas_int:02d})" if parcelas_int > 1 else descricao.strip()
 
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, titular, numero_parcela, total_parcelas_compra, grupo_parcelamento, status_pagamento)
-            VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 'pendente')
-        """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, titular, numero_parcela, total_parcelas_compra, grupo_parcelamento, status_pagamento, juros)
+            VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 'pendente', ?)
+        """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo, j_p))
         ids_gerados.append(cur.lastrowid)
 
     conn.commit()
-    return True, f"Compra '{descricao.strip()}' de {formatar_moeda_br(valor_total)} registrada com sucesso no cartão {nome_cartao} ({parcelas_int}x)!", ids_gerados
+    info_juros = f" (com {formatar_moeda_br(juros_total)} de juros/encargos)" if juros_total > 0 else ""
+    return True, f"Compra '{descricao.strip()}' de {formatar_moeda_br(valor_fatura_total)}{info_juros} registrada com sucesso no cartão {nome_cartao} ({parcelas_int}x)!", ids_gerados
 
 
 @app.post("/api/cartoes/compras")
@@ -2362,6 +2373,8 @@ async def api_criar_compra_cartao(request: Request):
         responsavel = str(data.get("responsavel") or data.get("titular") or "").strip() or None
         parcelas = int(data.get("parcelas") or 1)
         fatura_destino = str(data.get("fatura_destino") or "atual").strip().lower()
+        juros_raw = data.get("juros") or data.get("encargos") or 0.0
+        juros_num = round(converter_valor_monetario(juros_raw), 2)
 
         ok, msg, ids = criar_despesa_cartao(
             conn=conn,
@@ -2373,7 +2386,8 @@ async def api_criar_compra_cartao(request: Request):
             subcategoria=subcategoria,
             responsavel=responsavel,
             parcelas=parcelas,
-            fatura_destino=fatura_destino
+            fatura_destino=fatura_destino,
+            juros=juros_num
         )
 
         if not ok:
@@ -2848,7 +2862,7 @@ async def pagina_cartoes(
         if "inter" in nome.lower() or "aparecida" in nome.lower():
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
-                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros
                 FROM transacoes
                 WHERE tipo = 'despesa'
                   AND strftime('%Y-%m', data) = ?
@@ -2861,7 +2875,7 @@ async def pagina_cartoes(
         else:
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
-                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros
                 FROM transacoes
                 WHERE tipo = 'despesa'
                   AND strftime('%Y-%m', data) = ?
@@ -2897,7 +2911,8 @@ async def pagina_cartoes(
                 "pago": 1 if it["pago"] == 1 else 0,
                 "numero_parcela": it["numero_parcela"],
                 "total_parcelas_compra": it["total_parcelas_compra"],
-                "titular": it["titular"] or titular_cartao
+                "titular": it["titular"] or titular_cartao,
+                "juros": float(it["juros"] or 0.0)
             })
 
         lim_disp = max(0.0, lim_total - tot_comprometido) if lim_total > 0 else 0.0
