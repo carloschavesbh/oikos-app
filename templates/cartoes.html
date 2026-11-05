@@ -552,26 +552,26 @@
       <div>
         <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável pelo Gasto *</label>
         <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2" id="grid-responsavel-cartao">
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Carlos" class="hidden" checked onchange="definirResponsavelCartao('Carlos')">
-            <span>Carlos</span>
-          </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Fernanda" class="hidden" onchange="definirResponsavelCartao('Fernanda')">
-            <span>Fernanda</span>
-          </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Pedro" class="hidden" onchange="definirResponsavelCartao('Pedro')">
-            <span>Pedro</span>
-          </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Família" class="hidden" onchange="definirResponsavelCartao('Família')">
-            <span>Família</span>
-          </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300 has-checked:border-orange-500 has-checked:bg-orange-500/10 has-checked:text-orange-600 dark:has-checked:text-orange-400">
-            <input type="radio" name="responsavel_radio" value="Outro" class="hidden" onchange="definirResponsavelCartao('Outro')">
-            <span>Outro</span>
-          </label>
+          <button type="button" onclick="definirResponsavelCartao('Carlos')" data-resp="Carlos"
+                  class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            Carlos
+          </button>
+          <button type="button" onclick="definirResponsavelCartao('Fernanda')" data-resp="Fernanda"
+                  class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            Fernanda
+          </button>
+          <button type="button" onclick="definirResponsavelCartao('Pedro')" data-resp="Pedro"
+                  class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            Pedro
+          </button>
+          <button type="button" onclick="definirResponsavelCartao('Família')" data-resp="Família"
+                  class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            Família
+          </button>
+          <button type="button" onclick="definirResponsavelCartao('Outro')" data-resp="Outro"
+                  class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            Outro
+          </button>
         </div>
         <input type="hidden" id="despesa-cartao-responsavel" name="responsavel" value="Carlos">
         <input type="text" id="despesa-cartao-responsavel-outro" placeholder="Informe o nome do responsável" class="hidden mt-2 w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
@@ -892,21 +892,7 @@
     if (titular.toLowerCase() === 'aparecida') {
       titular = 'Carlos';
     }
-
-    // Se o titular for conhecido dentre os botões oficiais, marca ele no radio
-    const radios = document.getElementsByName('responsavel_radio');
-    let achou = false;
-    for (let r of radios) {
-      if (r.value.toLowerCase() === titular.toLowerCase()) {
-        r.checked = true;
-        definirResponsavelCartao(r.value);
-        achou = true;
-        break;
-      }
-    }
-    if (!achou) {
-      definirResponsavelCartao('Carlos');
-    }
+    definirResponsavelCartao(titular || 'Carlos');
     atualizarOpcoesFaturasCartao();
     atualizarPreviaParcelasCartao();
   }
@@ -914,18 +900,50 @@
   function definirResponsavelCartao(resp) {
     const inputResp = document.getElementById('despesa-cartao-responsavel');
     const inputOutro = document.getElementById('despesa-cartao-responsavel-outro');
-    if (!inputResp) return;
+    const container = document.getElementById('grid-responsavel-cartao');
+    const respClean = (resp || 'Carlos').trim();
 
-    if (resp === 'Outro') {
+    if (inputResp) inputResp.value = respClean;
+
+    if (respClean.toLowerCase() === 'outro') {
       if (inputOutro) {
         inputOutro.classList.remove('hidden');
         inputOutro.focus();
-        inputResp.value = inputOutro.value || 'Outro';
-        inputOutro.oninput = () => { inputResp.value = inputOutro.value || 'Outro'; };
+        if (inputResp) inputResp.value = inputOutro.value || 'Outro';
+        inputOutro.oninput = () => { if (inputResp) inputResp.value = inputOutro.value || 'Outro'; };
       }
     } else {
       if (inputOutro) inputOutro.classList.add('hidden');
-      inputResp.value = resp;
+    }
+
+    if (!container) return;
+    const buttons = container.querySelectorAll('[data-resp]');
+    let achou = false;
+
+    buttons.forEach(btn => {
+      const bResp = (btn.getAttribute('data-resp') || '').trim();
+      const isActive = (bResp.toLowerCase() === respClean.toLowerCase());
+
+      if (isActive) {
+        achou = true;
+        // Estado ativo destacado: fundo preenchido, texto em branco semibold, borda ativa e sombra leve
+        btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
+      } else {
+        // Estado neutro inativo
+        btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700';
+      }
+    });
+
+    if (!achou && respClean && respClean.toLowerCase() !== 'a confirmar') {
+      buttons.forEach(btn => {
+        if ((btn.getAttribute('data-resp') || '').toLowerCase() === 'outro') {
+          btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
+          if (inputOutro) {
+            inputOutro.classList.remove('hidden');
+            inputOutro.value = respClean;
+          }
+        }
+      });
     }
   }
 
@@ -1231,6 +1249,7 @@
         if (d) d.value = 'Compra no Cartão c/ Juros (Maquininha)';
         if (p) p.value = '2';
         atualizarPreviaParcelasCartao();
+        definirResponsavelCartao('Família');
       }, 400);
     }
   });
