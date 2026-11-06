@@ -1793,42 +1793,104 @@
     }
   }
 
-  // Pagar Fatura do Cartão via Modal Unificado com suporte a Juros/Desconto
+  // Pagar Fatura do Cartão via Modal Dedicado com Seleção de Conta de Origem
   function pagarFaturaCartao() {
+    abrirModalPagarFaturaCartao();
+  }
+
+  function abrirModalPagarFaturaCartao() {
     {% if cartao_ativo %}
-    const comprasPendentes = {{ cartao_ativo.compras | selectattr('pago', 'equalto', 0) | map(attribute='id') | list | tojson }};
+    const modal = document.getElementById('modal-pagar-fatura-cartao');
+    if (!modal) return;
+
     const totalFatura = {{ cartao_ativo.total_fatura | tojson }};
-    const nomeCartao = {{ cartao_ativo.nome | tojson }};
-    const mesAno = {{ nome_mes_ano | tojson }};
+    const inputValor = document.getElementById('pagar-fatura-valor-total');
+    const spanDestaque = document.getElementById('pagar-fatura-valor-destaque');
+    if (inputValor) inputValor.value = totalFatura;
+    if (spanDestaque) spanDestaque.textContent = totalFatura.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-    if (!comprasPendentes || comprasPendentes.length === 0) {
-      if (typeof showToast === 'function') {
-        showToast('Fatura Liquidada', 'Todos os lançamentos desta fatura já constam como quitados.', false);
-      } else {
-        alert('Esta fatura já está quitada.');
+    // Seleciona Mercado Pago por padrão se houver
+    const selConta = document.getElementById('pagar-fatura-conta-origem');
+    if (selConta) {
+      for (let opt of selConta.options) {
+        if (opt.textContent.toLowerCase().includes('mercado pago')) {
+          selConta.value = opt.value;
+          break;
+        }
       }
-      return;
     }
 
-    if (typeof abrirModalBaixaGlobal === 'function') {
-      abrirModalBaixaGlobal({
-        modo: 'grupo',
-        ids: comprasPendentes,
-        desc: `Fatura ${nomeCartao} - ${mesAno} (${comprasPendentes.length} compras)`,
-        valorOriginal: totalFatura,
-        titulo: 'Pagar Fatura do Cartão'
-      });
-    }
+    modal.classList.remove('hidden');
     {% else %}
     if (typeof showToast === 'function') {
-      showToast('Nenhum Cartão', 'Nenhum cartão selecionado para pagamento.', true);
+      showToast('Aviso', 'Nenhum cartão selecionado para pagamento.', true);
     }
     {% endif %}
+  }
+
+  function fecharModalPagarFaturaCartao() {
+    const modal = document.getElementById('modal-pagar-fatura-cartao');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function submeterPagamentoFaturaCartao(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btn-confirmar-pagar-fatura');
+    const btnTxt = document.getElementById('btn-confirmar-pagar-texto');
+    if (btn) btn.disabled = true;
+    if (btnTxt) btnTxt.textContent = 'Processando...';
+
+    const cartaoId = parseInt(document.getElementById('pagar-fatura-cartao-id')?.value || '0', 10);
+    const mesAno = document.getElementById('pagar-fatura-mes-ano')?.value;
+    const contaId = parseInt(document.getElementById('pagar-fatura-conta-origem')?.value || '1', 10);
+    const dataPagamento = document.getElementById('pagar-fatura-data')?.value;
+    const valorTotal = parseFloat(document.getElementById('pagar-fatura-valor-total')?.value || '0');
+    {% if cartao_ativo %}
+    const comprasIds = {{ cartao_ativo.compras | map(attribute='id') | list | tojson }};
+    {% else %}
+    const comprasIds = [];
+    {% endif %}
+
+    try {
+      const resp = await fetch('/api/cartoes/faturas/pagar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cartao_id: cartaoId,
+          mes_ano: mesAno,
+          conta_id: contaId,
+          data_pagamento: dataPagamento,
+          valor_total: valorTotal,
+          transacao_ids: comprasIds
+        })
+      });
+      const res = await resp.json();
+      if (resp.ok && res.sucesso) {
+        if (typeof showToast === 'function') {
+          showToast('Fatura Paga', res.mensagem || 'Fatura paga e valor debitado com sucesso!');
+        }
+        fecharModalPagarFaturaCartao();
+        setTimeout(() => window.location.reload(), 400);
+      } else {
+        alert(res.erro || 'Erro ao registrar pagamento da fatura.');
+        if (btn) btn.disabled = false;
+        if (btnTxt) btnTxt.textContent = 'Confirmar Baixa e Debitar da Conta';
+      }
+    } catch (err) {
+      alert('Erro de conexão ao processar pagamento.');
+      if (btn) btn.disabled = false;
+      if (btnTxt) btnTxt.textContent = 'Confirmar Baixa e Debitar da Conta';
+    }
   }
 
   // Suporte a visualização/screenshot automatizado de demonstração
   window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('demo_modal_pagar_fatura') === '1') {
+      setTimeout(() => {
+        abrirModalPagarFaturaCartao();
+      }, 300);
+    }
     if (urlParams.get('demo_modal_juros') === '1') {
       setTimeout(() => {
         abrirModalDespesaCartao();
@@ -2064,5 +2126,86 @@
   </div>
 </div>
 
+
+<!-- Modal Confirmar Pagamento de Fatura -->
+<div id="modal-pagar-fatura-cartao" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs {% if request.query_params.get('demo_modal_pagar_fatura') != '1' %}hidden{% endif %} transition-opacity">
+  <div class="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+          💳
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-slate-900 dark:text-white">Confirmar Pagamento de Fatura</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Baixa da fatura com débito em conta corrente</p>
+        </div>
+      </div>
+      <button type="button" onclick="fecharModalPagarFaturaCartao()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg p-1 rounded-lg">✕</button>
+    </div>
+
+    <!-- Form -->
+    <form id="form-pagar-fatura-cartao" onsubmit="submeterPagamentoFaturaCartao(event)" class="mt-4 space-y-4">
+      <input type="hidden" id="pagar-fatura-cartao-id" name="cartao_id" value="{{ cartao_ativo.id if cartao_ativo else '' }}">
+      <input type="hidden" id="pagar-fatura-mes-ano" name="mes_ano" value="{{ '%04d-%02d'|format(ano_selecionado, mes_selecionado) }}">
+
+      <!-- Card do Cartão e Valor da Fatura -->
+      <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Cartão</span>
+          <span id="pagar-fatura-nome-cartao" class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            {{ cartao_ativo.nome if cartao_ativo else 'Cartão' }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+          <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Valor Total da Fatura</span>
+          <span id="pagar-fatura-valor-destaque" class="text-lg font-black text-emerald-600 dark:text-emerald-400">
+            {{ (cartao_ativo.total_fatura if cartao_ativo else 0) | moeda }}
+          </span>
+        </div>
+        <input type="hidden" id="pagar-fatura-valor-total" name="valor_total" value="{{ cartao_ativo.total_fatura if cartao_ativo else 0 }}">
+      </div>
+
+      <!-- Campo obrigatório: Conta de Origem do Pagamento -->
+      <div>
+        <label for="pagar-fatura-conta-origem" class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+          Conta de Origem do Pagamento <span class="text-rose-500">*</span>
+        </label>
+        <select id="pagar-fatura-conta-origem" name="conta_id" required
+                class="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+          {% for cta in contas_ativas %}
+          <option value="{{ cta.id }}" {% if 'mercado pago' in cta.nome.lower() %}selected{% endif %}>
+            {{ cta.nome }}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">O valor da fatura será debitado do saldo desta conta.</p>
+      </div>
+
+      <!-- Campo: Data do Pagamento -->
+      <div>
+        <label for="pagar-fatura-data" class="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+          Data do Pagamento <span class="text-rose-500">*</span>
+        </label>
+        <input type="date" id="pagar-fatura-data" name="data_pagamento" required
+               value="{{ '%04d-%02d-%02d'|format(ano_selecionado, mes_selecionado, cartao_ativo.dia_vencimento if cartao_ativo else 7) if (ano_selecionado and mes_selecionado) else hoje }}"
+               class="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+      </div>
+
+      <!-- Botões de Ação -->
+      <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalPagarFaturaCartao()"
+                class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          Cancelar
+        </button>
+        <button type="submit" id="btn-confirmar-pagar-fatura"
+                class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-sm transition flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+          <span id="btn-confirmar-pagar-texto">Confirmar Baixa e Debitar da Conta</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {% endblock %}

@@ -2579,33 +2579,185 @@ async def api_criar_compra_cartao(request: Request):
 
 
 
+@app.post("/api/cartoes/faturas/pagar")
+async def api_pagar_fatura_cartao(request: Request):
+    """
+    Liquida a fatura do cartão:
+    1. Marca todas as compras da fatura do cartão como 'pago' (pago=1, status_pagamento='PAGA', data_liquidacao=data_pagamento).
+       afeta_saldo_bancario permanece 0 nas compras do cartão para que não haja débito avulso duplicado.
+    2. Cria uma transação real de saída/despesa com categoria 'Pagamento de fatura',
+       vinculada à Conta de Origem selecionada (ex: Mercado Pago, conta_id=1) no valor exato apurado da fatura.
+       Essa despesa possui pago=1, afeta_saldo_bancario=1, debitando imediatamente o saldo bancário da conta.
+    3. Registra ref_externa = f"fatura_cartao:{cartao_id}:{mes_ano}" para rastreabilidade e estorno perfeito.
+    """
+    conn = conectar_db()
+    try:
+        data = await request.json()
+        cartao_id = int(data.get("cartao_id") or 0)
+        mes_ano = str(data.get("mes_ano") or "")[:7]
+        conta_origem_id = int(data.get("conta_id") or data.get("conta_origem_id") or 1)
+        data_pagamento = str(data.get("data_pagamento") or date.today().strftime("%Y-%m-%d"))[:10]
+        transacao_ids = data.get("transacao_ids", [])
+        valor_total_req = data.get("valor_total")
+
+        if not cartao_id:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "ID do cartão obrigatório."})
+        if not mes_ano:
+            mes_ano = data_pagamento[:7]
+
+        cur = conn.cursor()
+
+        # Obter dados do cartão
+        cur.execute("SELECT id, nome FROM cartoes WHERE id = ?", (cartao_id,))
+        crd_row = cur.fetchone()
+        nome_cartao = crd_row["nome"] if crd_row else f"Cartão {cartao_id}"
+
+        # Obter dados da conta de origem
+        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_origem_id,))
+        cta_row = cur.fetchone()
+        if not cta_row:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Conta de origem não encontrada."})
+        nome_conta_origem = cta_row["nome"]
+
+        # Identificar todas as compras da fatura
+        compras_ids = []
+        if transacao_ids and len(transacao_ids) > 0:
+            placeholders = ",".join("?" * len(transacao_ids))
+            cur.execute(f"SELECT id, valor FROM transacoes WHERE id IN ({placeholders})", tuple(transacao_ids))
+            rows_compras = cur.fetchall()
+            compras_ids = [r["id"] for r in rows_compras]
+            total_fatura = sum(float(r["valor"] or 0.0) for r in rows_compras)
+        else:
+            if "inter" in nome_cartao.lower() or "aparecida" in nome_cartao.lower():
+                cur.execute("""
+                    SELECT id, valor FROM transacoes
+                    WHERE tipo = 'despesa'
+                      AND strftime('%Y-%m', data) = ?
+                      AND (conta = ? OR conta_id = ? OR conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
+                      AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                      AND descricao NOT LIKE 'Pagamento de fatura%'
+                      AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+                """, (mes_ano, nome_cartao, cartao_id))
+            else:
+                cur.execute("""
+                    SELECT id, valor FROM transacoes
+                    WHERE tipo = 'despesa'
+                      AND strftime('%Y-%m', data) = ?
+                      AND (conta = ? OR conta_id = ?)
+                      AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                      AND descricao NOT LIKE 'Pagamento de fatura%'
+                      AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+                """, (mes_ano, nome_cartao, cartao_id))
+            rows_compras = cur.fetchall()
+            compras_ids = [r["id"] for r in rows_compras]
+            total_fatura = sum(float(r["valor"] or 0.0) for r in rows_compras)
+
+        if valor_total_req is not None and float(valor_total_req) > 0:
+            total_fatura = round(float(valor_total_req), 2)
+        else:
+            total_fatura = round(total_fatura, 2)
+
+        # 1. Marcar compras como pagas (afeta_saldo_bancario=0 nas compras do cartão)
+        if compras_ids:
+            p_holders = ",".join("?" * len(compras_ids))
+            cur.execute(f"""
+                UPDATE transacoes
+                SET pago = 1, status_pagamento = 'PAGA', data_liquidacao = ?, valor_pago = valor, afeta_saldo_bancario = 0
+                WHERE id IN ({p_holders})
+            """, (data_pagamento, *compras_ids))
+
+        # 2. Idempotência: remover lançamento anterior de pagamento desta mesma fatura se houver
+        ref_fatura = f"fatura_cartao:{cartao_id}:{mes_ano}"
+        cur.execute("""
+            DELETE FROM transacoes
+            WHERE (ref_externa = ? OR ref_externa LIKE ?)
+               OR (LOWER(categoria) = 'pagamento de fatura' AND conta_id = ? AND strftime('%Y-%m', data) = ? AND descricao LIKE ?)
+        """, (ref_fatura, f"%{ref_fatura}%", conta_origem_id, mes_ano, f"%{nome_cartao}%"))
+
+        # 3. Criar a transação real de saída na Conta de Origem
+        if total_fatura > 0:
+            cur.execute("""
+                INSERT INTO transacoes
+                (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, status_pagamento, data_liquidacao, ref_externa)
+                VALUES (?, ?, ?, 'despesa', 'Pagamento de fatura', ?, ?, 1, 1, 'PAGA', ?, ?)
+            """, (
+                data_pagamento,
+                f"Pagamento de fatura {nome_cartao}",
+                total_fatura,
+                nome_conta_origem,
+                conta_origem_id,
+                data_pagamento,
+                ref_fatura
+            ))
+
+        conn.commit()
+        return JSONResponse({
+            "sucesso": True,
+            "mensagem": f"Fatura de {nome_cartao} paga com sucesso! R$ {total_fatura:.2f} debitados de {nome_conta_origem}.",
+            "total_pago": total_fatura,
+            "conta_debito": nome_conta_origem,
+            "itens_baixados": len(compras_ids)
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/cartoes/faturas/desfazer")
 async def api_desfazer_fatura_cartao(request: Request):
-    """Reabre uma fatura de cartão quitada, estornando a liquidação de suas compras."""
+    """Reabre uma fatura de cartão quitada, estornando a liquidação de suas compras e devolvendo o saldo debitado à conta de pagamento."""
     conn = conectar_db()
     try:
         data = await request.json()
         transacao_ids = data.get("transacao_ids", [])
         cartao_id = data.get("cartao_id")
-        mes_ano = data.get("mes_ano")  # ex: '2026-11'
-        
+        mes_ano = str(data.get("mes_ano") or "")[:7]  # ex: '2026-11'
+
         cur = conn.cursor()
+
+        # Obter nome do cartão se possível
+        nome_cartao = ""
+        if cartao_id:
+            cur.execute("SELECT nome FROM cartoes WHERE id = ?", (cartao_id,))
+            r_c = cur.fetchone()
+            if r_c:
+                nome_cartao = r_c["nome"]
+
+        # 1. Reabrir as compras da fatura (pago = 0)
         if transacao_ids:
             placeholders = ",".join("?" * len(transacao_ids))
             cur.execute(f"""
                 UPDATE transacoes
-                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL
+                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL, afeta_saldo_bancario = 0
                 WHERE id IN ({placeholders})
             """, tuple(transacao_ids))
-        elif cartao_id and mes_ano:
-            cur.execute("""
-                UPDATE transacoes
-                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL
-                WHERE tipo = 'despesa'
-                  AND strftime('%Y-%m', data) = ?
-                  AND conta_id = ?
-            """, (mes_ano, cartao_id))
-            
+
+        if cartao_id and mes_ano:
+            if "inter" in nome_cartao.lower() or "aparecida" in nome_cartao.lower():
+                cur.execute("""
+                    UPDATE transacoes
+                    SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL, afeta_saldo_bancario = 0
+                    WHERE tipo = 'despesa'
+                      AND strftime('%Y-%m', data) = ?
+                      AND (conta = ? OR conta_id = ? OR conta = 'Cartão Inter Aparecida' OR descricao LIKE '%Inter Aparecida%')
+                      AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                      AND descricao NOT LIKE 'Pagamento de fatura%'
+                      AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+                """, (mes_ano, nome_cartao, cartao_id))
+            else:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL, afeta_saldo_bancario = 0
+                    WHERE tipo = 'despesa'
+                      AND strftime('%Y-%m', data) = ?
+                      AND (conta = ? OR conta_id = ?)
+                      AND COALESCE(categoria, '') != 'Pagamento de fatura'
+                      AND descricao NOT LIKE 'Pagamento de fatura%'
+                      AND (grupo_parcelamento IS NULL OR grupo_parcelamento NOT LIKE 'pagaleve%')
+                """, (mes_ano, nome_cartao, cartao_id))
+
         # Cancelar pagamentos em pagamentos_despesas se houver
         if transacao_ids:
             placeholders = ",".join("?" * len(transacao_ids))
@@ -2615,16 +2767,23 @@ async def api_desfazer_fatura_cartao(request: Request):
                 WHERE transacao_id IN ({placeholders}) AND cancelado = 0
             """, tuple(transacao_ids))
 
-        # Remover transação de pagamento consolidado de fatura na conta financeira se houver
-        if mes_ano:
+        # 2. Excluir a transação de débito consolidado de fatura na conta financeira para estornar o saldo bancário
+        ref_fatura = f"fatura_cartao:{cartao_id}:{mes_ano}" if cartao_id and mes_ano else None
+        if ref_fatura:
             cur.execute("""
                 DELETE FROM transacoes
-                WHERE categoria = 'Pagamento de fatura'
-                  AND (data LIKE ? OR ref_externa LIKE ?)
-            """, (f"{mes_ano}%", f"%fatura_cartao:{cartao_id}:{mes_ano}%"))
+                WHERE (ref_externa = ? OR ref_externa LIKE ?)
+                   OR (LOWER(categoria) = 'pagamento de fatura' AND strftime('%Y-%m', data) = ? AND (descricao LIKE ? OR ref_externa LIKE ?))
+            """, (ref_fatura, f"%{ref_fatura}%", mes_ano, f"%{nome_cartao}%" if nome_cartao else "%", f"%{cartao_id}%"))
+        elif mes_ano:
+            cur.execute("""
+                DELETE FROM transacoes
+                WHERE (LOWER(categoria) = 'pagamento de fatura' OR descricao LIKE 'Pagamento de fatura%')
+                  AND strftime('%Y-%m', data) = ?
+            """, (mes_ano,))
 
         conn.commit()
-        return JSONResponse({"sucesso": True, "mensagem": "Fatura reaberta com sucesso!"})
+        return JSONResponse({"sucesso": True, "mensagem": "Fatura reaberta com sucesso e saldo estornado para a conta de pagamento!"})
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
@@ -3218,7 +3377,17 @@ async def pagina_cartoes(
         pct_uso = (tot_fatura / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_fatura > 0 else 0.0)
         total_pago = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 1)
         total_pendente = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 0)
-        is_fatura_paga = (len(compras) > 0 and all(it["pago"] == 1 for it in compras) and tot_fatura > 0) or (is_fatura_passada and len(compras) > 0 and total_pendente == 0)
+
+        # Verifica se existe pagamento de fatura registrado para este cartão/mês na conta bancária
+        cur.execute("""
+            SELECT id, conta, valor FROM transacoes
+            WHERE (ref_externa = ? OR ref_externa LIKE ?)
+               OR (LOWER(categoria) = 'pagamento de fatura' AND strftime('%Y-%m', data) = ? AND (descricao LIKE ? OR ref_externa LIKE ?))
+            LIMIT 1
+        """, (f"fatura_cartao:{cid}:{periodo_str}", f"%fatura_cartao:{cid}:{periodo_str}%", periodo_str, f"%{nome}%", f"%fatura_cartao:{cid}:%"))
+        pagamento_fatura_row = cur.fetchone()
+
+        is_fatura_paga = (pagamento_fatura_row is not None) or (len(compras) > 0 and all(it["pago"] == 1 for it in compras) and tot_fatura > 0) or (is_fatura_passada and len(compras) > 0 and total_pendente == 0)
 
         c_info = {
             "is_fatura_paga": is_fatura_paga,
