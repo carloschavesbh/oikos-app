@@ -1611,6 +1611,50 @@ async def pagina_lancamentos(
 
 
 
+def obter_hierarquia_cerbasi(conn):
+    """
+    Retorna a hierarquia oficial Cerbasi (Categoria -> Lista de Subcategorias)
+    diretamente da base SQLite (grupos_categoria e subcategorias), sem duplicações.
+    """
+    c = conn.cursor()
+    c.execute("SELECT id, nome FROM grupos_categoria WHERE tipo = 'despesa' ORDER BY ordem, id")
+    grupos = c.fetchall()
+    
+    hierarquia = {}
+    for gid, gnom in grupos:
+        c.execute("SELECT nome FROM subcategorias WHERE grupo_id = ? ORDER BY ordem, id", (gid,))
+        subs = [r[0] for r in c.fetchall() if r[0]]
+        hierarquia[gnom] = subs
+        
+    alias_map = {
+        "Habitação": hierarquia.get("Habitação", ["Água (Copasa)", "Energia (CEMIG + CEMIG SIM)", "Internet Residencial", "Telefone (Fernanda)", "Manutenção e Reparos", "Outros Habitação"]),
+        "Moradia/Habitação": hierarquia.get("Habitação", ["Água (Copasa)", "Energia (CEMIG + CEMIG SIM)", "Internet Residencial", "Telefone (Fernanda)", "Manutenção e Reparos"]),
+        "Moradia/Contas": hierarquia.get("Habitação", ["Energia/CEMIG", "Telefone/Internet/Claro", "Água/Copasa", "Outros"]),
+        "Alimentação": hierarquia.get("Alimentação", ["Supermercado / Feira", "Padaria", "Delivery (iFood / 99Food)"]),
+        "Saúde": hierarquia.get("Saúde", ["Medicamentos", "Plano de Saúde", "Médicos / Consultas", "Academia / Wellhub"]),
+        "Medicamentos / Saúde": hierarquia.get("Saúde", ["Medicamentos", "Plano de Saúde", "Farmácia"]),
+        "Transporte": ["Combustível", "Manutenção Veículo", "Táxi / Uber", "Estacionamento / Rotativo", "Seguro / IPVA"],
+        "Transporte Pessoal": hierarquia.get("Transporte Pessoal", ["Combustível", "Manutenção Veículo", "Táxi / Uber", "Seguro"]),
+        "Chaves Transportes": hierarquia.get("Chaves Transportes", ["Combustível (Trabalho)", "Manutenção Operacional", "Alimentação na Rua"]),
+        "Educação": hierarquia.get("Educação", ["Pós-Graduação Fernanda", "Cursos / TI", "Livros / Assinaturas"]),
+        "Dívidas": hierarquia.get("Dívidas", ["Acordo BV", "Juros / Taxas de Empréstimo", "Empréstimos", "Outras Dívidas"]),
+        "Empréstimos": hierarquia.get("Dívidas", ["Empréstimo Cartão", "Juros / Taxas de Empréstimo", "Acordo BV", "Outras Dívidas"]),
+        "Juros/Encargos": ["Juros / Taxas de Empréstimo", "Encargos Cartão", "Juros Empréstimo Cartão", "Multa"],
+        "Lazer": hierarquia.get("Lazer", ["Restaurante / Lanche fora", "Streaming / Entretenimento", "Viagens / Passeios"]),
+        "Pedro": hierarquia.get("Pedro", ["Higiene / Fraldas", "Escola / Material", "Roupas / Brinquedos"]),
+        "Pessoal — Carlos": hierarquia.get("Pessoal — Carlos", ["Barbearia", "Vestuário Carlos", "Higiene / Farmácia Carlos"]),
+        "Pessoal — Fernanda": hierarquia.get("Pessoal — Fernanda", ["Cabelo / Beleza Fernanda", "Vestuário Fernanda", "Cosméticos"]),
+        "Eventual": hierarquia.get("Eventual", ["Presentes do Mês", "Compras Diversas"]),
+        "Outros": ["Compras Diversas", "Presentes", "Outros Habitação", "Geral"]
+    }
+    
+    for k, v in alias_map.items():
+        if k not in hierarquia or not hierarquia[k]:
+            hierarquia[k] = v
+
+    return hierarquia
+
+
 # Estrutura hierárquica Categoria -> Subcategoria (Categorias e subcategorias)
 CATEGORIAS_SUBCATEGORIAS: Dict[str, List[str]] = {
     "Alimentação": [
@@ -2509,6 +2553,59 @@ async def api_criar_compra_cartao(request: Request):
 
 
 
+@app.post("/api/cartoes/faturas/desfazer")
+async def api_desfazer_fatura_cartao(request: Request):
+    """Reabre uma fatura de cartão quitada, estornando a liquidação de suas compras."""
+    conn = conectar_db()
+    try:
+        data = await request.json()
+        transacao_ids = data.get("transacao_ids", [])
+        cartao_id = data.get("cartao_id")
+        mes_ano = data.get("mes_ano")  # ex: '2026-11'
+        
+        cur = conn.cursor()
+        if transacao_ids:
+            placeholders = ",".join("?" * len(transacao_ids))
+            cur.execute(f"""
+                UPDATE transacoes
+                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL
+                WHERE id IN ({placeholders})
+            """, tuple(transacao_ids))
+        elif cartao_id and mes_ano:
+            cur.execute("""
+                UPDATE transacoes
+                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL
+                WHERE tipo = 'despesa'
+                  AND strftime('%Y-%m', data) = ?
+                  AND conta_id = ?
+            """, (mes_ano, cartao_id))
+            
+        # Cancelar pagamentos em pagamentos_despesas se houver
+        if transacao_ids:
+            placeholders = ",".join("?" * len(transacao_ids))
+            cur.execute(f"""
+                UPDATE pagamentos_despesas
+                SET cancelado = 1, cancelado_em = datetime('now', 'localtime'), motivo_cancelamento = 'Reabertura de Fatura'
+                WHERE transacao_id IN ({placeholders}) AND cancelado = 0
+            """, tuple(transacao_ids))
+
+        # Remover transação de pagamento consolidado de fatura na conta financeira se houver
+        if mes_ano:
+            cur.execute("""
+                DELETE FROM transacoes
+                WHERE categoria = 'Pagamento de fatura'
+                  AND (data LIKE ? OR ref_externa LIKE ?)
+            """, (f"{mes_ano}%", f"%fatura_cartao:{cartao_id}:{mes_ano}%"))
+
+        conn.commit()
+        return JSONResponse({"sucesso": True, "mensagem": "Fatura reaberta com sucesso!"})
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/cartoes/compras/editar")
 @app.post("/api/cartoes/compras/{compra_id}/editar")
 async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] = None):
@@ -2545,6 +2642,7 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
         novo_valor = float(valor_raw or 0.0)
 
         nova_cat = str(data.get("categoria") or "Cartão").strip()
+        nova_subcat = str(data.get("subcategoria") or "").strip()
         nova_data_venc = str(data.get("data") or data.get("vencimento") or "").strip()[:10]
         nova_data_compra = str(data.get("data_compra") or "").strip()[:10]
         novo_titular = str(data.get("titular") or data.get("responsavel") or "Carlos").strip()
@@ -2569,27 +2667,27 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
         if nova_data_venc and ref_externa_final:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?, juros = ?, ref_externa = ?
+                SET descricao = ?, valor = ?, categoria = ?, subcategoria = ?, data = ?, titular = ?, juros = ?, ref_externa = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, nova_data_venc, novo_titular, novo_juros, ref_externa_final, cid))
+            """, (desc_final, novo_valor, nova_cat, nova_subcat, nova_data_venc, novo_titular, novo_juros, ref_externa_final, cid))
         elif nova_data_venc:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?, juros = ?
+                SET descricao = ?, valor = ?, categoria = ?, subcategoria = ?, data = ?, titular = ?, juros = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, nova_data_venc, novo_titular, novo_juros, cid))
+            """, (desc_final, novo_valor, nova_cat, nova_subcat, nova_data_venc, novo_titular, novo_juros, cid))
         elif ref_externa_final:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, titular = ?, juros = ?, ref_externa = ?
+                SET descricao = ?, valor = ?, categoria = ?, subcategoria = ?, titular = ?, juros = ?, ref_externa = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, novo_titular, novo_juros, ref_externa_final, cid))
+            """, (desc_final, novo_valor, nova_cat, nova_subcat, novo_titular, novo_juros, ref_externa_final, cid))
         else:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, titular = ?, juros = ?
+                SET descricao = ?, valor = ?, categoria = ?, subcategoria = ?, titular = ?, juros = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, novo_titular, novo_juros, cid))
+            """, (desc_final, novo_valor, nova_cat, nova_subcat, novo_titular, novo_juros, cid))
 
         conn.commit()
         return JSONResponse({"sucesso": True, "mensagem": "Compra atualizada com sucesso!"})
@@ -3057,8 +3155,14 @@ async def pagina_cartoes(
 
         lim_disp = max(0.0, lim_total - tot_fatura) if lim_total > 0 else 0.0
         pct_uso = (tot_fatura / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_fatura > 0 else 0.0)
+        total_pago = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 1)
+        total_pendente = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 0)
+        is_fatura_paga = (len(compras) > 0 and all(it["pago"] == 1 for it in compras) and tot_fatura > 0) or (is_fatura_passada and len(compras) > 0 and total_pendente == 0)
 
         c_info = {
+            "is_fatura_paga": is_fatura_paga,
+            "total_pago": total_pago,
+            "total_pendente": total_pendente,
             "id": cid,
             "nome": nome,
             "bandeira": bandeira,
@@ -3083,10 +3187,9 @@ async def pagina_cartoes(
     if not cartao_ativo and cartoes_dados:
         cartao_ativo = cartoes_dados[0]
 
-    cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'despesa' AND categoria IS NOT NULL ORDER BY categoria ASC")
-    cats_desp_cartao = [r[0] for r in cur.fetchall() if r[0]]
-    if not cats_desp_cartao:
-        cats_desp_cartao = list(CATEGORIAS_SUBCATEGORIAS.keys())
+    hierarquia_cerbasi = obter_hierarquia_cerbasi(conn)
+    # Lista de categorias ordenadas sem duplicações em maiúsculo
+    cats_desp_cartao = sorted([k for k in hierarquia_cerbasi.keys() if k.upper() != k or k in ['Pedro']])
 
     cur.execute("""
         SELECT id, nome, tipo
@@ -3124,7 +3227,9 @@ async def pagina_cartoes(
             "categorias_despesa": cats_desp_cartao,
             "categorias_receita": cats_rec,
             "contas_ativas": contas_ativas,
-            "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
+            "categorias_subcategorias": hierarquia_cerbasi,
+            "categorias_subcategorias_json": json.dumps(hierarquia_cerbasi, ensure_ascii=False),
+            "is_fatura_paga": cartao_ativo.get("is_fatura_paga", False) if cartao_ativo else False,
             "responsaveis": ["Carlos", "Fernanda", "Pedro", "Família", "Outro"],
             "hoje": date.today().strftime("%Y-%m-%d"),
             "active_tab": "cartoes"
@@ -7032,6 +7137,11 @@ async def api_grupo_baixar(request: Request):
         r_mp = cur.fetchone()
         cid_padrao = r_mp["id"] if r_mp else 1
 
+        cur.execute("SELECT id, nome FROM cartoes")
+        cartoes_cadastrados = {r["id"]: r["nome"] for r in cur.fetchall()}
+        cartao_detectado_id = None
+        cartao_detectado_nome = None
+
         for idx, tid in enumerate(transacao_ids):
             cur.execute("SELECT id, pago, valor, conta, conta_id, descricao FROM transacoes WHERE id = ?", (tid,))
             r = cur.fetchone()
@@ -7063,6 +7173,32 @@ async def api_grupo_baixar(request: Request):
                     """, (data_pagamento, val_item_pago, j_item, d_item, tid))
                 baixadas += 1
                 total_baixado += val_item_pago
+                if r and (r["conta_id"] in cartoes_cadastrados or r["conta"] in cartoes_cadastrados.values()):
+                    cartao_detectado_id = r["conta_id"] if r["conta_id"] in cartoes_cadastrados else [k for k, v in cartoes_cadastrados.items() if v == r["conta"]][0]
+                    cartao_detectado_nome = cartoes_cadastrados.get(cartao_detectado_id, r["conta"])
+
+        # Se as despesas liquidadas forem de cartão de crédito, gera o débito consolidado de Pagamento de Fatura na conta pagadora
+        if cartao_detectado_nome and total_baixado > 0:
+            cid_final = conta_req if conta_req else cid_padrao
+            cur.execute("SELECT nome FROM contas_config WHERE id = ?", (cid_final,))
+            r_c_nome = cur.fetchone()
+            nome_conta_debito = r_c_nome[0] if r_c_nome else 'Mercado Pago'
+            mes_ref_fatura = data_pagamento[:7]
+            cur.execute("""
+                INSERT INTO transacoes
+                (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, status_pagamento, data_liquidacao, ref_externa, juros, desconto)
+                VALUES (?, ?, ?, 'despesa', 'Pagamento de fatura', ?, ?, 1, 1, 'PAGA', ?, ?, ?, ?)
+            """, (
+                data_pagamento,
+                f"Pagamento de fatura {cartao_detectado_nome}",
+                round(total_baixado, 2),
+                nome_conta_debito,
+                cid_final,
+                data_pagamento,
+                f"fatura_cartao:{cartao_detectado_id}:{mes_ref_fatura}",
+                juros_grp,
+                desconto_grp
+            ))
 
         conn.commit()
         return {

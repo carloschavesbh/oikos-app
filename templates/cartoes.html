@@ -154,11 +154,11 @@
             <p class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold leading-tight">Limite Total</p>
             <p class="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-0.5 truncate leading-tight">{{ crd.limite_total | moeda }}</p>
           </div>
-          <div class="bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80 rounded-xl p-2.5">
-            <p class="text-[9px] uppercase tracking-wider text-rose-600 dark:text-rose-400 font-bold leading-tight">
-              {% if is_fatura_atual %}Fatura Atual{% elif is_fatura_futura %}Fatura Prevista{% else %}Fatura do Mês{% endif %}
+          <div class="{% if crd.is_fatura_paga %}bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/80{% else %}bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80{% endif %} rounded-xl p-2.5">
+            <p class="text-[9px] uppercase tracking-wider {% if crd.is_fatura_paga %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} font-bold leading-tight">
+              {% if crd.is_fatura_paga %}Fatura Paga{% elif is_fatura_atual %}Fatura Atual{% elif is_fatura_futura %}Fatura Prevista{% else %}Fatura do Mês{% endif %}
             </p>
-            <p class="text-xs sm:text-sm font-black text-rose-600 dark:text-rose-400 mt-0.5 truncate leading-tight">{{ crd.total_fatura | moeda }}</p>
+            <p class="text-xs sm:text-sm font-black {% if crd.is_fatura_paga %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} mt-0.5 truncate leading-tight">{{ crd.total_fatura | moeda }}</p>
           </div>
           <div class="bg-emerald-50/50 dark:bg-slate-950/60 border border-emerald-200/50 dark:border-slate-800/80 rounded-xl p-2.5">
             <p class="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold leading-tight">Limite Disponível</p>
@@ -204,7 +204,11 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </a>
 
-          {% if is_fatura_atual %}
+          {% if crd.is_fatura_paga %}
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Fatura Paga
+          </span>
+          {% elif is_fatura_atual %}
           <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Fatura Atual (Aberta)
           </span>
@@ -229,7 +233,20 @@
           <span class="text-xs text-slate-500 dark:text-slate-400">
             Total desta fatura: <strong class="text-slate-900 dark:text-white font-black text-xs sm:text-sm">{{ crd.total_fatura | moeda }}</strong>
           </span>
-          {% if crd.total_fatura > 0 %}
+          {% if crd.is_fatura_paga %}
+          <div class="flex items-center gap-1.5">
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span>✓ Fatura Paga</span>
+            </span>
+            <button type="button"
+                    onclick="desfazerPagamentoFaturaCartao()"
+                    title="Estornar liquidação e reabrir esta fatura"
+                    class="px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer flex items-center gap-1">
+              <span>↩</span> Desfazer
+            </button>
+          </div>
+          {% elif crd.total_fatura > 0 %}
           <button type="button"
                   onclick="pagarFaturaCartao()"
                   class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1 cursor-pointer">
@@ -495,24 +512,24 @@
         </select>
       </div>
 
-      <!-- 2. Valores Integrados: Base, Juros e Total na Fatura com Cálculo Inteligente Bidirecional -->
+      <!-- 2. Valores Integrados: Base, Juros e Total na Fatura com Máscara Monetária BR (Centavos da Direita para a Esquerda) -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Líquido / Base (R$) *</label>
-          <input type="number" step="0.01" min="0.01" id="despesa-cartao-valor" name="valor" required placeholder="0,00"
-                 oninput="aoAlterarValorBase()"
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Líquido / Base *</label>
+          <input type="text" inputmode="numeric" id="despesa-cartao-valor" name="valor" required placeholder="R$ 0,00"
+                 oninput="aoDigitarValorBase(this)"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos (R$)</label>
-          <input type="number" step="0.01" min="0" id="despesa-cartao-juros" name="juros" placeholder="0,00" value="0.00"
-                 oninput="aoAlterarJuros()"
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos</label>
+          <input type="text" inputmode="numeric" id="despesa-cartao-juros" name="juros" placeholder="R$ 0,00" value="R$ 0,00"
+                 oninput="aoDigitarJuros(this)"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:border-rose-500 focus:outline-none">
         </div>
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Total na Fatura (R$) *</label>
-          <input type="number" step="0.01" min="0.01" id="despesa-cartao-total-fatura" name="total_fatura" placeholder="0,00"
-                 oninput="aoAlterarTotalFatura()"
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Total na Fatura *</label>
+          <input type="text" inputmode="numeric" id="despesa-cartao-total-fatura" name="total_fatura" placeholder="R$ 0,00"
+                 oninput="aoDigitarTotalFatura(this)"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-orange-300 dark:border-orange-800/80 px-3 py-2 text-xs font-black text-orange-600 dark:text-orange-400 focus:border-orange-500 focus:outline-none">
         </div>
       </div>
@@ -595,12 +612,12 @@
         </div>
       </div>
 
-      <!-- 4. Categoria e Subcategoria -->
+      <!-- 4. Categoria e Subcategoria Dinâmica (Padrão Cerbasi) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
           <select id="despesa-cartao-categoria" name="categoria" required onchange="aoMudarCategoriaDespesaCartao()"
-                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
             {% for cat in categorias_despesa %}
             <option value="{{ cat }}">{{ cat }}</option>
             {% endfor %}
@@ -608,8 +625,10 @@
         </div>
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Subcategoria</label>
-          <input type="text" id="despesa-cartao-subcategoria" name="subcategoria" placeholder="Opcional"
-                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+          <select id="despesa-cartao-subcategoria" name="subcategoria"
+                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+            <option value="">Selecione a subcategoria...</option>
+          </select>
         </div>
       </div>
 
@@ -1090,68 +1109,154 @@
     if (lblProx) lblProx.textContent = `Vencimento: ${calcs.vencProxStr}`;
   }
 
+  // ==========================================
+  // HIERARQUIA CERBASI: CATEGORIAS & SUBCATEGORIAS
+  // ==========================================
+  const CATEGORIAS_MAPA = {{ (categorias_subcategorias or {}) | tojson }};
+
+  function preencherSelectSubcategorias(selectSub, categoria, subSelecionada = '') {
+    if (!selectSub) return;
+    selectSub.innerHTML = '<option value="">Selecione a subcategoria...</option>';
+    const subs = CATEGORIAS_MAPA[categoria] || [];
+    let encontrou = false;
+    subs.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = s;
+      if (subSelecionada && s.toLowerCase().trim() === subSelecionada.toLowerCase().trim()) {
+        opt.selected = true;
+        encontrou = true;
+      }
+      selectSub.appendChild(opt);
+    });
+    // Se a subcategoria existente for personalizada e não estiver na lista padrão, adiciona como opção
+    if (subSelecionada && !encontrou && subSelecionada.trim() !== '') {
+      const opt = document.createElement('option');
+      opt.value = subSelecionada;
+      opt.textContent = subSelecionada;
+      opt.selected = true;
+      selectSub.appendChild(opt);
+    }
+  }
+
+  function aoMudarCategoriaDespesaCartao() {
+    const selCat = document.getElementById('despesa-cartao-categoria');
+    const selSub = document.getElementById('despesa-cartao-subcategoria');
+    if (selCat && selSub) {
+      preencherSelectSubcategorias(selSub, selCat.value, '');
+    }
+  }
+
+  function aoMudarCategoriaEditCompra() {
+    const selCat = document.getElementById('edit-compra-categoria');
+    const selSub = document.getElementById('edit-compra-subcategoria');
+    if (selCat && selSub) {
+      preencherSelectSubcategorias(selSub, selCat.value, '');
+    }
+  }
+
+  // ==========================================
+  // MÁSCARA MONETÁRIA BR (CENTAVOS DA DIREITA P/ ESQUERDA)
+  // ==========================================
+  function formatarMoedaCentavos(centavos) {
+    const val = (centavos / 100).toFixed(2);
+    const partes = val.split('.');
+    partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return 'R$ ' + partes.join(',');
+  }
+
+  function parseMoedaBR(val) {
+    if (!val && val !== 0) return 0.0;
+    if (typeof val === 'number') return val;
+    const digitos = String(val).replace(/\D/g, '');
+    if (!digitos) return 0.0;
+    return parseInt(digitos, 10) / 100.0;
+  }
+
+  function setValorMoeda(input, valorFloat) {
+    if (!input) return;
+    const cents = Math.round((parseFloat(valorFloat) || 0.0) * 100);
+    input.value = formatarMoedaCentavos(cents);
+  }
+
+  function aplicarMascaraMoeda(input) {
+    if (!input) return 0.0;
+    let digitos = input.value.replace(/\D/g, '');
+    if (!digitos) {
+      input.value = 'R$ 0,00';
+      return 0.0;
+    }
+    const cents = parseInt(digitos, 10);
+    input.value = formatarMoedaCentavos(cents);
+    return cents / 100.0;
+  }
+
+  function aoDigitarMoedaGenerico(input) {
+    aplicarMascaraMoeda(input);
+  }
+
   let ultimoCampoValorAlterado = 'base';
 
   function arredondar2(val) {
     return Math.round((val + Number.EPSILON) * 100) / 100;
   }
 
-  function aoAlterarValorBase() {
-    const inputBase = document.getElementById('despesa-cartao-valor');
+  function aoDigitarValorBase(input) {
+    const vBase = aplicarMascaraMoeda(input);
     const inputJuros = document.getElementById('despesa-cartao-juros');
     const inputTotal = document.getElementById('despesa-cartao-total-fatura');
-    if (!inputBase || !inputJuros || !inputTotal) return;
-
-    const baseVal = parseFloat(inputBase.value || '0');
-
     if (ultimoCampoValorAlterado === 'total') {
-      const totalVal = parseFloat(inputTotal.value || '0');
-      if (totalVal > 0) {
-        const jurosVal = Math.max(0, arredondar2(totalVal - baseVal));
-        inputJuros.value = jurosVal.toFixed(2);
+      const vTotal = parseMoedaBR(inputTotal.value);
+      if (vTotal > 0) {
+        const vJuros = Math.max(0, arredondar2(vTotal - vBase));
+        setValorMoeda(inputJuros, vJuros);
       } else {
-        inputTotal.value = baseVal > 0 ? baseVal.toFixed(2) : '';
+        setValorMoeda(inputTotal, vBase);
       }
     } else {
-      const jurosVal = parseFloat(inputJuros.value || '0');
-      const totalVal = arredondar2(baseVal + jurosVal);
-      inputTotal.value = totalVal > 0 ? totalVal.toFixed(2) : '';
+      const vJuros = parseMoedaBR(inputJuros.value);
+      const total = arredondar2(vBase + vJuros);
+      setValorMoeda(inputTotal, total);
     }
     atualizarPreviaParcelasCartao();
   }
 
-  function aoAlterarJuros() {
+  function aoDigitarJuros(input) {
     ultimoCampoValorAlterado = 'juros';
+    const vJuros = aplicarMascaraMoeda(input);
     const inputBase = document.getElementById('despesa-cartao-valor');
-    const inputJuros = document.getElementById('despesa-cartao-juros');
     const inputTotal = document.getElementById('despesa-cartao-total-fatura');
-    if (!inputBase || !inputJuros || !inputTotal) return;
-
-    const baseVal = parseFloat(inputBase.value || '0');
-    const jurosVal = parseFloat(inputJuros.value || '0');
-    const totalVal = arredondar2(baseVal + jurosVal);
-    inputTotal.value = totalVal > 0 ? totalVal.toFixed(2) : '';
+    const vBase = parseMoedaBR(inputBase.value);
+    const total = arredondar2(vBase + vJuros);
+    setValorMoeda(inputTotal, total);
     atualizarPreviaParcelasCartao();
   }
 
-  function aoAlterarTotalFatura() {
+  function aoDigitarTotalFatura(input) {
     ultimoCampoValorAlterado = 'total';
+    const total = aplicarMascaraMoeda(input);
     const inputBase = document.getElementById('despesa-cartao-valor');
     const inputJuros = document.getElementById('despesa-cartao-juros');
-    const inputTotal = document.getElementById('despesa-cartao-total-fatura');
-    if (!inputBase || !inputJuros || !inputTotal) return;
-
-    const totalVal = parseFloat(inputTotal.value || '0');
-    const baseVal = parseFloat(inputBase.value || '0');
-
-    if (baseVal > 0) {
-      const jurosVal = Math.max(0, arredondar2(totalVal - baseVal));
-      inputJuros.value = jurosVal.toFixed(2);
-    } else if (totalVal > 0) {
-      inputBase.value = totalVal.toFixed(2);
-      inputJuros.value = '0.00';
+    const vBase = parseMoedaBR(inputBase.value);
+    if (vBase > 0) {
+      const vJuros = Math.max(0, arredondar2(total - vBase));
+      setValorMoeda(inputJuros, vJuros);
+    } else if (total > 0) {
+      setValorMoeda(inputBase, total);
+      setValorMoeda(inputJuros, 0);
     }
     atualizarPreviaParcelasCartao();
+  }
+
+  // Compatibilidade caso algum listener antigo chame os métodos anteriores
+  function aoAlterarValorBase() {
+    aoDigitarValorBase(document.getElementById('despesa-cartao-valor'));
+  }
+  function aoAlterarJuros() {
+    aoDigitarJuros(document.getElementById('despesa-cartao-juros'));
+  }
+  function aoAlterarTotalFatura() {
+    aoDigitarTotalFatura(document.getElementById('despesa-cartao-total-fatura'));
   }
 
   function aoAlternarCreditoReceita() {
@@ -1184,9 +1289,9 @@
     const badgeDetalheJuros = document.getElementById('detalhe-juros-fatura-badge');
     if (!selectParcelas || !labelPrevia) return;
 
-    const baseVal = Math.max(0, parseFloat(inputBase ? inputBase.value || '0' : '0'));
-    const jurosVal = Math.max(0, parseFloat(inputJuros ? inputJuros.value || '0' : '0'));
-    let totalVal = parseFloat(inputTotal ? inputTotal.value || '0' : '0');
+    const baseVal = Math.max(0, parseMoedaBR(inputBase ? inputBase.value || '0' : '0'));
+    const jurosVal = Math.max(0, parseMoedaBR(inputJuros ? inputJuros.value || '0' : '0'));
+    let totalVal = parseMoedaBR(inputTotal ? inputTotal.value || '0' : '0');
     if (isNaN(totalVal) || totalVal <= 0) {
       totalVal = arredondar2(baseVal + jurosVal);
     }
@@ -1197,24 +1302,110 @@
       badgeTotalFatura.textContent = totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     }
     if (badgeDetalheJuros) {
-      badgeDetalheJuros.textContent = `Líquido: ${baseVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} + Juros: ${jurosVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+      if (jurosVal > 0) {
+        badgeDetalheJuros.textContent = `Líquido ${baseVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} + Juros ${jurosVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+        badgeDetalheJuros.classList.remove('hidden');
+      } else {
+        badgeDetalheJuros.textContent = `Sem juros adicionais`;
+      }
     }
 
     if (totalVal <= 0) {
-      labelPrevia.textContent = parcelas === 1 ? '1x de R$ 0,00 (À vista)' : `${parcelas}x de R$ 0,00`;
+      labelPrevia.textContent = 'Informe o valor para simular as parcelas.';
       return;
     }
 
-    const valorParcela = (totalVal / parcelas).toFixed(2);
-    const valorParcelaFmt = parseFloat(valorParcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const totalFaturaFmt = totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-    if (parcelas === 1) {
-      labelPrevia.textContent = jurosVal > 0
-        ? `1x de ${valorParcelaFmt} (À vista c/ juros)`
-        : `1x de ${valorParcelaFmt} (À vista na fatura)`;
+    if (parcelas <= 1) {
+      if (jurosVal > 0) {
+        labelPrevia.innerHTML = `À vista: <strong class="text-orange-600 dark:text-orange-400 font-black">${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> (inclui ${jurosVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} de juros/encargos na fatura).`;
+      } else {
+        labelPrevia.innerHTML = `Total à vista na fatura: <strong class="text-orange-600 dark:text-orange-400 font-black">${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>`;
+      }
     } else {
-      labelPrevia.textContent = `${parcelas}x de ${valorParcelaFmt} (Total: ${totalFaturaFmt})`;
+      const valorParcela = arredondar2(totalVal / parcelas);
+      const somaParcelas = arredondar2(valorParcela * parcelas);
+      const ajusteCentavo = arredondar2(totalVal - somaParcelas);
+      let detalheTexto = `${parcelas}x de <strong class="text-orange-600 dark:text-orange-400 font-black">${valorParcela.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> = ${totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+      if (jurosVal > 0) {
+        detalheTexto += ` <span class="text-rose-600 dark:text-rose-400 font-semibold">(juros de ${jurosVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} diluídos)</span>`;
+      }
+      if (ajusteCentavo !== 0) {
+        detalheTexto += ` <span class="text-slate-400 text-[10px]">(ajuste de R$ ${ajusteCentavo > 0 ? '+' : ''}${ajusteCentavo.toFixed(2)} na 1ª parcela)</span>`;
+      }
+      labelPrevia.innerHTML = detalheTexto;
+    }
+  }
+
+  function abrirModalDespesaCartao(cartaoId = null) {
+    const modal = document.getElementById('modal-despesa-cartao');
+    if (!modal) return;
+
+    if (cartaoId) {
+      const selectCartao = document.getElementById('despesa-cartao-id');
+      if (selectCartao) selectCartao.value = cartaoId;
+    }
+
+    // Inicializa valores com máscara monetária
+    setValorMoeda(document.getElementById('despesa-cartao-valor'), 0);
+    setValorMoeda(document.getElementById('despesa-cartao-juros'), 0);
+    setValorMoeda(document.getElementById('despesa-cartao-total-fatura'), 0);
+    document.getElementById('despesa-cartao-desc').value = '';
+    document.getElementById('despesa-cartao-parcelas').value = '1';
+
+    aoMudarCategoriaDespesaCartao();
+    aoMudarCartaoModalDespesa();
+    atualizarOpcoesFaturasCartao();
+    atualizarPreviaParcelasCartao();
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function fecharModalDespesaCartao() {
+    const modal = document.getElementById('modal-despesa-cartao');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  function aoMudarCartaoModalDespesa() {
+    const sel = document.getElementById('despesa-cartao-id');
+    if (!sel || !sel.selectedOptions || !sel.selectedOptions[0]) return;
+    const opt = sel.selectedOptions[0];
+    let titular = (opt.dataset.titular || 'Carlos').trim();
+    if (titular.toLowerCase() === 'aparecida') {
+      titular = 'Família';
+    }
+    definirResponsavelCartao(titular);
+    atualizarOpcoesFaturasCartao();
+  }
+
+  function definirResponsavelCartao(nome) {
+    document.querySelectorAll('.btn-resp-cartao').forEach(btn => {
+      const isActive = (btn.dataset.resp === nome);
+      if (isActive) {
+        btn.className = 'btn-resp-cartao flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border-2 border-emerald-600 shadow-sm ring-2 ring-emerald-500/30';
+      } else {
+        btn.className = 'btn-resp-cartao flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700';
+      }
+    });
+
+    const hiddenInput = document.getElementById('despesa-cartao-responsavel');
+    const inputOutro = document.getElementById('despesa-cartao-responsavel-outro');
+
+    if (nome === 'Outro') {
+      if (inputOutro) {
+        inputOutro.classList.remove('hidden');
+        inputOutro.focus();
+        hiddenInput.value = inputOutro.value.trim() || 'Outro';
+        inputOutro.oninput = () => {
+          hiddenInput.value = inputOutro.value.trim() || 'Outro';
+        };
+      }
+    } else {
+      if (inputOutro) inputOutro.classList.add('hidden');
+      hiddenInput.value = nome;
     }
   }
 
@@ -1225,16 +1416,14 @@
     btn.innerHTML = '<span>⏳</span> Salvando...';
 
     const cartaoId = document.getElementById('despesa-cartao-id').value;
-    const valor = parseFloat(document.getElementById('despesa-cartao-valor').value || '0');
-    const jurosInput = document.getElementById('despesa-cartao-juros');
-    const juros = Math.max(0, parseFloat(jurosInput ? jurosInput.value || '0' : '0'));
-    const totalFaturaInput = document.getElementById('despesa-cartao-total-fatura');
-    const totalFatura = parseFloat(totalFaturaInput ? totalFaturaInput.value || '0' : '0');
+    const valor = parseMoedaBR(document.getElementById('despesa-cartao-valor').value);
+    const juros = parseMoedaBR(document.getElementById('despesa-cartao-juros').value);
+    const totalFatura = parseMoedaBR(document.getElementById('despesa-cartao-total-fatura').value);
 
     const dataCompra = document.getElementById('despesa-cartao-data').value;
     const descricao = document.getElementById('despesa-cartao-desc').value.trim();
     const categoria = document.getElementById('despesa-cartao-categoria').value;
-    const subcategoria = document.getElementById('despesa-cartao-subcategoria').value.trim();
+    const subcategoria = document.getElementById('despesa-cartao-subcategoria') ? document.getElementById('despesa-cartao-subcategoria').value.trim() : '';
     const responsavel = document.getElementById('despesa-cartao-responsavel').value.trim() || 'Carlos';
     const parcelas = parseInt(document.getElementById('despesa-cartao-parcelas').value || '1', 10);
     
@@ -1284,18 +1473,20 @@
       if (resp.ok && res.sucesso) {
         window.location.href = `/cartoes?c=${cartaoId}`;
       } else {
-        alert(res.erro || 'Não foi possível registrar a despesa no cartão.');
+        alert(res.erro || 'Erro ao registrar despesa no cartão.');
         btn.disabled = false;
         btn.innerHTML = '<span>💾</span> Salvar Despesa';
       }
     } catch (err) {
-      alert('Erro de conexão ao salvar despesa no cartão.');
+      alert('Erro de conexão ao salvar despesa.');
       btn.disabled = false;
       btn.innerHTML = '<span>💾</span> Salvar Despesa';
     }
   }
 
-
+  // ==========================================
+  // DRAWER LATERAL DE EDIÇÃO DA COMPRA
+  // ==========================================
   let itemCompraAtivoDrawer = null;
 
   function abrirDrawerEditarCompraDoItem(item) {
@@ -1306,20 +1497,20 @@
 
     document.getElementById('edit-compra-id').value = item.id;
     document.getElementById('edit-compra-desc').value = item.descricao_limpa || item.descricao || '';
-    document.getElementById('edit-compra-valor').value = parseFloat(item.valor || 0).toFixed(2);
-    document.getElementById('edit-compra-juros').value = parseFloat(item.juros || 0).toFixed(2);
+    
+    // Define valores com máscara monetária formatada
+    setValorMoeda(document.getElementById('edit-compra-valor'), item.valor);
+    setValorMoeda(document.getElementById('edit-compra-juros'), item.juros || 0);
+
     document.getElementById('edit-compra-data-compra').value = (item.data_compra || item.data || '').substring(0, 10);
     document.getElementById('edit-compra-data').value = (item.data_vencimento || item.data || '').substring(0, 10);
 
     const selCat = document.getElementById('edit-compra-categoria');
     if (selCat) {
-      for (let i = 0; i < selCat.options.length; i++) {
-        if (selCat.options[i].value === item.categoria) {
-          selCat.selectedIndex = i;
-          break;
-        }
-      }
+      selCat.value = item.categoria || '';
     }
+    const selSub = document.getElementById('edit-compra-subcategoria');
+    preencherSelectSubcategorias(selSub, item.categoria || '', item.subcategoria || '');
 
     definirEditResponsavel(item.titular || 'Carlos');
 
@@ -1344,18 +1535,17 @@
     }, 300);
   }
 
-  function definirEditResponsavel(resp) {
-    const inputTitular = document.getElementById('edit-compra-titular');
-    if (inputTitular) inputTitular.value = resp;
-
+  function definirEditResponsavel(nome) {
     document.querySelectorAll('.btn-edit-resp').forEach(btn => {
-      const isSelected = btn.dataset.editResp === resp;
-      if (isSelected) {
-        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
+      const isActive = (btn.dataset.editResp === nome);
+      if (isActive) {
+        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border-2 border-emerald-600 shadow-sm ring-2 ring-emerald-500/30';
       } else {
-        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800';
+        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700';
       }
     });
+    const hidden = document.getElementById('edit-compra-titular');
+    if (hidden) hidden.value = nome;
   }
 
   async function salvarEdicaoCompraCartao(e) {
@@ -1366,11 +1556,12 @@
 
     const id = document.getElementById('edit-compra-id').value;
     const descricao = document.getElementById('edit-compra-desc').value.trim();
-    const valor = parseFloat(document.getElementById('edit-compra-valor').value || '0');
-    const juros = parseFloat(document.getElementById('edit-compra-juros').value || '0');
+    const valor = parseMoedaBR(document.getElementById('edit-compra-valor').value);
+    const juros = parseMoedaBR(document.getElementById('edit-compra-juros').value);
     const dataCompra = document.getElementById('edit-compra-data-compra').value;
     const dataVenc = document.getElementById('edit-compra-data').value;
     const categoria = document.getElementById('edit-compra-categoria').value;
+    const subcategoria = document.getElementById('edit-compra-subcategoria') ? document.getElementById('edit-compra-subcategoria').value.trim() : '';
     const titular = document.getElementById('edit-compra-titular').value;
 
     try {
@@ -1385,6 +1576,7 @@
           data_compra: dataCompra,
           data: dataVenc,
           categoria,
+          subcategoria,
           titular
         })
       });
@@ -1401,6 +1593,41 @@
       btn.disabled = false;
       btn.innerHTML = '<span>💾</span> Salvar';
     }
+  }
+
+  async function desfazerPagamentoFaturaCartao() {
+    {% if cartao_ativo %}
+    const comprasIds = {{ cartao_ativo.compras | map(attribute='id') | list | tojson }};
+    const cartaoId = {{ cartao_ativo.id | tojson }};
+    const mesAno = {{ "%04d-%02d"|format(ano_selecionado, mes_selecionado) | tojson }};
+
+    if (!confirm('Deseja estornar a baixa desta fatura e reabri-la para pagamento?')) {
+      return;
+    }
+
+    try {
+      const resp = await fetch('/api/cartoes/faturas/desfazer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transacao_ids: comprasIds,
+          cartao_id: cartaoId,
+          mes_ano: mesAno
+        })
+      });
+      const res = await resp.json();
+      if (resp.ok && res.sucesso) {
+        if (typeof showToast === 'function') {
+          showToast('Fatura Reaberta', res.mensagem || 'Fatura reaberta com sucesso!', false);
+        }
+        setTimeout(() => window.location.reload(), 300);
+      } else {
+        alert(res.erro || 'Erro ao desfazer pagamento da fatura.');
+      }
+    } catch (err) {
+      alert('Erro de conexão ao reabrir fatura.');
+    }
+    {% endif %}
   }
 
   function excluirCompraDoDrawer() {
@@ -1486,11 +1713,11 @@
         const j = document.getElementById('despesa-cartao-juros');
         const d = document.getElementById('despesa-cartao-desc');
         const p = document.getElementById('despesa-cartao-parcelas');
-        if (v) v.value = '170.00';
-        if (j) j.value = '15.00';
+        if (v) setValorMoeda(v, 170.00);
+        if (j) setValorMoeda(j, 15.00);
         if (d) d.value = 'Compra no Cartão c/ Juros (Maquininha)';
         if (p) p.value = '2';
-        atualizarPreviaParcelasCartao();
+        aoDigitarJuros(j);
         definirResponsavelCartao('Família');
       }, 400);
     }
@@ -1509,9 +1736,9 @@
         const t = document.getElementById('despesa-cartao-total-fatura');
         const d = document.getElementById('despesa-cartao-desc');
         const chk = document.getElementById('despesa-cartao-creditar-receita');
-        if (v) v.value = '750.00';
-        if (t) t.value = '892.52';
-        aoAlterarTotalFatura();
+        if (v) setValorMoeda(v, 750.00);
+        if (t) setValorMoeda(t, 892.52);
+        aoDigitarTotalFatura(t);
         if (d) d.value = 'Empréstimo Pix Crédito Inter';
         if (chk) {
           chk.checked = true;
@@ -1556,16 +1783,18 @@
                class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
       </div>
 
-      <!-- Valor Base e Juros / Encargos -->
+      <!-- Valor Base e Juros / Encargos com Máscara Monetária -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base (R$) *</label>
-          <input type="number" step="0.01" min="0.01" id="edit-compra-valor" name="valor" required
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base *</label>
+          <input type="text" inputmode="numeric" id="edit-compra-valor" name="valor" required placeholder="R$ 0,00"
+                 oninput="aoDigitarMoedaGenerico(this)"
                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
         </div>
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos (R$)</label>
-          <input type="number" step="0.01" min="0" id="edit-compra-juros" name="juros" placeholder="0.00"
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos</label>
+          <input type="text" inputmode="numeric" id="edit-compra-juros" name="juros" placeholder="R$ 0,00" value="R$ 0,00"
+                 oninput="aoDigitarMoedaGenerico(this)"
                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500">
         </div>
       </div>
@@ -1584,15 +1813,24 @@
         </div>
       </div>
 
-      <!-- Categoria -->
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
-        <select id="edit-compra-categoria" name="categoria" required
-                class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
-          {% for cat in categorias_despesa %}
-          <option value="{{ cat }}">{{ cat }}</option>
-          {% endfor %}
-        </select>
+      <!-- Categoria e Subcategoria Dinâmica (Padrão Cerbasi) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
+          <select id="edit-compra-categoria" name="categoria" required onchange="aoMudarCategoriaEditCompra()"
+                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
+            {% for cat in categorias_despesa %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Subcategoria</label>
+          <select id="edit-compra-subcategoria" name="subcategoria"
+                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
+            <option value="">Selecione a subcategoria...</option>
+          </select>
+        </div>
       </div>
 
       <!-- Responsável pelo Gasto -->

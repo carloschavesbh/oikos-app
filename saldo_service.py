@@ -1023,11 +1023,30 @@ def registrar_pagamento(
     except Exception:
         pass
 
+    cur.execute("SELECT conta, conta_id FROM transacoes WHERE id = ?", (transacao_id,))
+    row_orig_trans = cur.fetchone()
+    orig_conta = row_orig_trans[0] if row_orig_trans else None
+    orig_conta_id = row_orig_trans[1] if row_orig_trans else None
+
+    # Verifica se a transação original pertence a um cartão de crédito
+    eh_cartao_credito = False
+    if orig_conta_id is not None or orig_conta is not None:
+        cur.execute("SELECT id FROM cartoes WHERE id = ? OR nome = ?", (orig_conta_id, orig_conta))
+        eh_cartao_credito = cur.fetchone() is not None
+
     cur.execute("SELECT nome FROM contas_config WHERE id = ?", (conta_id,))
     row_c_nome = cur.fetchone()
     nome_conta_pag = row_c_nome[0] if row_c_nome else None
 
-    if nome_conta_pag:
+    if eh_cartao_credito:
+        # PRESERVA O CARTÃO: Compras de cartão de crédito NUNCA perdem seu conta_id nem seu nome de cartão!
+        cur.execute("""
+            UPDATE transacoes
+            SET pago = ?, status_pagamento = ?, data_liquidacao = ?,
+                valor_pago = ?, juros = ?, desconto = ?, afeta_saldo_bancario = 0
+            WHERE id = ?
+        """, (novo_pago, novo_status, data_pagamento, float(val_pago_dec), float(valor_encargos), float(valor_desconto), transacao_id))
+    elif nome_conta_pag:
         cur.execute("""
             UPDATE transacoes
             SET pago = ?, status_pagamento = ?, data_liquidacao = ?, conta = ?, conta_id = ?, afeta_saldo_bancario = ?,
