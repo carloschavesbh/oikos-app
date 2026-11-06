@@ -276,7 +276,7 @@
                 </td>
                 <td class="py-2 px-3 text-center whitespace-nowrap">
                   <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {% if item.numero_parcela and item.total_parcelas_compra %}
+                    {% if item.numero_parcela and item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
                       {{ item.numero_parcela }}/{{ item.total_parcelas_compra }}
                     {% elif item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
                       {{ item.total_parcelas_compra }}x

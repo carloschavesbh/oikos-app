@@ -2928,8 +2928,8 @@ async def pagina_cartoes(
                 "juros": float(it["juros"] or 0.0)
             })
 
-        lim_disp = max(0.0, lim_total - tot_comprometido) if lim_total > 0 else 0.0
-        pct_uso = (tot_comprometido / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_comprometido > 0 else 0.0)
+        lim_disp = max(0.0, lim_total - tot_fatura) if lim_total > 0 else 0.0
+        pct_uso = (tot_fatura / lim_total * 100.0) if lim_total > 0 else (100.0 if tot_fatura > 0 else 0.0)
 
         c_info = {
             "id": cid,
