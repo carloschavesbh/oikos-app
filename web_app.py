@@ -2660,25 +2660,31 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
         if not nova_desc:
             return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Descrição obrigatória."})
 
-        valor_raw = str(data.get("valor") or "0").strip()
-        if "," in valor_raw and "." in valor_raw:
-            valor_raw = valor_raw.replace(".", "").replace(",", ".")
-        elif "," in valor_raw:
-            valor_raw = valor_raw.replace(",", ".")
-        novo_valor = float(valor_raw or 0.0)
+        valor_base_raw = str(data.get("valor_base") or data.get("valor") or "0").strip()
+        valor_base = round(converter_valor_monetario(valor_base_raw), 2)
+
+        juros_raw = str(data.get("juros") or "0").strip()
+        juros_num = round(converter_valor_monetario(juros_raw), 2)
+
+        total_fatura_raw = data.get("total_fatura") or data.get("valor_total")
+        if total_fatura_raw is not None and str(total_fatura_raw).strip() != "":
+            total_fatura_num = round(converter_valor_monetario(total_fatura_raw), 2)
+        else:
+            total_fatura_num = round(valor_base + juros_num, 2)
+
+        if total_fatura_num > valor_base and juros_num <= 0:
+            juros_num = round(total_fatura_num - valor_base, 2)
+        elif juros_num > 0 and (total_fatura_num <= valor_base):
+            total_fatura_num = round(valor_base + juros_num, 2)
+
+        novo_valor = total_fatura_num
+        novo_juros = juros_num
 
         nova_cat = str(data.get("categoria") or "Cartão").strip()
         nova_subcat = str(data.get("subcategoria") or "").strip()
         nova_data_venc = str(data.get("data") or data.get("vencimento") or "").strip()[:10]
         nova_data_compra = str(data.get("data_compra") or "").strip()[:10]
         novo_titular = str(data.get("titular") or data.get("responsavel") or "Carlos").strip()
-
-        juros_raw = str(data.get("juros") or "0").strip()
-        if "," in juros_raw and "." in juros_raw:
-            juros_raw = juros_raw.replace(".", "").replace(",", ".")
-        elif "," in juros_raw:
-            juros_raw = juros_raw.replace(",", ".")
-        novo_juros = float(juros_raw or 0.0)
 
         num_p = row["numero_parcela"]
         tot_p = row["total_parcelas_compra"]
@@ -2714,6 +2720,35 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
                 SET descricao = ?, valor = ?, categoria = ?, subcategoria = ?, titular = ?, juros = ?
                 WHERE id = ?
             """, (desc_final, novo_valor, nova_cat, nova_subcat, novo_titular, novo_juros, cid))
+
+        # Suporte a crédito casado de receita em conta (operação casada de Pix / Empréstimo no cartão)
+        creditar_receita = str(data.get("creditar_receita") or "").lower() in ("1", "true", "s", "sim", "on")
+        conta_destino_id = int(data.get("conta_destino_id") or 0)
+        categoria_receita = str(data.get("categoria_receita") or "Empréstimos").strip()
+        descricao_receita = str(data.get("descricao_receita") or f"Receita - {desc_final}").strip()
+
+        if creditar_receita and conta_destino_id > 0 and valor_base > 0:
+            ref_receita = f"credito_casado_cartao:{cid}"
+            cur.execute("SELECT id FROM transacoes WHERE ref_externa = ? AND tipo = 'receita'", (ref_receita,))
+            rec_existente = cur.fetchone()
+
+            cur.execute("SELECT nome FROM contas_config WHERE id = ?", (conta_destino_id,))
+            row_cta = cur.fetchone()
+            nome_cta = row_cta["nome"] if row_cta else "Conta Geral"
+
+            dt_receita = nova_data_compra if nova_data_compra else (nova_data_venc if nova_data_venc else date.today().strftime("%Y-%m-%d"))
+
+            if rec_existente:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET valor = ?, conta_id = ?, conta = ?, categoria = ?, descricao = ?, data = ?, titular = ?
+                    WHERE id = ?
+                """, (valor_base, conta_destino_id, nome_cta, categoria_receita, descricao_receita, dt_receita, novo_titular, rec_existente["id"]))
+            else:
+                cur.execute("""
+                    INSERT INTO transacoes (tipo, valor, descricao, categoria, conta_id, conta, pago, data, titular, ref_externa)
+                    VALUES ('receita', ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """, (valor_base, descricao_receita, categoria_receita, conta_destino_id, nome_cta, dt_receita, novo_titular, ref_receita))
 
         conn.commit()
         return JSONResponse({"sucesso": True, "mensagem": "Compra atualizada com sucesso!"})

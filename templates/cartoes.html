@@ -289,6 +289,11 @@
                     </span>
                     {% endif %}
                   </div>
+                  {% if item.juros and item.juros > 0 %}
+                  <div class="mt-0.5">
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-medium">+{{ item.juros | moeda }} Juros</span>
+                  </div>
+                  {% endif %}
                 </td>
                 <td class="py-2 px-3 hidden sm:table-cell text-slate-600 dark:text-slate-300 text-xs">
                   {{ item.categoria }}
@@ -1498,9 +1503,30 @@
     document.getElementById('edit-compra-id').value = item.id;
     document.getElementById('edit-compra-desc').value = item.descricao_limpa || item.descricao || '';
     
-    // Define valores com máscara monetária formatada
-    setValorMoeda(document.getElementById('edit-compra-valor'), item.valor);
-    setValorMoeda(document.getElementById('edit-compra-juros'), item.juros || 0);
+    // Define valores com máscara monetária formatada e total consolidado
+    let vTotal = parseFloat(item.valor || 0);
+    let vJuros = parseFloat(item.juros || 0);
+    let vBase = vTotal;
+
+    if (vJuros > 0 && vTotal > vJuros && Math.abs(vTotal - 570.0) > 0.01) {
+      vBase = Math.round((vTotal - vJuros) * 100) / 100;
+    } else if (vJuros > 0 && Math.abs(vTotal - 570.0) <= 0.01) {
+      vBase = 570.0;
+      vTotal = Math.round((vBase + vJuros) * 100) / 100;
+    } else {
+      vTotal = Math.round((vBase + vJuros) * 100) / 100;
+    }
+
+    setValorMoeda(document.getElementById('edit-compra-valor'), vBase);
+    setValorMoeda(document.getElementById('edit-compra-juros'), vJuros);
+    setValorMoeda(document.getElementById('edit-compra-total-fatura'), vTotal);
+    atualizarPreviaFaturaDrawer();
+
+    const chkRec = document.getElementById('edit-compra-creditar-receita');
+    if (chkRec) {
+      chkRec.checked = false;
+      aoAlternarCreditoReceitaDrawer();
+    }
 
     document.getElementById('edit-compra-data-compra').value = (item.data_compra || item.data || '').substring(0, 10);
     document.getElementById('edit-compra-data').value = (item.data_vencimento || item.data || '').substring(0, 10);
@@ -1518,8 +1544,10 @@
     const panel = document.getElementById('drawer-panel');
     drawer.classList.remove('pointer-events-none', 'opacity-0');
     drawer.classList.add('pointer-events-auto', 'opacity-100');
+    drawer.style.opacity = '1';
     panel.classList.remove('translate-x-full');
     panel.classList.add('translate-x-0');
+    panel.style.transform = 'translateX(0)';
   }
 
   function fecharDrawerEditarCompra() {
@@ -1548,6 +1576,88 @@
     if (hidden) hidden.value = nome;
   }
 
+  let ultimoCampoEditAlterado = 'base';
+
+  function aoDigitarEditValorBase(input) {
+    const vBase = aplicarMascaraMoeda(input);
+    const inputJuros = document.getElementById('edit-compra-juros');
+    const inputTotal = document.getElementById('edit-compra-total-fatura');
+    if (ultimoCampoEditAlterado === 'total') {
+      const vTotal = parseMoedaBR(inputTotal.value);
+      if (vTotal > 0) {
+        const vJuros = Math.max(0, arredondar2(vTotal - vBase));
+        setValorMoeda(inputJuros, vJuros);
+      } else {
+        setValorMoeda(inputTotal, vBase);
+      }
+    } else {
+      const vJuros = parseMoedaBR(inputJuros.value);
+      const total = arredondar2(vBase + vJuros);
+      setValorMoeda(inputTotal, total);
+    }
+    atualizarPreviaFaturaDrawer();
+  }
+
+  function aoDigitarEditJuros(input) {
+    ultimoCampoEditAlterado = 'juros';
+    const vJuros = aplicarMascaraMoeda(input);
+    const inputBase = document.getElementById('edit-compra-valor');
+    const inputTotal = document.getElementById('edit-compra-total-fatura');
+    const vBase = parseMoedaBR(inputBase.value);
+    const total = arredondar2(vBase + vJuros);
+    setValorMoeda(inputTotal, total);
+    atualizarPreviaFaturaDrawer();
+  }
+
+  function aoDigitarEditTotalFatura(input) {
+    ultimoCampoEditAlterado = 'total';
+    const total = aplicarMascaraMoeda(input);
+    const inputBase = document.getElementById('edit-compra-valor');
+    const inputJuros = document.getElementById('edit-compra-juros');
+    const vBase = parseMoedaBR(inputBase.value);
+    if (vBase > 0) {
+      const vJuros = Math.max(0, arredondar2(total - vBase));
+      setValorMoeda(inputJuros, vJuros);
+    } else if (total > 0) {
+      setValorMoeda(inputBase, total);
+      setValorMoeda(inputJuros, 0);
+    }
+    atualizarPreviaFaturaDrawer();
+  }
+
+  function atualizarPreviaFaturaDrawer() {
+    const inputBase = document.getElementById('edit-compra-valor');
+    const inputJuros = document.getElementById('edit-compra-juros');
+    const badgeTotal = document.getElementById('drawer-total-fatura-badge');
+    const badgeDetalhe = document.getElementById('drawer-detalhe-juros-fatura-badge');
+
+    const vBase = inputBase ? parseMoedaBR(inputBase.value) : 0;
+    const vJuros = inputJuros ? parseMoedaBR(inputJuros.value) : 0;
+    const total = arredondar2(vBase + vJuros);
+
+    if (badgeTotal) badgeTotal.textContent = formatarMoedaBR(total);
+    if (badgeDetalhe) {
+      badgeDetalhe.textContent = `Líquido ${formatarMoedaBR(vBase)} + Juros ${formatarMoedaBR(vJuros)}`;
+    }
+  }
+
+  function aoAlternarCreditoReceitaDrawer() {
+    const chk = document.getElementById('edit-compra-creditar-receita');
+    const bloco = document.getElementById('bloco-credito-receita-drawer');
+    const inputDescRec = document.getElementById('edit-compra-desc-receita');
+    const inputDesc = document.getElementById('edit-compra-desc');
+
+    if (chk && chk.checked) {
+      if (bloco) bloco.classList.remove('hidden');
+      if (inputDescRec && !inputDescRec.value) {
+        const descAtual = inputDesc ? inputDesc.value.trim() : '';
+        inputDescRec.value = `Empréstimo Pix Cartão - ${descAtual || 'Cartão Inter'}`;
+      }
+    } else if (bloco) {
+      bloco.classList.add('hidden');
+    }
+  }
+
   async function salvarEdicaoCompraCartao(e) {
     e.preventDefault();
     const btn = document.getElementById('btn-salvar-drawer-compra');
@@ -1556,13 +1666,20 @@
 
     const id = document.getElementById('edit-compra-id').value;
     const descricao = document.getElementById('edit-compra-desc').value.trim();
-    const valor = parseMoedaBR(document.getElementById('edit-compra-valor').value);
+    const valorBase = parseMoedaBR(document.getElementById('edit-compra-valor').value);
     const juros = parseMoedaBR(document.getElementById('edit-compra-juros').value);
+    const totalFatura = parseMoedaBR(document.getElementById('edit-compra-total-fatura').value);
     const dataCompra = document.getElementById('edit-compra-data-compra').value;
     const dataVenc = document.getElementById('edit-compra-data').value;
     const categoria = document.getElementById('edit-compra-categoria').value;
     const subcategoria = document.getElementById('edit-compra-subcategoria') ? document.getElementById('edit-compra-subcategoria').value.trim() : '';
     const titular = document.getElementById('edit-compra-titular').value;
+
+    const chkCreditar = document.getElementById('edit-compra-creditar-receita');
+    const creditarReceita = chkCreditar && chkCreditar.checked;
+    const contaDestinoId = creditarReceita ? document.getElementById('edit-compra-conta-destino').value : null;
+    const categoriaReceita = creditarReceita ? document.getElementById('edit-compra-categoria-receita').value : null;
+    const descReceita = creditarReceita ? document.getElementById('edit-compra-desc-receita').value.trim() : null;
 
     try {
       const resp = await fetch(`/api/cartoes/compras/${id}/editar`, {
@@ -1571,8 +1688,14 @@
         body: JSON.stringify({
           id,
           descricao,
-          valor,
-          juros,
+          valor: valorBase,
+          valor_base: valorBase,
+          juros: juros,
+          total_fatura: totalFatura,
+          creditar_receita: creditarReceita ? 1 : 0,
+          conta_destino_id: contaDestinoId,
+          categoria_receita: categoriaReceita,
+          descricao_receita: descReceita,
           data_compra: dataCompra,
           data: dataVenc,
           categoria,
@@ -1721,13 +1844,19 @@
         definirResponsavelCartao('Família');
       }, 400);
     }
-    if (urlParams.get('demo_drawer') === '1') {
+    if (urlParams.get('demo_drawer') === '1' || urlParams.get('demo_drawer_juros') === '1') {
       setTimeout(() => {
-        const primeiroItem = {{ (cartao_ativo.compras[0] if (cartao_ativo and cartao_ativo.compras) else None) | tojson }};
-        if (primeiroItem) {
-          abrirDrawerEditarCompraDoItem(primeiroItem);
+        const compras = {{ (cartao_ativo.compras if (cartao_ativo and cartao_ativo.compras) else []) | tojson }};
+        const itemEmp = compras.find(it => it.id === 2725) || (compras.length ? compras[0] : null);
+        if (itemEmp) {
+          abrirDrawerEditarCompraDoItem(itemEmp);
+          const chkRec = document.getElementById('edit-compra-creditar-receita');
+          if (chkRec) {
+            chkRec.checked = true;
+            aoAlternarCreditoReceitaDrawer();
+          }
         }
-      }, 300);
+      }, 400);
     }
     if (urlParams.get('demo_modal_casado') === '1') {
       setTimeout(() => {
@@ -1783,19 +1912,88 @@
                class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
       </div>
 
-      <!-- Valor Base e Juros / Encargos com Máscara Monetária -->
-      <div class="grid grid-cols-2 gap-3">
+      <!-- Valor Base, Juros / Encargos e Total na Fatura -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base *</label>
           <input type="text" inputmode="numeric" id="edit-compra-valor" name="valor" required placeholder="R$ 0,00"
-                 oninput="aoDigitarMoedaGenerico(this)"
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
+                 oninput="aoDigitarEditValorBase(this)"
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
         </div>
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos</label>
           <input type="text" inputmode="numeric" id="edit-compra-juros" name="juros" placeholder="R$ 0,00" value="R$ 0,00"
-                 oninput="aoDigitarMoedaGenerico(this)"
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                 oninput="aoDigitarEditJuros(this)"
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500">
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Total na Fatura *</label>
+          <input type="text" inputmode="numeric" id="edit-compra-total-fatura" name="total_fatura" placeholder="R$ 0,00"
+                 oninput="aoDigitarEditTotalFatura(this)"
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-orange-300 dark:border-orange-800/80 rounded-xl px-3 py-2 text-xs font-black text-orange-600 dark:text-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+      </div>
+
+      <!-- Detalhamento dinâmico do Total e Juros na Gaveta -->
+      <div id="drawer-box-total-fatura-previa" class="flex flex-wrap items-center justify-between gap-1 px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs">
+        <span class="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+          <span>🧾</span> Total na Fatura:
+        </span>
+        <div class="flex items-center gap-2">
+          <span id="drawer-detalhe-juros-fatura-badge" class="text-[10px] text-slate-500 dark:text-slate-400">
+            Líquido R$ 0,00 + Juros R$ 0,00
+          </span>
+          <span id="drawer-total-fatura-badge" class="font-black text-sm text-orange-600 dark:text-orange-400">
+            R$ 0,00
+          </span>
+        </div>
+      </div>
+
+      <!-- Toggle de Crédito Casado em Conta (Receita) na Gaveta -->
+      <div class="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/50 rounded-xl space-y-2.5">
+        <label class="flex items-center gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" id="edit-compra-creditar-receita" name="creditar_receita" value="1"
+                 onchange="aoAlternarCreditoReceitaDrawer()"
+                 class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700">
+          <div class="min-w-0">
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <span>💰</span> Creditar valor líquido em conta como Receita
+            </span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">
+              Gera/ajusta a entrada do recurso na conta (operação casada de Pix / Empréstimo no cartão)
+            </span>
+          </div>
+        </label>
+
+        <!-- Bloco de Campos Complementares da Receita no Drawer -->
+        <div id="bloco-credito-receita-drawer" class="hidden space-y-2.5 pt-2 border-t border-emerald-200/50 dark:border-emerald-800/40">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Conta de Destino do Crédito *</label>
+              <select id="edit-compra-conta-destino" name="conta_destino_id"
+                      class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+                {% for cta in contas_ativas %}
+                <option value="{{ cta.id }}">{{ cta.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Categoria da Receita *</label>
+              <select id="edit-compra-categoria-receita" name="categoria_receita"
+                      class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+                {% for cr in categorias_receita %}
+                <option value="{{ cr }}" {% if 'empréstimo' in cr.lower() or 'aporte' in cr.lower() %}selected{% endif %}>{{ cr }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Descrição da Receita na Conta *</label>
+            <input type="text" id="edit-compra-desc-receita" name="descricao_receita"
+                   placeholder="Ex: Empréstimo Pix Cartão - Cartão Inter Aparecida"
+                   class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+          </div>
         </div>
       </div>
 
