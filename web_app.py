@@ -2284,6 +2284,43 @@ async def api_salvar_conta(request: Request, conta_id: Optional[int] = None):
     finally:
         conn.close()
 
+def calcular_ciclo_fatura_cartao(dia_fechamento: int, dia_vencimento: int, data_compra: date, fatura_destino: str = "atual") -> Tuple[int, int, int]:
+    """Calcula (ano, mes, dia) de vencimento da fatura com base no ciclo de fechamento.
+    Exemplo Inter (fecha dia 1, vence dia 7):
+    - Compras de 02/Out a 01/Nov -> Fatura de Novembro (vencimento 07/11).
+    - Compras de 02/Nov a 01/Dez -> Fatura de Dezembro (vencimento 07/12).
+    - Se fatura_destino == 'proxima', avança +1 mês no ciclo.
+    """
+    dia_c = data_compra.day
+    mes_c = data_compra.month
+    ano_c = data_compra.year
+
+    if dia_c > dia_fechamento:
+        mes_fech = mes_c + 1
+        ano_fech = ano_c + ((mes_fech - 1) // 12)
+        mes_fech = ((mes_fech - 1) % 12) + 1
+    else:
+        mes_fech = mes_c
+        ano_fech = ano_c
+
+    if dia_vencimento < dia_fechamento:
+        mes_venc = mes_fech + 1
+        ano_venc = ano_fech + ((mes_venc - 1) // 12)
+        mes_venc = ((mes_venc - 1) % 12) + 1
+    else:
+        mes_venc = mes_fech
+        ano_venc = ano_fech
+
+    if str(fatura_destino).strip().lower() == "proxima":
+        mes_venc += 1
+        ano_venc += (mes_venc - 1) // 12
+        mes_venc = ((mes_venc - 1) % 12) + 1
+
+    max_d = calendar.monthrange(ano_venc, mes_venc)[1]
+    dia_final = min(dia_vencimento, max_d)
+    return ano_venc, mes_venc, dia_final
+
+
 def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual", juros: float = 0.0) -> Tuple[bool, str, List[int]]:
     """Gera o lançamento ou série de parcelas de uma compra no cartão de crédito na tabela transacoes com suporte a juros/encargos."""
     cur = conn.cursor()
@@ -2305,11 +2342,7 @@ def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: st
     parcelas_int = max(1, min(24, int(parcelas or 1)))
     fatura_dest_str = str(fatura_destino or "atual").strip().lower()
 
-    deslocamento_inicial = 1 if fatura_dest_str == "proxima" else 0
-    ano_base = dt_c.year
-    mes_base = dt_c.month + deslocamento_inicial
-    ano_base += (mes_base - 1) // 12
-    mes_base = ((mes_base - 1) % 12) + 1
+    ano_base, mes_base, dia_base = calcular_ciclo_fatura_cartao(dia_fech, dia_venc, dt_c, fatura_dest_str)
 
     valor_base = float(valor_total)
     juros_total = max(0.0, float(juros or 0.0))
@@ -2333,16 +2366,17 @@ def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: st
         ano_p = ano_base + ((m_calc - 1) // 12)
         mes_p = ((m_calc - 1) % 12) + 1
         max_d = calendar.monthrange(ano_p, mes_p)[1]
-        dia_p = min(dia_venc, max_d)
+        dia_p = min(dia_base, max_d)
         dt_venc = f"{ano_p:04d}-{mes_p:02d}-{dia_p:02d}"
         v_p = val_1 if i == 1 else val_parcela
         j_p = juros_1 if i == 1 else juros_parcela
         d_p = f"{descricao.strip()} ({i:02d}/{parcelas_int:02d})" if parcelas_int > 1 else descricao.strip()
+        ref_ext = f"data_compra:{dt_c.strftime('%Y-%m-%d')}"
 
         cur.execute("""
-            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, titular, numero_parcela, total_parcelas_compra, grupo_parcelamento, status_pagamento, juros)
-            VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 'pendente', ?)
-        """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo, j_p))
+            INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, titular, numero_parcela, total_parcelas_compra, grupo_parcelamento, status_pagamento, juros, ref_externa)
+            VALUES (?, ?, ?, 'despesa', ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, 'pendente', ?, ?)
+        """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo, j_p, ref_ext))
         ids_gerados.append(cur.lastrowid)
 
     conn.commit()
@@ -2459,8 +2493,16 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
         novo_valor = float(valor_raw or 0.0)
 
         nova_cat = str(data.get("categoria") or "Cartão").strip()
-        nova_data = str(data.get("data") or data.get("vencimento") or "").strip()[:10]
+        nova_data_venc = str(data.get("data") or data.get("vencimento") or "").strip()[:10]
+        nova_data_compra = str(data.get("data_compra") or "").strip()[:10]
         novo_titular = str(data.get("titular") or data.get("responsavel") or "Carlos").strip()
+
+        juros_raw = str(data.get("juros") or "0").strip()
+        if "," in juros_raw and "." in juros_raw:
+            juros_raw = juros_raw.replace(".", "").replace(",", ".")
+        elif "," in juros_raw:
+            juros_raw = juros_raw.replace(",", ".")
+        novo_juros = float(juros_raw or 0.0)
 
         num_p = row["numero_parcela"]
         tot_p = row["total_parcelas_compra"]
@@ -2470,18 +2512,32 @@ async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] =
         else:
             desc_final = nova_desc
 
-        if nova_data:
+        ref_externa_final = f"data_compra:{nova_data_compra}" if nova_data_compra else None
+
+        if nova_data_venc and ref_externa_final:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?
+                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?, juros = ?, ref_externa = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, nova_data, novo_titular, cid))
+            """, (desc_final, novo_valor, nova_cat, nova_data_venc, novo_titular, novo_juros, ref_externa_final, cid))
+        elif nova_data_venc:
+            cur.execute("""
+                UPDATE transacoes
+                SET descricao = ?, valor = ?, categoria = ?, data = ?, titular = ?, juros = ?
+                WHERE id = ?
+            """, (desc_final, novo_valor, nova_cat, nova_data_venc, novo_titular, novo_juros, cid))
+        elif ref_externa_final:
+            cur.execute("""
+                UPDATE transacoes
+                SET descricao = ?, valor = ?, categoria = ?, titular = ?, juros = ?, ref_externa = ?
+                WHERE id = ?
+            """, (desc_final, novo_valor, nova_cat, novo_titular, novo_juros, ref_externa_final, cid))
         else:
             cur.execute("""
                 UPDATE transacoes
-                SET descricao = ?, valor = ?, categoria = ?, titular = ?
+                SET descricao = ?, valor = ?, categoria = ?, titular = ?, juros = ?
                 WHERE id = ?
-            """, (desc_final, novo_valor, nova_cat, novo_titular, cid))
+            """, (desc_final, novo_valor, nova_cat, novo_titular, novo_juros, cid))
 
         conn.commit()
         return JSONResponse({"sucesso": True, "mensagem": "Compra atualizada com sucesso!"})
@@ -2875,7 +2931,7 @@ async def pagina_cartoes(
         if "inter" in nome.lower() or "aparecida" in nome.lower():
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
-                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros, ref_externa
                 FROM transacoes
                 WHERE tipo = 'despesa'
                   AND strftime('%Y-%m', data) = ?
@@ -2888,7 +2944,7 @@ async def pagina_cartoes(
         else:
             cur.execute("""
                 SELECT id, data, descricao, valor, categoria, conta, pago,
-                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros
+                       grupo_parcelamento, numero_parcela, total_parcelas_compra, titular, COALESCE(juros, 0) as juros, ref_externa
                 FROM transacoes
                 WHERE tipo = 'despesa'
                   AND strftime('%Y-%m', data) = ?
@@ -2906,16 +2962,35 @@ async def pagina_cartoes(
         for it in raw_compras:
             val = float(it["valor"] or 0.0)
             tot_fatura += val
-            dt_str = str(it["data"])[:10]
+            dt_venc_str = str(it["data"])[:10]
             try:
-                dt_fmt = datetime.datetime.strptime(dt_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+                dt_venc_fmt = datetime.datetime.strptime(dt_venc_str, "%Y-%m-%d").strftime("%d/%m/%Y")
             except Exception:
-                dt_fmt = dt_str
+                dt_venc_fmt = dt_venc_str
+
+            ref_ext = str(it["ref_externa"] or "")
+            dt_compra_str = ""
+            if "data_compra:" in ref_ext:
+                try:
+                    dt_compra_str = ref_ext.split("data_compra:")[1].strip().split()[0][:10]
+                except Exception:
+                    dt_compra_str = ""
+            if not dt_compra_str:
+                dt_compra_str = dt_venc_str
+
+            try:
+                dt_compra_fmt = datetime.datetime.strptime(dt_compra_str, "%Y-%m-%d").strftime("%d/%m/%Y")
+            except Exception:
+                dt_compra_fmt = dt_compra_str
 
             compras.append({
                 "id": it["id"],
-                "data": dt_str,
-                "data_formatada": dt_fmt,
+                "data": dt_venc_str,
+                "data_vencimento": dt_venc_str,
+                "data_vencimento_formatada": dt_venc_fmt,
+                "data_compra": dt_compra_str,
+                "data_compra_formatada": dt_compra_fmt,
+                "data_formatada": dt_compra_fmt,  # Coluna agora exibe data da realização da compra
                 "descricao": it["descricao"],
                 "descricao_limpa": limpar_descricao_parcela(it["descricao"]),
                 "valor": val,

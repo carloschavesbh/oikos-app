@@ -245,7 +245,7 @@
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th class="py-2 px-3 whitespace-nowrap">Vencimento</th>
+                <th class="py-2 px-3 whitespace-nowrap">DATA COMPRA</th>
                 <th class="py-2 px-3">Descrição da Compra</th>
                 <th class="py-2 px-3 hidden sm:table-cell">Categoria</th>
                 <th class="py-2 px-3 text-center whitespace-nowrap">Parcela</th>
@@ -256,9 +256,11 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               {% for item in crd.compras %}
-              <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition">
+              <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition cursor-pointer"
+                  onclick="abrirDrawerEditarCompraDoItem({{ item | tojson }})"
+                  title="Clique para ver detalhes e editar esta compra">
                 <td class="py-2 px-3 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                  {{ item.data_formatada }}
+                  {{ item.data_compra_formatada or item.data_formatada }}
                 </td>
                 <td class="py-2 px-3">
                   <div class="flex items-center gap-1.5 min-w-0">
@@ -302,24 +304,26 @@
                 <td class="py-2 px-2 text-center whitespace-nowrap">
                   <div class="relative dropdown-acoes-menu inline-block">
                     <button type="button" 
-                            onclick="toggleMenuAcoesCartao(event, 'menu-card-item-{{ item.id }}')"
+                            onclick="event.stopPropagation(); toggleMenuAcoesCartao(event, 'menu-card-item-{{ item.id }}')"
                             title="Mais opções"
                             class="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition cursor-pointer text-xs font-bold leading-none">
                       ⋯
                     </button>
                     <div id="menu-card-item-{{ item.id }}" 
+                         onclick="event.stopPropagation()"
                          class="menu-dropdown-cartao hidden absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
                       <button type="button"
-                              onclick='abrirModalEditarCompraCartao({{ item.id }}, {{ (item.descricao_limpa or item.descricao) | tojson }}, {{ item.valor }}, {{ item.categoria | tojson }}, {{ item.data | tojson }}, {{ (item.titular or "Carlos") | tojson }})'
+                              onclick='event.stopPropagation(); abrirDrawerEditarCompraDoItem({{ item | tojson }})'
                               class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition text-left cursor-pointer">
                         <span>✏️</span> Editar Compra
                       </button>
                       <button type="button"
-                              onclick='excluirCompraCartao({{ item.id }}, {{ (item.descricao_limpa or item.descricao) | tojson }}, {{ 1 if (item.total_parcelas_compra and item.total_parcelas_compra > 1) else 0 }})'
+                              onclick='event.stopPropagation(); excluirCompraCartao({{ item.id }}, {{ (item.descricao_limpa or item.descricao) | tojson }}, {{ 1 if (item.total_parcelas_compra and item.total_parcelas_compra > 1) else 0 }})'
                               class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition text-left cursor-pointer">
                         <span>🗑️</span> Excluir Compra
                       </button>
                       <a href="/lancamentos?id={{ item.id }}" 
+                         onclick="event.stopPropagation()"
                          class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800 transition">
                         <span>🔍</span> Ver em Lançamentos
                       </a>
@@ -951,33 +955,60 @@
     // Sincronização opcional
   }
 
-  function calcularDatasVencimentoCartao(diaFech, diaVenc, dataCompraStr) {
-    let dt = new Date();
+  function calcularCicloFaturasCartaoJS(diaFech, diaVenc, dataCompraStr) {
+    let dtCompra = new Date();
     if (dataCompraStr) {
       const parts = dataCompraStr.split('-');
       if (parts.length === 3) {
-        dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        dtCompra = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
       }
     }
 
-    const ano = dt.getFullYear();
-    const mes = dt.getMonth(); // 0-indexed
+    const diaC = dtCompra.getDate();
+    const mesC = dtCompra.getMonth(); // 0-11
+    const anoC = dtCompra.getFullYear();
 
-    // Fatura Atual: mês corrente
-    const dtAtual = new Date(ano, mes, Math.min(diaVenc, 28));
-    // Próxima Fatura: +1 mês
-    const dtProx = new Date(ano, mes + 1, Math.min(diaVenc, 28));
+    // Ciclo de Fechamento da Fatura Aberta para esta compra:
+    // Se dia da compra > dia de fechamento, a fatura do mês corrente já fechou; pertence ao fechamento do mês seguinte.
+    let mesFech, anoFech;
+    if (diaC > diaFech) {
+      mesFech = mesC + 1;
+      anoFech = anoC + Math.floor(mesFech / 12);
+      mesFech = mesFech % 12;
+    } else {
+      mesFech = mesC;
+      anoFech = anoC;
+    }
 
-    const fmt = (d) => {
-      const diaF = String(diaVenc).padStart(2, '0');
-      const mesF = String(d.getMonth() + 1).padStart(2, '0');
-      const anoF = d.getFullYear();
-      return `${diaF}/${mesF}/${anoF}`;
+    // Mês do Vencimento correspondente ao fechamento
+    let mesVencAtual, anoVencAtual;
+    if (diaVenc < diaFech) {
+      mesVencAtual = mesFech + 1;
+      anoVencAtual = anoFech + Math.floor(mesVencAtual / 12);
+      mesVencAtual = mesVencAtual % 12;
+    } else {
+      mesVencAtual = mesFech;
+      anoVencAtual = anoFech;
+    }
+
+    // Próxima Fatura (+1 mês)
+    let mesVencProx = mesVencAtual + 1;
+    let anoVencProx = anoVencAtual + Math.floor(mesVencProx / 12);
+    mesVencProx = mesVencProx % 12;
+
+    const nomesMeses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const fmt = (ano, mes, dia) => {
+      const dStr = String(dia).padStart(2, '0');
+      const mStr = String(mes + 1).padStart(2, '0');
+      return `${dStr}/${mStr}/${ano}`;
     };
 
     return {
-      vencAtualStr: fmt(dtAtual),
-      vencProxStr: fmt(dtProx)
+      faturaAtualNome: `${nomesMeses[mesVencAtual]}/${anoVencAtual}`,
+      vencAtualStr: fmt(anoVencAtual, mesVencAtual, diaVenc),
+      diaFechamentoStr: fmt(anoFech, mesFech, diaFech),
+      faturaProxNome: `${nomesMeses[mesVencProx]}/${anoVencProx}`,
+      vencProxStr: fmt(anoVencProx, mesVencProx, diaVenc)
     };
   }
 
@@ -990,11 +1021,11 @@
     const diaVenc = parseInt(opt.dataset.vencimento || '7', 10);
     const dataCompra = inputData ? inputData.value : '';
 
-    const calcs = calcularDatasVencimentoCartao(diaFech, diaVenc, dataCompra);
+    const calcs = calcularCicloFaturasCartaoJS(diaFech, diaVenc, dataCompra);
 
     const lblAtual = document.getElementById('label-fatura-atual-venc');
     const lblProx = document.getElementById('label-fatura-proxima-venc');
-    if (lblAtual) lblAtual.textContent = `Vencimento: ${calcs.vencAtualStr}`;
+    if (lblAtual) lblAtual.textContent = `Vencimento: ${calcs.vencAtualStr} (Fecha em: ${calcs.diaFechamentoStr})`;
     if (lblProx) lblProx.textContent = `Vencimento: ${calcs.vencProxStr}`;
   }
 
@@ -1094,55 +1125,80 @@
   }
 
 
-  function abrirModalEditarCompraCartao(id, descricao, valor, categoria, data, titular) {
-    document.getElementById('edit-compra-id').value = id;
-    document.getElementById('edit-compra-desc').value = descricao || '';
-    document.getElementById('edit-compra-valor').value = valor || '';
-    document.getElementById('edit-compra-data').value = (data || '').substring(0, 10);
+  let itemCompraAtivoDrawer = null;
+
+  function abrirDrawerEditarCompraDoItem(item) {
+    if (!item) return;
+    itemCompraAtivoDrawer = item;
+
+    document.querySelectorAll('.menu-dropdown-cartao').forEach(m => m.classList.add('hidden'));
+
+    document.getElementById('edit-compra-id').value = item.id;
+    document.getElementById('edit-compra-desc').value = item.descricao_limpa || item.descricao || '';
+    document.getElementById('edit-compra-valor').value = parseFloat(item.valor || 0).toFixed(2);
+    document.getElementById('edit-compra-juros').value = parseFloat(item.juros || 0).toFixed(2);
+    document.getElementById('edit-compra-data-compra').value = (item.data_compra || item.data || '').substring(0, 10);
+    document.getElementById('edit-compra-data').value = (item.data_vencimento || item.data || '').substring(0, 10);
 
     const selCat = document.getElementById('edit-compra-categoria');
     if (selCat) {
       for (let i = 0; i < selCat.options.length; i++) {
-        if (selCat.options[i].value === categoria) {
+        if (selCat.options[i].value === item.categoria) {
           selCat.selectedIndex = i;
           break;
         }
       }
     }
 
-    const selTit = document.getElementById('edit-compra-titular');
-    if (selTit) {
-      for (let i = 0; i < selTit.options.length; i++) {
-        if (selTit.options[i].value === titular) {
-          selTit.selectedIndex = i;
-          break;
-        }
-      }
-    }
+    definirEditResponsavel(item.titular || 'Carlos');
 
-    document.querySelectorAll('.menu-dropdown-cartao').forEach(m => m.classList.add('hidden'));
-
-    const modal = document.getElementById('modal-editar-compra-cartao');
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
+    const drawer = document.getElementById('drawer-editar-compra');
+    const panel = document.getElementById('drawer-panel');
+    drawer.classList.remove('pointer-events-none', 'opacity-0');
+    drawer.classList.add('pointer-events-auto', 'opacity-100');
+    panel.classList.remove('translate-x-full');
+    panel.classList.add('translate-x-0');
   }
 
-  function fecharModalEditarCompraCartao() {
-    const modal = document.getElementById('modal-editar-compra-cartao');
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+  function fecharDrawerEditarCompra() {
+    const drawer = document.getElementById('drawer-editar-compra');
+    const panel = document.getElementById('drawer-panel');
+    panel.classList.remove('translate-x-0');
+    panel.classList.add('translate-x-full');
+    drawer.classList.remove('opacity-100');
+    drawer.classList.add('opacity-0');
+    setTimeout(() => {
+      drawer.classList.remove('pointer-events-auto');
+      drawer.classList.add('pointer-events-none');
+    }, 300);
+  }
+
+  function definirEditResponsavel(resp) {
+    const inputTitular = document.getElementById('edit-compra-titular');
+    if (inputTitular) inputTitular.value = resp;
+
+    document.querySelectorAll('.btn-edit-resp').forEach(btn => {
+      const isSelected = btn.dataset.editResp === resp;
+      if (isSelected) {
+        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
+      } else {
+        btn.className = 'btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800';
+      }
+    });
   }
 
   async function salvarEdicaoCompraCartao(e) {
     e.preventDefault();
-    const btn = document.getElementById('btn-salvar-edicao-compra');
+    const btn = document.getElementById('btn-salvar-drawer-compra');
     btn.disabled = true;
     btn.innerHTML = '<span>⏳</span> Salvando...';
 
     const id = document.getElementById('edit-compra-id').value;
     const descricao = document.getElementById('edit-compra-desc').value.trim();
     const valor = parseFloat(document.getElementById('edit-compra-valor').value || '0');
-    const data = document.getElementById('edit-compra-data').value;
+    const juros = parseFloat(document.getElementById('edit-compra-juros').value || '0');
+    const dataCompra = document.getElementById('edit-compra-data-compra').value;
+    const dataVenc = document.getElementById('edit-compra-data').value;
     const categoria = document.getElementById('edit-compra-categoria').value;
     const titular = document.getElementById('edit-compra-titular').value;
 
@@ -1150,7 +1206,16 @@
       const resp = await fetch(`/api/cartoes/compras/${id}/editar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, descricao, valor, data, categoria, titular })
+        body: JSON.stringify({
+          id,
+          descricao,
+          valor,
+          juros,
+          data_compra: dataCompra,
+          data: dataVenc,
+          categoria,
+          titular
+        })
       });
       const res = await resp.json();
       if (resp.ok && res.sucesso) {
@@ -1158,13 +1223,19 @@
       } else {
         alert(res.erro || 'Erro ao salvar alterações da compra.');
         btn.disabled = false;
-        btn.innerHTML = '<span>💾</span> Salvar Alterações';
+        btn.innerHTML = '<span>💾</span> Salvar';
       }
     } catch (err) {
       alert('Erro de conexão ao salvar alterações.');
       btn.disabled = false;
-      btn.innerHTML = '<span>💾</span> Salvar Alterações';
+      btn.innerHTML = '<span>💾</span> Salvar';
     }
+  }
+
+  function excluirCompraDoDrawer() {
+    if (!itemCompraAtivoDrawer) return;
+    const isParcelado = !!(itemCompraAtivoDrawer.total_parcelas_compra && itemCompraAtivoDrawer.total_parcelas_compra > 1);
+    excluirCompraCartao(itemCompraAtivoDrawer.id, itemCompraAtivoDrawer.descricao_limpa || itemCompraAtivoDrawer.descricao, isParcelado ? 1 : 0);
   }
 
   async function excluirCompraCartao(id, descricao, isParcelado) {
@@ -1252,75 +1323,119 @@
         definirResponsavelCartao('Família');
       }, 400);
     }
+    if (urlParams.get('demo_drawer') === '1') {
+      setTimeout(() => {
+        const primeiroItem = {{ (cartao_ativo.compras[0] if (cartao_ativo and cartao_ativo.compras) else None) | tojson }};
+        if (primeiroItem) {
+          abrirDrawerEditarCompraDoItem(primeiroItem);
+        }
+      }, 300);
+    }
   });
 </script>
-<!-- MODAL EDITAR COMPRA DO CARTÃO -->
-<div id="modal-editar-compra-cartao" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 my-auto">
-    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-      <div>
-        <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-          <span>✏️</span> Editar Compra no Cartão
-        </h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400">Altere descrição, valor, categoria ou responsável</p>
+<!-- DRAWER LATERAL DESLIZANTE PARA DETALHES E EDIÇÃO DE COMPRA -->
+<div id="drawer-editar-compra" class="fixed inset-0 z-50 pointer-events-none transition-opacity duration-300 opacity-0">
+  <!-- Backdrop Escurecido Clicável -->
+  <div id="drawer-backdrop" onclick="fecharDrawerEditarCompra()" class="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"></div>
+
+  <!-- Painel Lateral Deslizante -->
+  <div id="drawer-panel" class="absolute top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out pointer-events-auto">
+    <!-- Cabeçalho do Drawer -->
+    <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center text-lg">
+          ✏️
+        </div>
+        <div>
+          <h3 class="text-base font-black text-slate-900 dark:text-white">Detalhes & Edição</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Edite as informações da compra no cartão</p>
+        </div>
       </div>
-      <button type="button" onclick="fecharModalEditarCompraCartao()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg">✕</button>
+      <button type="button" onclick="fecharDrawerEditarCompra()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-lg">
+        ✕
+      </button>
     </div>
 
-    <form id="form-editar-compra-cartao" onsubmit="salvarEdicaoCompraCartao(event)" class="space-y-3.5">
+    <!-- Formulário no Corpo do Drawer com Scroll Confortável -->
+    <form id="form-drawer-editar-compra" onsubmit="salvarEdicaoCompraCartao(event)" class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
       <input type="hidden" id="edit-compra-id" name="id">
 
+      <!-- Descrição -->
       <div>
         <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição da Compra *</label>
         <input type="text" id="edit-compra-desc" name="descricao" required
-               class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-orange-500">
+               class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
       </div>
 
+      <!-- Valor Base e Juros / Encargos -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor (R$) *</label>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base (R$) *</label>
           <input type="number" step="0.01" min="0.01" id="edit-compra-valor" name="valor" required
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-orange-500">
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
         </div>
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Data / Vencimento *</label>
-          <input type="date" id="edit-compra-data" name="data" required
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-orange-500">
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos (R$)</label>
+          <input type="number" step="0.01" min="0" id="edit-compra-juros" name="juros" placeholder="0.00"
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-500">
         </div>
       </div>
 
+      <!-- Data da Compra e Vencimento da Fatura -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
-          <select id="edit-compra-categoria" name="categoria" required
-                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-orange-500">
-            {% for cat in categorias_despesa %}
-            <option value="{{ cat }}">{{ cat }}</option>
-            {% endfor %}
-          </select>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Data da Compra *</label>
+          <input type="date" id="edit-compra-data-compra" name="data_compra" required
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
         </div>
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável *</label>
-          <select id="edit-compra-titular" name="titular" required
-                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-orange-500">
-            {% for resp in responsaveis %}
-            <option value="{{ resp }}">{{ resp }}</option>
-            {% endfor %}
-          </select>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Vencimento Fatura</label>
+          <input type="date" id="edit-compra-data" name="data" required
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
         </div>
       </div>
 
-      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
-        <button type="button" onclick="fecharModalEditarCompraCartao()"
-                class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-          Cancelar
-        </button>
-        <button type="submit" id="btn-salvar-edicao-compra"
-                class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 shadow-sm transition flex items-center gap-1.5">
-          <span>💾</span> Salvar Alterações
-        </button>
+      <!-- Categoria -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
+        <select id="edit-compra-categoria" name="categoria" required
+                class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500">
+          {% for cat in categorias_despesa %}
+          <option value="{{ cat }}">{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Responsável pelo Gasto -->
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável pelo Gasto *</label>
+        <div class="grid grid-cols-5 gap-1.5" id="grid-edit-responsavel">
+          {% for resp in ["Carlos", "Fernanda", "Pedro", "Família", "Outro"] %}
+          <button type="button" onclick="definirEditResponsavel('{{ resp }}')" data-edit-resp="{{ resp }}"
+                  class="btn-edit-resp flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+            {{ resp }}
+          </button>
+          {% endfor %}
+        </div>
+        <input type="hidden" id="edit-compra-titular" name="titular" value="Carlos">
       </div>
     </form>
+
+    <!-- Rodapé com Ações -->
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between">
+      <button type="button" onclick="excluirCompraDoDrawer()" class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 transition cursor-pointer flex items-center gap-1.5">
+        <span>🗑️</span> Excluir
+      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="fecharDrawerEditarCompra()" class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="button" onclick="document.getElementById('form-drawer-editar-compra').requestSubmit()" id="btn-salvar-drawer-compra"
+                class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-orange-600 hover:bg-orange-500 shadow-md shadow-orange-950/30 transition cursor-pointer flex items-center gap-1.5">
+          <span>💾</span> Salvar
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
