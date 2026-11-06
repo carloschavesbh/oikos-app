@@ -117,6 +117,14 @@ def inicializar_tabelas_conciliacao(conn) -> None:
         except Exception:
             pass
 
+    cur.execute("PRAGMA table_info(lote_itens_conciliacao)")
+    colunas_itens = [r[1] for r in cur.fetchall()]
+    if "descricao_original" not in colunas_itens:
+        try:
+            cur.execute("ALTER TABLE lote_itens_conciliacao ADD COLUMN descricao_original TEXT")
+        except Exception:
+            pass
+
     conn.commit()
 
 
@@ -299,8 +307,7 @@ def sugerir_classificacao_e_matching(item: Dict[str, Any], transacoes_db: List[D
         return resultado
 
     # 5. Buscar correspondência em transacoes_db (Matching por Valor e Data Próxima)
-    melhor_match = None
-    menor_distancia_dias = 999
+    candidatos_match = []
 
     try:
         data_item = datetime.strptime(dt, "%Y-%m-%d").date()
@@ -308,25 +315,41 @@ def sugerir_classificacao_e_matching(item: Dict[str, Any], transacoes_db: List[D
         data_item = None
 
     for tx in transacoes_db:
-        if tx["tipo"] == tipo and abs(tx["valor"] - val) < 0.02:
+        # Match do mesmo tipo financeiro com tolerância de centavos
+        if tx["tipo"] == tipo and abs(float(tx["valor"] or 0.0) - val) < 0.05:
             dist_dias = 999
             if data_item:
                 try:
-                    data_tx = datetime.strptime(tx["data"], "%Y-%m-%d").date()
+                    data_tx = datetime.strptime(str(tx["data"])[:10], "%Y-%m-%d").date()
                     dist_dias = abs((data_item - data_tx).days)
                 except Exception:
-                    pass
+                    dist_dias = 999
 
-            if dist_dias <= 3 and dist_dias < menor_distancia_dias:
-                melhor_match = tx
-                menor_distancia_dias = dist_dias
+            if dist_dias <= 7:
+                candidatos_match.append({
+                    "id": tx["id"],
+                    "data": str(tx["data"])[:10],
+                    "descricao": tx["descricao"],
+                    "valor": float(tx["valor"] or 0.0),
+                    "tipo": tx["tipo"],
+                    "categoria": tx.get("categoria") or "Outros",
+                    "subcategoria": tx.get("subcategoria") or "Geral",
+                    "conta": tx.get("conta") or "Mercado Pago",
+                    "distancia_dias": dist_dias,
+                    "pago": tx.get("pago", 0)
+                })
 
-    if melhor_match:
+    candidatos_match.sort(key=lambda x: (x["distancia_dias"], x["id"]))
+
+    if candidatos_match:
+        melhor_match = candidatos_match[0]
         resultado["acao_sugerida"] = "vincular"
         resultado["transacao_id_sugerida"] = melhor_match["id"]
         resultado["categoria_sugerida"] = melhor_match.get("categoria", "Outros")
         resultado["subcategoria_sugerida"] = melhor_match.get("subcategoria", "Geral")
         resultado["tipo_alerta"] = "possivel_duplicata"
+        resultado["match_transacao"] = melhor_match
+        resultado["match_candidatos"] = candidatos_match
         resultado["match_detalhe"] = f"Lançamento existente ID {melhor_match['id']} ({melhor_match['data']} - {melhor_match['descricao']})"
         return resultado
 
@@ -429,6 +452,8 @@ def processar_previa_importacao(conteudo_bytes: bytes, nome_arquivo: str, conta_
             "linha_num": item["linha_num"],
             "data": item["data"],
             "descricao": item["descricao"],
+            "descricao_editada": item["descricao"],
+            "descricao_original": item["descricao"],
             "ref_id": item["ref_id"],
             "valor": item["valor"],
             "tipo": item["tipo"],
@@ -437,6 +462,8 @@ def processar_previa_importacao(conteudo_bytes: bytes, nome_arquivo: str, conta_
             "acao_sugerida": acao,
             "transacao_id_sugerida": sugestao["transacao_id_sugerida"],
             "match_detalhe": sugestao["match_detalhe"],
+            "match_transacao": sugestao.get("match_transacao"),
+            "match_candidatos": sugestao.get("match_candidatos", []),
             "categoria_sugerida": sugestao["categoria_sugerida"],
             "subcategoria_sugerida": sugestao["subcategoria_sugerida"],
             "motivo_ignorado": sugestao["motivo_ignorado"],
@@ -502,16 +529,17 @@ def registrar_lote_pendente(previa: Dict[str, Any], conn) -> int:
     for item in previa["itens"]:
         cur.execute("""
             INSERT INTO lote_itens_conciliacao (
-                lote_id, linha_num, data, descricao, valor, tipo, ref_id,
+                lote_id, linha_num, data, descricao, descricao_original, valor, tipo, ref_id,
                 saldo_parcial, tipo_alerta, acao_sugerida, transacao_id_sugerida,
                 status_conciliacao, categoria_sugerida, subcategoria_sugerida,
                 motivo_ignorado, linha_bruta
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?)
         """, (
             lote_id,
             item["linha_num"],
             item["data"],
-            item["descricao"],
+            item.get("descricao_editada") or item["descricao"],
+            item.get("descricao_original") or item["descricao"],
             item["valor"],
             item["tipo"],
             item["ref_id"],
@@ -572,6 +600,7 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
         decisao = decisoes_map.get(iid, {
             "acao": acao_sug,
             "transacao_id": tx_sug,
+            "descricao": desc,
             "categoria": cat_sug,
             "subcategoria": subcat_sug,
             "motivo": ""
@@ -579,6 +608,7 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
 
         acao = decisao.get("acao", acao_sug)
         tx_id_escolhido = decisao.get("transacao_id", tx_sug)
+        desc_final = str(decisao.get("descricao") or desc).strip()
         cat_escolhida = decisao.get("categoria", cat_sug) or "Outros"
         subcat_escolhida = decisao.get("subcategoria", subcat_sug) or "Geral"
         motivo = decisao.get("motivo", "")
@@ -602,7 +632,7 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
             status_item = "conciliado"
 
         elif acao == "novo":
-            # Cria novo lançamento pago/liquidado
+            # Cria novo lançamento pago/liquidado utilizando a descrição editada pelo usuário
             cur.execute("""
                 INSERT INTO transacoes (
                     data, data_liquidacao, descricao, valor, tipo, categoria, subcategoria,
@@ -610,7 +640,7 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
                     lote_importacao_id, conciliado_com_extrato, ref_externa, origem
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 'pago', ?, 1, ?, ?)
             """, (
-                dt, dt, desc, val, tp, cat_escolhida, subcat_escolhida,
+                dt, dt, desc_final, val, tp, cat_escolhida, subcat_escolhida,
                 conta_nome, conta_id, lote_id, ref_id, f"Extrato {nome_arquivo}"
             ))
             tx_efetiva = cur.lastrowid
@@ -627,7 +657,7 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
                 ) VALUES (?, ?, ?, ?, 'transferencia', 'Transferência Entre Contas', 'Transferência Interna',
                     ?, ?, 1, 0, 'pago', ?, 1, ?, ?)
             """, (
-                dt, dt, desc, val, conta_nome, conta_id, lote_id, ref_id, f"Extrato {nome_arquivo}"
+                dt, dt, desc_final, val, conta_nome, conta_id, lote_id, ref_id, f"Extrato {nome_arquivo}"
             ))
             tx_efetiva = cur.lastrowid
             resumo["transferencias_criadas"] += 1
@@ -647,9 +677,10 @@ def aplicar_lote_conciliacao(lote_id: int, decisoes: List[Dict[str, Any]], conn)
             SET acao_efetiva = ?,
                 transacao_id_efetiva = ?,
                 status_conciliacao = ?,
+                descricao = ?,
                 motivo_ignorado = ?
             WHERE id = ?
-        """, (acao, tx_efetiva, status_item, motivo, iid))
+        """, (acao, tx_efetiva, status_item, desc_final, motivo, iid))
 
     # Atualizar status do lote
     cur.execute("UPDATE lotes_importacao SET status = 'confirmado' WHERE id = ?", (lote_id,))

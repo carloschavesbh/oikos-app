@@ -8523,6 +8523,24 @@ async def rota_conciliacao(request: Request):
     )
 
 
+@app.get("/api/conciliacao/demo_novembro")
+async def api_conciliacao_demo_novembro():
+    """Retorna a prévia do extrato de novembro (28 movimentações) para visualização assistida e testes."""
+    csv_path = r"c:\Users\carlo\Downloads\Extrato novembro.csv"
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="Arquivo Extrato novembro.csv não encontrado.")
+    with open(csv_path, "rb") as f:
+        csv_bytes = f.read()
+    conn = conectar_db()
+    try:
+        previa = conciliacao_service.processar_previa_importacao(
+            csv_bytes, "Extrato novembro.csv", "Mercado Pago", conn
+        )
+        return previa
+    finally:
+        conn.close()
+
+
 @app.post("/api/conciliacao/upload")
 async def api_conciliacao_upload(
     arquivo: UploadFile = File(...),
