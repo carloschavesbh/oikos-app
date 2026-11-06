@@ -495,43 +495,104 @@
         </select>
       </div>
 
-      <!-- 2. Valor Base, Juros e Data da Compra -->
+      <!-- 2. Valores Integrados: Base, Juros e Total na Fatura com Cálculo Inteligente Bidirecional -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Base (R$) *</label>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor Líquido / Base (R$) *</label>
           <input type="number" step="0.01" min="0.01" id="despesa-cartao-valor" name="valor" required placeholder="0,00"
-                 oninput="atualizarPreviaParcelasCartao()"
+                 oninput="aoAlterarValorBase()"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
         </div>
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Juros / Encargos (R$)</label>
           <input type="number" step="0.01" min="0" id="despesa-cartao-juros" name="juros" placeholder="0,00" value="0.00"
-                 oninput="atualizarPreviaParcelasCartao()"
+                 oninput="aoAlterarJuros()"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 focus:border-rose-500 focus:outline-none">
         </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Total na Fatura (R$) *</label>
+          <input type="number" step="0.01" min="0.01" id="despesa-cartao-total-fatura" name="total_fatura" placeholder="0,00"
+                 oninput="aoAlterarTotalFatura()"
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-orange-300 dark:border-orange-800/80 px-3 py-2 text-xs font-black text-orange-600 dark:text-orange-400 focus:border-orange-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- Detalhamento dinâmico do Total e Juros -->
+      <div id="box-total-fatura-previa" class="flex flex-wrap items-center justify-between gap-1 px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs">
+        <span class="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+          <span>🧾</span> Total na Fatura:
+        </span>
+        <div class="flex items-center gap-2">
+          <span id="detalhe-juros-fatura-badge" class="text-[10px] text-slate-500 dark:text-slate-400">
+            Líquido R$ 0,00 + Juros R$ 0,00
+          </span>
+          <span id="despesa-cartao-total-fatura-badge" class="font-black text-sm text-orange-600 dark:text-orange-400">
+            R$ 0,00
+          </span>
+        </div>
+      </div>
+
+      <!-- Data da Compra e Descrição -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Data da Compra *</label>
           <input type="date" id="despesa-cartao-data" name="data" required value="{{ hoje or '' }}"
                  onchange="atualizarOpcoesFaturasCartao()"
                  class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
         </div>
+        <div class="sm:col-span-2">
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição da Compra *</label>
+          <input type="text" id="despesa-cartao-desc" name="descricao" required placeholder="Ex: Pix Crédito Inter, Empréstimo, Mercado..."
+                 class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        </div>
       </div>
 
-      <!-- Indicador dinâmico do Total na Fatura -->
-      <div id="box-total-fatura-previa" class="flex items-center justify-between px-3 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs">
-        <span class="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-          <span>🧾</span> Total na Fatura:
-        </span>
-        <span id="despesa-cartao-total-fatura-badge" class="font-black text-sm text-orange-600 dark:text-orange-400">
-          R$ 0,00
-        </span>
-      </div>
+      <!-- 3. Toggle de Crédito Casado em Conta (Receita) -->
+      <div class="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/50 rounded-xl space-y-2.5">
+        <label class="flex items-center gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" id="despesa-cartao-creditar-receita" name="creditar_receita" value="1"
+                 onchange="aoAlternarCreditoReceita()"
+                 class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700">
+          <div class="min-w-0">
+            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <span>💰</span> Creditar valor líquido em conta como Receita
+            </span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">
+              Gera a entrada do recurso na conta (operação casada de Pix / Empréstimo no cartão)
+            </span>
+          </div>
+        </label>
 
-      <!-- 3. Descrição da Compra -->
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição da Compra *</label>
-        <input type="text" id="despesa-cartao-desc" name="descricao" required placeholder="Ex: Mercado Livre, Drogaria, Supermercado..."
-               class="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none">
+        <!-- Bloco de Campos Complementares da Receita -->
+        <div id="bloco-credito-receita" class="hidden space-y-2.5 pt-2 border-t border-emerald-200/50 dark:border-emerald-800/40">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Conta de Destino do Crédito *</label>
+              <select id="despesa-cartao-conta-destino" name="conta_destino_id"
+                      class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+                {% for cta in contas_ativas %}
+                <option value="{{ cta.id }}">{{ cta.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Categoria da Receita *</label>
+              <select id="despesa-cartao-categoria-receita" name="categoria_receita"
+                      class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+                {% for cr in categorias_receita %}
+                <option value="{{ cr }}" {% if 'empréstimo' in cr.lower() or 'aporte' in cr.lower() %}selected{% endif %}>{{ cr }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1">Descrição da Receita na Conta *</label>
+            <input type="text" id="despesa-cartao-desc-receita" name="descricao_receita"
+                   placeholder="Ex: Empréstimo Pix Cartão - Cartão Inter Aparecida"
+                   class="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:border-emerald-500 focus:outline-none">
+          </div>
+        </div>
       </div>
 
       <!-- 4. Categoria e Subcategoria -->
@@ -1029,35 +1090,128 @@
     if (lblProx) lblProx.textContent = `Vencimento: ${calcs.vencProxStr}`;
   }
 
-  function atualizarPreviaParcelasCartao() {
-    const inputValor = document.getElementById('despesa-cartao-valor');
+  let ultimoCampoValorAlterado = 'base';
+
+  function arredondar2(val) {
+    return Math.round((val + Number.EPSILON) * 100) / 100;
+  }
+
+  function aoAlterarValorBase() {
+    const inputBase = document.getElementById('despesa-cartao-valor');
     const inputJuros = document.getElementById('despesa-cartao-juros');
+    const inputTotal = document.getElementById('despesa-cartao-total-fatura');
+    if (!inputBase || !inputJuros || !inputTotal) return;
+
+    const baseVal = parseFloat(inputBase.value || '0');
+
+    if (ultimoCampoValorAlterado === 'total') {
+      const totalVal = parseFloat(inputTotal.value || '0');
+      if (totalVal > 0) {
+        const jurosVal = Math.max(0, arredondar2(totalVal - baseVal));
+        inputJuros.value = jurosVal.toFixed(2);
+      } else {
+        inputTotal.value = baseVal > 0 ? baseVal.toFixed(2) : '';
+      }
+    } else {
+      const jurosVal = parseFloat(inputJuros.value || '0');
+      const totalVal = arredondar2(baseVal + jurosVal);
+      inputTotal.value = totalVal > 0 ? totalVal.toFixed(2) : '';
+    }
+    atualizarPreviaParcelasCartao();
+  }
+
+  function aoAlterarJuros() {
+    ultimoCampoValorAlterado = 'juros';
+    const inputBase = document.getElementById('despesa-cartao-valor');
+    const inputJuros = document.getElementById('despesa-cartao-juros');
+    const inputTotal = document.getElementById('despesa-cartao-total-fatura');
+    if (!inputBase || !inputJuros || !inputTotal) return;
+
+    const baseVal = parseFloat(inputBase.value || '0');
+    const jurosVal = parseFloat(inputJuros.value || '0');
+    const totalVal = arredondar2(baseVal + jurosVal);
+    inputTotal.value = totalVal > 0 ? totalVal.toFixed(2) : '';
+    atualizarPreviaParcelasCartao();
+  }
+
+  function aoAlterarTotalFatura() {
+    ultimoCampoValorAlterado = 'total';
+    const inputBase = document.getElementById('despesa-cartao-valor');
+    const inputJuros = document.getElementById('despesa-cartao-juros');
+    const inputTotal = document.getElementById('despesa-cartao-total-fatura');
+    if (!inputBase || !inputJuros || !inputTotal) return;
+
+    const totalVal = parseFloat(inputTotal.value || '0');
+    const baseVal = parseFloat(inputBase.value || '0');
+
+    if (baseVal > 0) {
+      const jurosVal = Math.max(0, arredondar2(totalVal - baseVal));
+      inputJuros.value = jurosVal.toFixed(2);
+    } else if (totalVal > 0) {
+      inputBase.value = totalVal.toFixed(2);
+      inputJuros.value = '0.00';
+    }
+    atualizarPreviaParcelasCartao();
+  }
+
+  function aoAlternarCreditoReceita() {
+    const chk = document.getElementById('despesa-cartao-creditar-receita');
+    const bloco = document.getElementById('bloco-credito-receita');
+    const inputDescRec = document.getElementById('despesa-cartao-desc-receita');
+    const selCartao = document.getElementById('despesa-cartao-id');
+
+    if (chk && chk.checked) {
+      if (bloco) bloco.classList.remove('hidden');
+      let nomeCartao = 'Cartão';
+      if (selCartao && selCartao.selectedOptions && selCartao.selectedOptions[0]) {
+        nomeCartao = selCartao.selectedOptions[0].text.split('(')[0].trim();
+      }
+      if (inputDescRec && !inputDescRec.value) {
+        inputDescRec.value = `Empréstimo Pix Cartão - ${nomeCartao}`;
+      }
+    } else if (bloco) {
+      bloco.classList.add('hidden');
+    }
+  }
+
+  function atualizarPreviaParcelasCartao() {
+    const inputBase = document.getElementById('despesa-cartao-valor');
+    const inputJuros = document.getElementById('despesa-cartao-juros');
+    const inputTotal = document.getElementById('despesa-cartao-total-fatura');
     const selectParcelas = document.getElementById('despesa-cartao-parcelas');
     const labelPrevia = document.getElementById('previa-parcelas-cartao-texto');
     const badgeTotalFatura = document.getElementById('despesa-cartao-total-fatura-badge');
-    if (!inputValor || !selectParcelas || !labelPrevia) return;
+    const badgeDetalheJuros = document.getElementById('detalhe-juros-fatura-badge');
+    if (!selectParcelas || !labelPrevia) return;
 
-    const valorBase = Math.max(0, parseFloat(inputValor.value || '0'));
-    const valorJuros = Math.max(0, parseFloat(inputJuros ? inputJuros.value || '0' : '0'));
-    const totalFatura = valorBase + valorJuros;
+    const baseVal = Math.max(0, parseFloat(inputBase ? inputBase.value || '0' : '0'));
+    const jurosVal = Math.max(0, parseFloat(inputJuros ? inputJuros.value || '0' : '0'));
+    let totalVal = parseFloat(inputTotal ? inputTotal.value || '0' : '0');
+    if (isNaN(totalVal) || totalVal <= 0) {
+      totalVal = arredondar2(baseVal + jurosVal);
+    }
+
     const parcelas = parseInt(selectParcelas.value || '1', 10);
 
     if (badgeTotalFatura) {
-      badgeTotalFatura.textContent = totalFatura.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      badgeTotalFatura.textContent = totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    if (badgeDetalheJuros) {
+      badgeDetalheJuros.textContent = `Líquido: ${baseVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} + Juros: ${jurosVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
     }
 
-    if (totalFatura <= 0) {
+    if (totalVal <= 0) {
       labelPrevia.textContent = parcelas === 1 ? '1x de R$ 0,00 (À vista)' : `${parcelas}x de R$ 0,00`;
       return;
     }
 
-    const valorParcela = (totalFatura / parcelas).toFixed(2);
+    const valorParcela = (totalVal / parcelas).toFixed(2);
     const valorParcelaFmt = parseFloat(valorParcela).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const totalFaturaFmt = totalFatura.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const totalFaturaFmt = totalVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     if (parcelas === 1) {
-      labelPrevia.textContent = valorJuros > 0
-        ? `1x de ${valorParcelaFmt} (À vista com juros)`
+      labelPrevia.textContent = jurosVal > 0
+        ? `1x de ${valorParcelaFmt} (À vista c/ juros)`
         : `1x de ${valorParcelaFmt} (À vista na fatura)`;
     } else {
       labelPrevia.textContent = `${parcelas}x de ${valorParcelaFmt} (Total: ${totalFaturaFmt})`;
@@ -1074,6 +1228,9 @@
     const valor = parseFloat(document.getElementById('despesa-cartao-valor').value || '0');
     const jurosInput = document.getElementById('despesa-cartao-juros');
     const juros = Math.max(0, parseFloat(jurosInput ? jurosInput.value || '0' : '0'));
+    const totalFaturaInput = document.getElementById('despesa-cartao-total-fatura');
+    const totalFatura = parseFloat(totalFaturaInput ? totalFaturaInput.value || '0' : '0');
+
     const dataCompra = document.getElementById('despesa-cartao-data').value;
     const descricao = document.getElementById('despesa-cartao-desc').value.trim();
     const categoria = document.getElementById('despesa-cartao-categoria').value;
@@ -1090,17 +1247,31 @@
       }
     }
 
+    const chkReceita = document.getElementById('despesa-cartao-creditar-receita');
+    const creditarReceita = chkReceita ? chkReceita.checked : false;
+    const selContaDest = document.getElementById('despesa-cartao-conta-destino');
+    const contaDestinoId = creditarReceita && selContaDest ? parseInt(selContaDest.value || '0', 10) : null;
+    const selCatRec = document.getElementById('despesa-cartao-categoria-receita');
+    const categoriaReceita = creditarReceita && selCatRec ? selCatRec.value : null;
+    const inputDescRec = document.getElementById('despesa-cartao-desc-receita');
+    const descricaoReceita = creditarReceita && inputDescRec ? inputDescRec.value.trim() : null;
+
     const payload = {
       cartao_id: cartaoId,
       valor: valor,
       juros: juros,
+      total_fatura: totalFatura,
       data_compra: dataCompra,
       descricao: descricao,
       categoria: categoria,
       subcategoria: subcategoria,
       responsavel: responsavel,
       parcelas: parcelas,
-      fatura_destino: faturaDestino
+      fatura_destino: faturaDestino,
+      creditar_receita: creditarReceita,
+      conta_destino_id: contaDestinoId,
+      categoria_receita: categoriaReceita,
+      descricao_receita: descricaoReceita
     };
 
     try {
@@ -1330,6 +1501,24 @@
           abrirDrawerEditarCompraDoItem(primeiroItem);
         }
       }, 300);
+    }
+    if (urlParams.get('demo_modal_casado') === '1') {
+      setTimeout(() => {
+        abrirModalDespesaCartao();
+        const v = document.getElementById('despesa-cartao-valor');
+        const t = document.getElementById('despesa-cartao-total-fatura');
+        const d = document.getElementById('despesa-cartao-desc');
+        const chk = document.getElementById('despesa-cartao-creditar-receita');
+        if (v) v.value = '750.00';
+        if (t) t.value = '892.52';
+        aoAlterarTotalFatura();
+        if (d) d.value = 'Empréstimo Pix Crédito Inter';
+        if (chk) {
+          chk.checked = true;
+          aoAlternarCreditoReceita();
+        }
+        definirResponsavelCartao('Carlos');
+      }, 400);
     }
   });
 </script>

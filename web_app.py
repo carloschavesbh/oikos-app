@@ -2321,7 +2321,7 @@ def calcular_ciclo_fatura_cartao(dia_fechamento: int, dia_vencimento: int, data_
     return ano_venc, mes_venc, dia_final
 
 
-def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual", juros: float = 0.0) -> Tuple[bool, str, List[int]]:
+def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: str, valor_total: float, data_compra: str, categoria: str, subcategoria: Optional[str] = "", responsavel: Optional[str] = None, parcelas: int = 1, fatura_destino: str = "atual", juros: float = 0.0, creditar_receita: bool = False, conta_destino_id: Optional[int] = None, descricao_receita: Optional[str] = None, categoria_receita: Optional[str] = None) -> Tuple[bool, str, List[int]]:
     """Gera o lançamento ou série de parcelas de uma compra no cartão de crédito na tabela transacoes com suporte a juros/encargos."""
     cur = conn.cursor()
     cur.execute("SELECT id, nome, dia_fechamento, dia_vencimento, titular FROM cartoes WHERE id = ?", (cartao_id,))
@@ -2379,9 +2379,42 @@ def criar_despesa_cartao(conn: sqlite3.Connection, cartao_id: int, descricao: st
         """, (dt_venc, d_p, v_p, categoria.strip(), subcat_str, nome_cartao, cartao_id, titular_cartao, i, parcelas_int, grupo, j_p, ref_ext))
         ids_gerados.append(cur.lastrowid)
 
+    info_credito = ""
+    if creditar_receita and conta_destino_id and valor_base > 0:
+        cur.execute("SELECT id, nome FROM contas_config WHERE id = ?", (conta_destino_id,))
+        row_cta = cur.fetchone()
+        if row_cta:
+            nome_cta_dest = str(row_cta["nome"])
+            desc_rec = (descricao_receita or "").strip() or f"Empréstimo Pix Cartão - {nome_cartao}"
+            cat_rec = (categoria_receita or "").strip() or "Empréstimo / Aporte"
+            cur.execute("""
+                INSERT INTO transacoes (
+                    data, descricao, valor, tipo, categoria, conta, conta_id,
+                    pago, afeta_saldo_bancario, status_pagamento, titular,
+                    ref_externa, motivo_ajuste
+                ) VALUES (
+                    ?, ?, ?, 'receita', ?, ?, ?,
+                    1, 1, 'pago', ?,
+                    ?, ?
+                )
+            """, (
+                dt_c.strftime('%Y-%m-%d'),
+                desc_rec,
+                round(valor_base, 2),
+                cat_rec,
+                nome_cta_dest,
+                conta_destino_id,
+                titular_cartao,
+                f"operacao_casada_cartao:{cartao_id}",
+                f"Crédito casado de despesa do cartão {nome_cartao}"
+            ))
+            id_rec = cur.lastrowid
+            ids_gerados.append(id_rec)
+            info_credito = f" e crédito de {formatar_moeda_br(valor_base)} lançado na conta {nome_cta_dest}"
+
     conn.commit()
     info_juros = f" (com {formatar_moeda_br(juros_total)} de juros/encargos)" if juros_total > 0 else ""
-    return True, f"Compra '{descricao.strip()}' de {formatar_moeda_br(valor_fatura_total)}{info_juros} registrada com sucesso no cartão {nome_cartao} ({parcelas_int}x)!", ids_gerados
+    return True, f"Compra '{descricao.strip()}' de {formatar_moeda_br(valor_fatura_total)}{info_juros} registrada com sucesso no cartão {nome_cartao} ({parcelas_int}x){info_credito}!", ids_gerados
 
 
 @app.post("/api/cartoes/compras")
@@ -2420,8 +2453,23 @@ async def api_criar_compra_cartao(request: Request):
         responsavel = str(data.get("responsavel") or data.get("titular") or "").strip() or None
         parcelas = int(data.get("parcelas") or 1)
         fatura_destino = str(data.get("fatura_destino") or "atual").strip().lower()
+        
+        total_fatura_raw = data.get("total_fatura") or data.get("total") or 0.0
+        total_fatura_num = round(converter_valor_monetario(total_fatura_raw), 2)
         juros_raw = data.get("juros") or data.get("encargos") or 0.0
         juros_num = round(converter_valor_monetario(juros_raw), 2)
+
+        if total_fatura_num > valor_num and juros_num <= 0:
+            juros_num = round(total_fatura_num - valor_num, 2)
+        elif juros_num > 0 and total_fatura_num <= 0:
+            total_fatura_num = round(valor_num + juros_num, 2)
+
+        creditar_receita_raw = data.get("creditar_receita")
+        creditar_receita = bool(creditar_receita_raw is True or str(creditar_receita_raw).lower() in ("true", "1", "on", "yes"))
+        conta_dest_id_raw = data.get("conta_destino_id") or data.get("conta_destino")
+        conta_destino_id = int(conta_dest_id_raw) if (conta_dest_id_raw and str(conta_dest_id_raw).isdigit() and int(conta_dest_id_raw) > 0) else None
+        descricao_receita = str(data.get("descricao_receita") or "").strip()
+        categoria_receita = str(data.get("categoria_receita") or "Empréstimo / Aporte").strip()
 
         ok, msg, ids = criar_despesa_cartao(
             conn=conn,
@@ -2434,7 +2482,11 @@ async def api_criar_compra_cartao(request: Request):
             responsavel=responsavel,
             parcelas=parcelas,
             fatura_destino=fatura_destino,
-            juros=juros_num
+            juros=juros_num,
+            creditar_receita=creditar_receita,
+            conta_destino_id=conta_destino_id,
+            descricao_receita=descricao_receita,
+            categoria_receita=categoria_receita
         )
 
         if not ok:
@@ -3036,6 +3088,19 @@ async def pagina_cartoes(
     if not cats_desp_cartao:
         cats_desp_cartao = list(CATEGORIAS_SUBCATEGORIAS.keys())
 
+    cur.execute("""
+        SELECT id, nome, tipo
+        FROM contas_config
+        WHERE COALESCE(tipo, '') != 'cofrinho'
+        ORDER BY id ASC
+    """)
+    contas_ativas = [dict(r) for r in cur.fetchall()]
+
+    cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'receita' AND categoria IS NOT NULL ORDER BY categoria ASC")
+    cats_rec = [r[0] for r in cur.fetchall() if r[0]]
+    if "Empréstimo / Aporte" not in cats_rec:
+        cats_rec.insert(0, "Empréstimo / Aporte")
+
     conn.close()
 
     return templates.TemplateResponse(
@@ -3057,6 +3122,8 @@ async def pagina_cartoes(
             "is_fatura_passada": is_fatura_passada,
             "bancos_disponiveis": BANCOS_DISPONIVEIS,
             "categorias_despesa": cats_desp_cartao,
+            "categorias_receita": cats_rec,
+            "contas_ativas": contas_ativas,
             "categorias_subcategorias": CATEGORIAS_SUBCATEGORIAS,
             "responsaveis": ["Carlos", "Fernanda", "Pedro", "Família", "Outro"],
             "hoje": date.today().strftime("%Y-%m-%d"),
