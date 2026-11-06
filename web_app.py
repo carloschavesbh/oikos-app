@@ -211,6 +211,32 @@ def garantir_esquema_banco(conn: sqlite3.Connection) -> None:
         except Exception:
             pass
 
+  
+
+    # 5. Tabelas do Simulador de Decisão
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS simulador_itens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                descricao TEXT NOT NULL,
+                valor_estimado REAL NOT NULL,
+                tipo TEXT NOT NULL CHECK(tipo IN ('urgencia', 'necessidade', 'desejo')),
+                solicitante TEXT NOT NULL DEFAULT 'Carlos',
+                selecionado INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'rascunho',
+                criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS simulador_config (
+                chave TEXT PRIMARY KEY,
+                valor TEXT NOT NULL
+            )
+        """)
+        cur.execute("INSERT OR IGNORE INTO simulador_config (chave, valor) VALUES ('teto_orcamento', '1500.00')")
+    except Exception as e:
+        print(f"Aviso ao inicializar tabelas do simulador: {e}")
+
     conn.commit()
 
 
@@ -7362,6 +7388,343 @@ async def api_excluir_despesa_eventual(despesa_id: int):
         cur.execute("DELETE FROM planejamento_despesas_eventuais WHERE id = ?", (despesa_id,))
         conn.commit()
         return JSONResponse({"sucesso": True})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+# =============================================================================
+# MÓDULO: SIMULADOR DE DECISÃO (URGÊNCIA, NECESSIDADE, DESEJO)
+# =============================================================================
+
+@app.get("/simulador", response_class=HTMLResponse)
+async def pagina_simulador(request: Request):
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        # 1. Obter Teto do Orçamento
+        cur.execute("SELECT valor FROM simulador_config WHERE chave = 'teto_orcamento'")
+        row_cfg = cur.fetchone()
+        teto_orcamento = float(row_cfg["valor"]) if row_cfg else 1500.00
+
+        # 2. Obter Demandas do Simulador
+        cur.execute("""
+            SELECT id, descricao, valor_estimado, tipo, solicitante, selecionado, status, criado_em
+            FROM simulador_itens
+            ORDER BY CASE WHEN status = 'rascunho' THEN 0 ELSE 1 END,
+                     CASE tipo WHEN 'urgencia' THEN 1 WHEN 'necessidade' THEN 2 ELSE 3 END,
+                     id DESC
+        """)
+        itens_rows = cur.fetchall()
+        itens = [dict(r) for r in itens_rows]
+
+        # 3. Totais e Métricas em Tempo Real
+        total_marcado = 0.0
+        comp_urgencia = 0.0
+        comp_necessidade = 0.0
+        comp_desejo = 0.0
+
+        for it in itens:
+            val = float(it.get("valor_estimado") or 0.0)
+            it["valor_formatado"] = formatar_moeda_br(val)
+            if it.get("selecionado") == 1:
+                total_marcado += val
+                tipo = str(it.get("tipo") or "").lower()
+                if tipo == "urgencia":
+                    comp_urgencia += val
+                elif tipo == "necessidade":
+                    comp_necessidade += val
+                elif tipo == "desejo":
+                    comp_desejo += val
+
+        total_marcado = round(total_marcado, 2)
+        saldo_restante = round(teto_orcamento - total_marcado, 2)
+
+        pct_urgencia = round((comp_urgencia / total_marcado * 100), 1) if total_marcado > 0 else 0.0
+        pct_necessidade = round((comp_necessidade / total_marcado * 100), 1) if total_marcado > 0 else 0.0
+        pct_desejo = round((comp_desejo / total_marcado * 100), 1) if total_marcado > 0 else 0.0
+
+        # 4. Obter Contas e Cartões para modal de aprovação
+        cur.execute("SELECT id, nome FROM contas_config WHERE COALESCE(tipo, '') != 'cofrinho' ORDER BY nome")
+        contas = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT id, nome FROM cartoes ORDER BY nome")
+        cartoes = [dict(r) for r in cur.fetchall()]
+
+        return templates.TemplateResponse(
+            request=request,
+            name="simulador.html",
+            context={
+                "active_tab": "simulador",
+                "itens": itens,
+                "teto_orcamento": teto_orcamento,
+                "teto_formatado": formatar_moeda_br(teto_orcamento),
+                "total_marcado": total_marcado,
+                "total_marcado_formatado": formatar_moeda_br(total_marcado),
+                "saldo_restante": saldo_restante,
+                "saldo_restante_formatado": formatar_moeda_br(saldo_restante),
+                "comp_urgencia": comp_urgencia,
+                "comp_necessidade": comp_necessidade,
+                "comp_desejo": comp_desejo,
+                "comp_urgencia_formatado": formatar_moeda_br(comp_urgencia),
+                "comp_necessidade_formatado": formatar_moeda_br(comp_necessidade),
+                "comp_desejo_formatado": formatar_moeda_br(comp_desejo),
+                "pct_urgencia": pct_urgencia,
+                "pct_necessidade": pct_necessidade,
+                "pct_desejo": pct_desejo,
+                "contas": contas,
+                "cartoes": cartoes,
+            }
+        )
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador/config")
+async def api_simulador_salvar_config(request: Request):
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        teto_raw = data.get("teto_orcamento") or data.get("valor") or 0.0
+        teto_val = max(0.0, round(converter_valor_monetario(teto_raw), 2))
+
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO simulador_config (chave, valor)
+            VALUES ('teto_orcamento', ?)
+            ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor
+        """, (f"{teto_val:.2f}",))
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "teto_orcamento": teto_val,
+            "teto_formatado": formatar_moeda_br(teto_val)
+        })
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador")
+async def api_simulador_criar_item(request: Request):
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        descricao = str(data.get("descricao") or "").strip()
+        if not descricao:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Descrição é obrigatória."})
+
+        valor_raw = data.get("valor_estimado") or data.get("valor") or 0.0
+        valor_val = round(converter_valor_monetario(valor_raw), 2)
+        if valor_val <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Valor estimado deve ser maior que zero."})
+
+        tipo = str(data.get("tipo") or "necessidade").strip().lower()
+        if tipo not in ("urgencia", "necessidade", "desejo"):
+            tipo = "necessidade"
+
+        solicitante = str(data.get("solicitante") or "Carlos").strip()
+        if solicitante not in ("Carlos", "Fernanda", "Pedro", "Família", "Outro"):
+            solicitante = "Carlos"
+
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO simulador_itens (descricao, valor_estimado, tipo, solicitante, selecionado, status, criado_em)
+            VALUES (?, ?, ?, ?, 1, 'rascunho', datetime('now', 'localtime'))
+        """, (descricao, valor_val, tipo, solicitante))
+        item_id = cur.lastrowid
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "item": {
+                "id": item_id,
+                "descricao": descricao,
+                "valor_estimado": valor_val,
+                "valor_formatado": formatar_moeda_br(valor_val),
+                "tipo": tipo,
+                "solicitante": solicitante,
+                "selecionado": 1,
+                "status": "rascunho"
+            }
+        })
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador/{item_id}/toggle")
+async def api_simulador_toggle(item_id: int):
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, selecionado FROM simulador_itens WHERE id = ?", (item_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Item não encontrado."})
+
+        novo_sel = 0 if row["selecionado"] == 1 else 1
+        cur.execute("UPDATE simulador_itens SET selecionado = ? WHERE id = ?", (novo_sel, item_id))
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "id": item_id,
+            "selecionado": novo_sel
+        })
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador/{item_id}/editar")
+async def api_simulador_editar(item_id: int, request: Request):
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        descricao = str(data.get("descricao") or "").strip()
+        if not descricao:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Descrição é obrigatória."})
+
+        valor_raw = data.get("valor_estimado") or data.get("valor") or 0.0
+        valor_val = round(converter_valor_monetario(valor_raw), 2)
+        if valor_val <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Valor estimado deve ser maior que zero."})
+
+        tipo = str(data.get("tipo") or "necessidade").strip().lower()
+        if tipo not in ("urgencia", "necessidade", "desejo"):
+            tipo = "necessidade"
+
+        solicitante = str(data.get("solicitante") or "Carlos").strip()
+
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE simulador_itens
+            SET descricao = ?, valor_estimado = ?, tipo = ?, solicitante = ?
+            WHERE id = ?
+        """, (descricao, valor_val, tipo, solicitante, item_id))
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "item": {
+                "id": item_id,
+                "descricao": descricao,
+                "valor_estimado": valor_val,
+                "valor_formatado": formatar_moeda_br(valor_val),
+                "tipo": tipo,
+                "solicitante": solicitante
+            }
+        })
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador/{item_id}/excluir")
+async def api_simulador_excluir(item_id: int):
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM simulador_itens WHERE id = ?", (item_id,))
+        conn.commit()
+        return JSONResponse({"sucesso": True, "id": item_id})
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
+@app.post("/api/simulador/{item_id}/aprovar")
+async def api_simulador_aprovar(item_id: int, request: Request):
+    conn = conectar_db()
+    try:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            data = await request.json()
+        else:
+            form = await request.form()
+            data = dict(form)
+
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM simulador_itens WHERE id = ?", (item_id,))
+        item = cur.fetchone()
+        if not item:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Item não encontrado."})
+
+        destino = str(data.get("destino") or "cartao").strip().lower()
+        categoria = str(data.get("categoria") or "Outros").strip()
+        subcategoria = str(data.get("subcategoria") or "").strip()
+        data_transacao = str(data.get("data") or date.today().strftime("%Y-%m-%d")).strip()
+
+        if destino == "cartao":
+            cartao_id = int(data.get("cartao_id") or 0)
+            if not cartao_id:
+                return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Selecione o cartão de crédito."})
+            parcelas = int(data.get("parcelas") or 1)
+            fatura_destino = str(data.get("fatura_destino") or "atual").strip().lower()
+
+            ok, msg, _ = criar_despesa_cartao(
+                conn=conn,
+                cartao_id=cartao_id,
+                descricao=item["descricao"],
+                valor_total=float(item["valor_estimado"]),
+                data_compra=data_transacao,
+                categoria=categoria,
+                subcategoria=subcategoria,
+                responsavel=item["solicitante"],
+                parcelas=parcelas,
+                fatura_destino=fatura_destino
+            )
+            if not ok:
+                return JSONResponse(status_code=400, content={"sucesso": False, "erro": msg})
+        else:
+            conta_id = int(data.get("conta_id") or 0)
+            if not conta_id:
+                return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Selecione a conta."})
+            pago = 1 if int(data.get("pago") or 0) == 1 else 0
+
+            cur.execute("SELECT nome FROM contas_config WHERE id = ?", (conta_id,))
+            row_conta = cur.fetchone()
+            nome_conta = row_conta["nome"] if row_conta else "Conta Geral"
+
+            cur.execute("""
+                INSERT INTO transacoes (tipo, valor, descricao, categoria, subcategoria, conta_id, conta, pago, data, titular)
+                VALUES ('despesa', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (float(item["valor_estimado"]), item["descricao"], categoria, subcategoria, conta_id, nome_conta, pago, data_transacao, item["solicitante"]))
+
+        # Marcar item como aprovado
+        cur.execute("UPDATE simulador_itens SET status = 'aprovado' WHERE id = ?", (item_id,))
+        conn.commit()
+
+        return JSONResponse({
+            "sucesso": True,
+            "mensagem": f"Demanda '{item['descricao']}' aprovada com sucesso!"
+        })
     except Exception as e:
         return JSONResponse(status_code=400, content={"sucesso": False, "erro": str(e)})
     finally:

@@ -1,0 +1,1074 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos — Simulador de Decisão{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-12 animate-fade-in max-w-7xl mx-auto">
+
+  <!-- CABEÇALHO SUPERIOR -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900/90 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm backdrop-blur">
+    <div>
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl shadow-sm border border-emerald-500/20">
+          ⚖️
+        </span>
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            Simulador de Decisão
+            <span class="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+              Cerbasi
+            </span>
+          </h1>
+          <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Priorize compras e demandas familiares dentro do teto disponível: Urgência, Necessidade e Desejo.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TETO ORÇAMENTÁRIO EDITÁVEL -->
+    <div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-inner">
+      <div class="text-right">
+        <label for="inputTetoOrcamento" class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Teto / Orçamento Disponível
+        </label>
+        <div class="flex items-center gap-2 mt-0.5">
+          <input
+            type="text"
+            id="inputTetoOrcamento"
+            value="{{ teto_formatado }}"
+            class="text-right font-mono font-bold text-base md:text-lg text-slate-900 dark:text-white bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 w-36 shadow-sm"
+            onfocus="this.select()"
+            onblur="salvarTetoOrcamento(this.value)"
+            onkeydown="if(event.key==='Enter'){this.blur();}"
+          />
+          <button
+            type="button"
+            onclick="salvarTetoOrcamento(document.getElementById('inputTetoOrcamento').value)"
+            title="Salvar Teto"
+            class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1 active:scale-95"
+          >
+            <span>💾</span>
+            <span class="hidden sm:inline">Salvar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARDS DINÂMICOS DE RESUMO EM TEMPO REAL -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- 1. TOTAL MARCADO -->
+    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Selecionado</span>
+        <span class="text-xs px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" id="cardQtdMarcados">
+          {{ itens|selectattr('selecionado', 'equalto', 1)|list|length }} de {{ itens|length }} itens
+        </span>
+      </div>
+      <div class="mt-2 flex items-baseline gap-2">
+        <span class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white font-mono" id="cardTotalMarcado">
+          {{ total_marcado_formatado }}
+        </span>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+        Soma imediata de todos os itens com checkbox ativo.
+      </p>
+    </div>
+
+    <!-- 2. SALDO RESTANTE COM ALERTA PISCANTE SE NEGATIVO -->
+    <div id="cardSaldoContainer" class="p-5 rounded-2xl border shadow-sm relative overflow-hidden transition-all duration-300 {% if saldo_restante >= 0 %}bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20{% else %}bg-rose-500/15 border-rose-500 dark:bg-rose-950/30 animate-pulse{% endif %}">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider {% if saldo_restante >= 0 %}text-emerald-700 dark:text-emerald-300{% else %}text-rose-700 dark:text-rose-300{% endif %}">
+          Saldo Restante do Teto
+        </span>
+        <span id="badgeStatusSaldo" class="text-xs px-2.5 py-0.5 rounded-full font-bold shadow-sm {% if saldo_restante >= 0 %}bg-emerald-600 text-white{% else %}bg-rose-600 text-white animate-bounce{% endif %}">
+          {% if saldo_restante >= 0 %}Dentro do limite{% else %}Estouro de Teto!{% endif %}
+        </span>
+      </div>
+      <div class="mt-2 flex items-baseline gap-2">
+        <span class="text-2xl md:text-3xl font-extrabold tracking-tight font-mono {% if saldo_restante >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %}" id="cardSaldoRestante">
+          {{ saldo_restante_formatado }}
+        </span>
+      </div>
+      <p id="msgAuxiliarSaldo" class="text-xs font-medium mt-1 {% if saldo_restante >= 0 %}text-emerald-700 dark:text-emerald-300{% else %}text-rose-700 dark:text-rose-300 font-bold{% endif %}">
+        {% if saldo_restante >= 0 %}
+          Sobra dentro do orçamento estabelecido.
+        {% else %}
+          Estourou {{ saldo_restante_formatado }} — desmarque itens para reequilibrar!
+        {% endif %}
+      </p>
+    </div>
+
+    <!-- 3. COMPOSIÇÃO POR PRIORIDADE (CERBASI) -->
+    <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm sm:col-span-2 lg:col-span-1">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Composição Selecionada</span>
+        <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">% do valor marcado</span>
+      </div>
+
+      <!-- BARRA DE PROGRESSO MULTI-SEGMENTO -->
+      <div class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex mt-3 shadow-inner">
+        <div id="barUrgencia" class="bg-rose-500 transition-all duration-300" style="width: {{ pct_urgencia }}%;" title="Urgência: {{ pct_urgencia }}%"></div>
+        <div id="barNecessidade" class="bg-sky-500 transition-all duration-300" style="width: {{ pct_necessidade }}%;" title="Necessidade: {{ pct_necessidade }}%"></div>
+        <div id="barDesejo" class="bg-purple-500 transition-all duration-300" style="width: {{ pct_desejo }}%;" title="Desejo: {{ pct_desejo }}%"></div>
+      </div>
+
+      <!-- LEGENDA DA COMPOSIÇÃO -->
+      <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+        <div class="bg-rose-500/10 dark:bg-rose-950/20 p-1.5 rounded-lg border border-rose-500/20">
+          <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span> Urgência
+          </div>
+          <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5" id="txtPctUrgencia">
+            {{ pct_urgencia }}%
+          </div>
+          <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono" id="txtValUrgencia">
+            {{ comp_urgencia_formatado }}
+          </div>
+        </div>
+
+        <div class="bg-sky-500/10 dark:bg-sky-950/20 p-1.5 rounded-lg border border-sky-500/20">
+          <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-sky-600 dark:text-sky-400 uppercase">
+            <span class="w-2 h-2 rounded-full bg-sky-500"></span> Necess.
+          </div>
+          <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5" id="txtPctNecessidade">
+            {{ pct_necessidade }}%
+          </div>
+          <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono" id="txtValNecessidade">
+            {{ comp_necessidade_formatado }}
+          </div>
+        </div>
+
+        <div class="bg-purple-500/10 dark:bg-purple-950/20 p-1.5 rounded-lg border border-purple-500/20">
+          <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase">
+            <span class="w-2 h-2 rounded-full bg-purple-500"></span> Desejo
+          </div>
+          <div class="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5" id="txtPctDesejo">
+            {{ pct_desejo }}%
+          </div>
+          <div class="text-[10px] text-slate-500 dark:text-slate-400 font-mono" id="txtValDesejo">
+            {{ comp_desejo_formatado }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARD DE CADASTRO RÁPIDO DE DEMANDA -->
+  <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+    <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+      <span class="text-lg">➕</span>
+      <h2 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+        Cadastrar Nova Demanda para Decisão
+      </h2>
+    </div>
+
+    <form id="formNovoItem" onsubmit="criarItemSimulador(event)" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+        <!-- DESCRIÇÃO -->
+        <div class="md:col-span-5">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Descrição da Demanda <span class="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="novoDescricao"
+            required
+            placeholder="Ex: Pastilha de freio HB20, Fraldas Pedro, Sapato..."
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+          />
+        </div>
+
+        <!-- VALOR ESTIMADO -->
+        <div class="md:col-span-3">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Valor Estimado (R$) <span class="text-rose-500">*</span>
+          </label>
+          <div class="relative">
+            <input
+              type="text"
+              id="novoValor"
+              required
+              placeholder="R$ 0,00"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+              oninput="mascaraMoeda(this)"
+            />
+          </div>
+        </div>
+
+        <!-- BOTÕES DE TIPO (URGÊNCIA, NECESSIDADE, DESEJO) -->
+        <div class="md:col-span-4">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Prioridade / Classificação
+          </label>
+          <div class="grid grid-cols-3 gap-1.5" id="btnGroupTipo">
+            <button
+              type="button"
+              onclick="selecionarTipoNovo('urgencia')"
+              data-tipo="urgencia"
+              class="btn-tipo-option px-2 py-2 text-xs font-semibold rounded-xl border transition flex items-center justify-center gap-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+            >
+              <span>🚨</span>
+              <span>Urgência</span>
+            </button>
+            <button
+              type="button"
+              onclick="selecionarTipoNovo('necessidade')"
+              data-tipo="necessidade"
+              class="btn-tipo-option px-2 py-2 text-xs font-bold rounded-xl border transition flex items-center justify-center gap-1 bg-sky-600 border-sky-600 text-white shadow-sm"
+            >
+              <span>📦</span>
+              <span>Necess.</span>
+            </button>
+            <button
+              type="button"
+              onclick="selecionarTipoNovo('desejo')"
+              data-tipo="desejo"
+              class="btn-tipo-option px-2 py-2 text-xs font-semibold rounded-xl border transition flex items-center justify-center gap-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+            >
+              <span>✨</span>
+              <span>Desejo</span>
+            </button>
+          </div>
+          <input type="hidden" id="novoTipo" value="necessidade" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end pt-1">
+        <!-- SOLICITANTE / RESPONSÁVEL -->
+        <div class="md:col-span-8">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+            Solicitante / Responsável
+          </label>
+          <div class="flex flex-wrap gap-2" id="btnGroupSolicitante">
+            <button
+              type="button"
+              onclick="selecionarSolicitanteNovo('Carlos')"
+              data-solicitante="Carlos"
+              class="btn-solic-option px-3.5 py-2 text-xs font-bold rounded-xl border transition bg-emerald-600 border-emerald-600 text-white shadow-sm"
+            >
+              Carlos
+            </button>
+            <button
+              type="button"
+              onclick="selecionarSolicitanteNovo('Fernanda')"
+              data-solicitante="Fernanda"
+              class="btn-solic-option px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              Fernanda
+            </button>
+            <button
+              type="button"
+              onclick="selecionarSolicitanteNovo('Pedro')"
+              data-solicitante="Pedro"
+              class="btn-solic-option px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              Pedro
+            </button>
+            <button
+              type="button"
+              onclick="selecionarSolicitanteNovo('Família')"
+              data-solicitante="Família"
+              class="btn-solic-option px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            >
+              Família
+            </button>
+          </div>
+          <input type="hidden" id="novoSolicitante" value="Carlos" />
+        </div>
+
+        <!-- BOTÃO SUBMIT -->
+        <div class="md:col-span-4 flex justify-end">
+          <button
+            type="submit"
+            id="btnSalvarNovoItem"
+            class="w-full md:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 active:scale-95"
+          >
+            <span>➕</span>
+            <span>Adicionar Demanda</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- LISTA / TABELA DE DEMANDAS DO SIMULADOR -->
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <span class="text-base">📋</span>
+        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+          Demandas em Simulação
+        </h2>
+        <span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          {{ itens|length }} total
+        </span>
+      </div>
+
+      <!-- INSTRUÇÃO REATIVA -->
+      <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Marque ou desmarque para simular o impacto no orçamento em tempo real.</span>
+      </div>
+    </div>
+
+    <!-- TABELA -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse" id="tabelaSimulador">
+        <thead>
+          <tr class="bg-slate-50/80 dark:bg-slate-800/50 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <th class="py-3 px-4 text-center w-12">Simular</th>
+            <th class="py-3 px-4">Demanda</th>
+            <th class="py-3 px-4">Solicitante</th>
+            <th class="py-3 px-4">Prioridade</th>
+            <th class="py-3 px-4 text-right">Valor Estimado</th>
+            <th class="py-3 px-4 text-center">Status</th>
+            <th class="py-3 px-4 text-center w-36">Ações</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm">
+          {% if not itens %}
+          <tr id="linhaVazia">
+            <td colspan="7" class="py-12 text-center text-slate-400 dark:text-slate-500 text-sm">
+              <span class="text-3xl block mb-2">⚖️</span>
+              Nenhuma demanda cadastrada no simulador.<br />
+              <span class="text-xs text-slate-400">Utilize o formulário acima para adicionar suas compras e priorizá-las.</span>
+            </td>
+          </tr>
+          {% else %}
+            {% for it in itens %}
+            <tr
+              id="row-item-{{ it.id }}"
+              class="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40 item-simulador-row {% if it.selecionado == 0 %}opacity-45 bg-slate-50/40 dark:bg-slate-900/40{% endif %}"
+              data-id="{{ it.id }}"
+              data-valor="{{ it.valor_estimado }}"
+              data-tipo="{{ it.tipo }}"
+              data-selecionado="{{ it.selecionado }}"
+              data-status="{{ it.status }}"
+              data-solicitante="{{ it.solicitante }}"
+              data-descricao="{{ it.descricao }}"
+            >
+              <!-- CHECKBOX DE SIMULAÇÃO -->
+              <td class="py-3.5 px-4 text-center">
+                <input
+                  type="checkbox"
+                  {% if it.selecionado == 1 %}checked{% endif %}
+                  onchange="toggleItemSimulador({{ it.id }}, this.checked)"
+                  class="w-5 h-5 text-emerald-600 bg-slate-100 border-slate-300 rounded focus:ring-emerald-500 dark:focus:ring-emerald-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer accent-emerald-600 transition"
+                  title="Marcar/Desmarcar da simulação"
+                />
+              </td>
+
+              <!-- DESCRIÇÃO -->
+              <td class="py-3.5 px-4 font-semibold text-slate-900 dark:text-white item-desc">
+                <div class="flex items-center gap-2">
+                  <span>{{ it.descricao }}</span>
+                </div>
+              </td>
+
+              <!-- SOLICITANTE -->
+              <td class="py-3.5 px-4 item-solic">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  {{ it.solicitante }}
+                </span>
+              </td>
+
+              <!-- TIPO / PRIORIDADE (CERBASI) -->
+              <td class="py-3.5 px-4 item-tipo">
+                {% if it.tipo == 'urgencia' %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                    <span>🚨</span> Urgência
+                  </span>
+                {% elif it.tipo == 'necessidade' %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30">
+                    <span>📦</span> Necessidade
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                    <span>✨</span> Desejo
+                  </span>
+                {% endif %}
+              </td>
+
+              <!-- VALOR ESTIMADO -->
+              <td class="py-3.5 px-4 text-right font-mono font-bold text-slate-900 dark:text-white item-valor">
+                {{ it.valor_formatado }}
+              </td>
+
+              <!-- STATUS -->
+              <td class="py-3.5 px-4 text-center item-status">
+                {% if it.status == 'aprovado' %}
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                    <span>✓</span> Aprovado
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    Rascunho
+                  </span>
+                {% endif %}
+              </td>
+
+              <!-- AÇÕES -->
+              <td class="py-3.5 px-4 text-center">
+                <div class="flex items-center justify-center gap-1.5">
+                  {% if it.status != 'aprovado' %}
+                    <!-- BOTÃO APROVAR -->
+                    <button
+                      type="button"
+                      onclick="abrirModalAprovar({{ it.id }})"
+                      title="Aprovar e Lançar Demanda"
+                      class="px-2 py-1 rounded-lg bg-emerald-600/15 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:text-emerald-400 dark:hover:text-white text-xs font-semibold transition border border-emerald-500/30 shadow-sm"
+                    >
+                      ✓ Aprovar
+                    </button>
+                  {% endif %}
+
+                  <!-- BOTÃO EDITAR -->
+                  <button
+                    type="button"
+                    onclick="abrirModalEditar({{ it.id }})"
+                    title="Editar Demanda"
+                    class="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition text-xs"
+                  >
+                    ✏️
+                  </button>
+
+                  <!-- BOTÃO EXCLUIR -->
+                  <button
+                    type="button"
+                    onclick="excluirItemSimulador({{ it.id }})"
+                    title="Remover Demanda"
+                    class="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition text-xs"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============================================================================= -->
+<!-- MODAL DE EDIÇÃO DE DEMANDA -->
+<!-- ============================================================================= -->
+<div id="modalEditar" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 animate-scale-in">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+      <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <span>✏️</span> Editar Demanda
+      </h3>
+      <button type="button" onclick="fecharModalEditar()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg">
+        ✕
+      </button>
+    </div>
+
+    <form id="formEditarItem" onsubmit="salvarEdicaoItem(event)" class="space-y-4">
+      <input type="hidden" id="editId" />
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Descrição</label>
+        <input
+          type="text"
+          id="editDescricao"
+          required
+          class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Valor Estimado (R$)</label>
+        <input
+          type="text"
+          id="editValor"
+          required
+          class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          oninput="mascaraMoeda(this)"
+        />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Prioridade</label>
+        <div class="grid grid-cols-3 gap-2" id="editBtnGroupTipo">
+          <button type="button" onclick="selecionarTipoEdit('urgencia')" data-tipo="urgencia" class="btn-edit-tipo px-2 py-2 text-xs font-semibold rounded-xl border">
+            🚨 Urgência
+          </button>
+          <button type="button" onclick="selecionarTipoEdit('necessidade')" data-tipo="necessidade" class="btn-edit-tipo px-2 py-2 text-xs font-semibold rounded-xl border">
+            📦 Necessidade
+          </button>
+          <button type="button" onclick="selecionarTipoEdit('desejo')" data-tipo="desejo" class="btn-edit-tipo px-2 py-2 text-xs font-semibold rounded-xl border">
+            ✨ Desejo
+          </button>
+        </div>
+        <input type="hidden" id="editTipo" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Solicitante</label>
+        <div class="flex flex-wrap gap-2" id="editBtnGroupSolic">
+          <button type="button" onclick="selecionarSolicEdit('Carlos')" data-solic="Carlos" class="btn-edit-solic px-3 py-1.5 text-xs font-semibold rounded-xl border">Carlos</button>
+          <button type="button" onclick="selecionarSolicEdit('Fernanda')" data-solic="Fernanda" class="btn-edit-solic px-3 py-1.5 text-xs font-semibold rounded-xl border">Fernanda</button>
+          <button type="button" onclick="selecionarSolicEdit('Pedro')" data-solic="Pedro" class="btn-edit-solic px-3 py-1.5 text-xs font-semibold rounded-xl border">Pedro</button>
+          <button type="button" onclick="selecionarSolicEdit('Família')" data-solic="Família" class="btn-edit-solic px-3 py-1.5 text-xs font-semibold rounded-xl border">Família</button>
+        </div>
+        <input type="hidden" id="editSolicitante" />
+      </div>
+
+      <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalEditar()" class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-semibold transition">
+          Cancelar
+        </button>
+        <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md transition">
+          Salvar Alterações
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================================= -->
+<!-- MODAL DE APROVAÇÃO E CONVERSÃO EM TRANSAÇÃO -->
+<!-- ============================================================================= -->
+<div id="modalAprovar" class="fixed inset-0 z-50 hidden bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 animate-scale-in">
+    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+      <h3 class="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <span>✓</span> Aprovar Demanda
+      </h3>
+      <button type="button" onclick="fecharModalAprovar()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg">
+        ✕
+      </button>
+    </div>
+
+    <form id="formAprovarItem" onsubmit="executarAprovacaoItem(event)" class="space-y-4">
+      <input type="hidden" id="aprovId" />
+
+      <!-- RESUMO DO ITEM -->
+      <div class="bg-slate-50 dark:bg-slate-800/80 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
+        <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase">Item Selecionado</div>
+        <div class="text-sm font-bold text-slate-900 dark:text-white mt-0.5" id="aprovDescricao"></div>
+        <div class="text-base font-mono font-extrabold text-emerald-600 dark:text-emerald-400 mt-1" id="aprovValor"></div>
+      </div>
+
+      <!-- FORMA DE LANÇAMENTO -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Destino da Transação</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            id="btnDestinoCartao"
+            onclick="selecionarDestinoAprov('cartao')"
+            class="px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition bg-emerald-600 border-emerald-600 text-white shadow-sm"
+          >
+            <span>💳</span> Fatura de Cartão
+          </button>
+          <button
+            type="button"
+            id="btnDestinoConta"
+            onclick="selecionarDestinoAprov('conta')"
+            class="px-3.5 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <span>🏦</span> Conta Corrente / Pix
+          </button>
+        </div>
+        <input type="hidden" id="aprovDestino" value="cartao" />
+      </div>
+
+      <!-- SEÇÃO CARTÃO -->
+      <div id="secaoDestinoCartao" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Cartão de Crédito</label>
+          <select id="aprovCartaoId" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+            {% for c in cartoes %}
+              <option value="{{ c.id }}">{{ c.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Parcelamento</label>
+            <select id="aprovParcelas" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-semibold">
+              <option value="1">1x à vista</option>
+              <option value="2">2x</option>
+              <option value="3">3x</option>
+              <option value="4">4x</option>
+              <option value="5">5x</option>
+              <option value="6">6x</option>
+              <option value="10">10x</option>
+              <option value="12">12x</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Fatura</label>
+            <select id="aprovFaturaDestino" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+              <option value="atual">Fatura Atual</option>
+              <option value="proxima">Próxima Fatura</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO CONTA -->
+      <div id="secaoDestinoConta" class="space-y-3 hidden">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Conta Bancária</label>
+          <select id="aprovContaId" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+            {% for c in contas %}
+              <option value="{{ c.id }}">{{ c.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="aprovPago" checked class="w-4 h-4 text-emerald-600 rounded accent-emerald-600 cursor-pointer" />
+          <label for="aprovPago" class="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+            Registrar como já liquidado/pago (debita do saldo imediatamente)
+          </label>
+        </div>
+      </div>
+
+      <!-- CATEGORIA -->
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Categoria</label>
+        <select id="aprovCategoria" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+          <option value="Moradia/Habitação">Moradia/Habitação</option>
+          <option value="Transporte">Transporte</option>
+          <option value="Saúde & Bem-Estar">Saúde & Bem-Estar</option>
+          <option value="Alimentação">Alimentação</option>
+          <option value="Família & Filhos">Família & Filhos</option>
+          <option value="Lazer & Estilo de Vida">Lazer & Estilo de Vida</option>
+          <option value="Educação">Educação</option>
+          <option value="Outros" selected>Outros</option>
+        </select>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+        <button type="button" onclick="fecharModalAprovar()" class="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-semibold transition">
+          Cancelar
+        </button>
+        <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md transition flex items-center gap-1.5">
+          <span>✓</span>
+          <span>Confirmar e Lançar</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================================= -->
+<!-- JAVASCRIPT REATIVO DO SIMULADOR -->
+<!-- ============================================================================= -->
+<script>
+// MÁSCARA MONETÁRIA BR (R$ 0,00)
+function mascaraMoeda(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (!v) {
+    input.value = 'R$ 0,00';
+    return;
+  }
+  v = (parseInt(v, 10) / 100).toFixed(2) + '';
+  v = v.replace('.', ',');
+  v = v.replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
+  input.value = 'R$ ' + v;
+}
+
+function parseMoedaBR(str) {
+  if (!str) return 0.0;
+  if (typeof str === 'number') return str;
+  let clean = str.replace(/[^\d,-]/g, '').replace(',', '.');
+  let val = parseFloat(clean);
+  return isNaN(val) ? 0.0 : val;
+}
+
+function formatarMoedaBR(val) {
+  return (val < 0 ? '-' : '') + 'R$ ' + Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ESTADO GLOBAL DO SIMULADOR
+let tetoOrcamentoAtual = {{ teto_orcamento }};
+
+// RECALCULAR TOTALIZADORES EM TEMPO REAL
+function recalcularSimulador() {
+  const rows = document.querySelectorAll('.item-simulador-row');
+  let totalMarcado = 0;
+  let qtdMarcados = 0;
+  let totalItens = rows.length;
+
+  let compUrg = 0;
+  let compNec = 0;
+  let compDes = 0;
+
+  rows.forEach(row => {
+    const sel = row.getAttribute('data-selecionado') === '1';
+    const val = parseFloat(row.getAttribute('data-valor') || 0);
+    const tipo = (row.getAttribute('data-tipo') || '').toLowerCase();
+
+    if (sel) {
+      totalMarcado += val;
+      qtdMarcados++;
+      if (tipo === 'urgencia') compUrg += val;
+      else if (tipo === 'necessidade') compNec += val;
+      else if (tipo === 'desejo') compDes += val;
+    }
+  });
+
+  totalMarcado = Math.round(totalMarcado * 100) / 100;
+  const saldoRestante = Math.round((tetoOrcamentoAtual - totalMarcado) * 100) / 100;
+
+  // Atualiza Card Total Marcado
+  document.getElementById('cardTotalMarcado').textContent = formatarMoedaBR(totalMarcado);
+  document.getElementById('cardQtdMarcados').textContent = `${qtdMarcados} de ${totalItens} itens`;
+
+  // Atualiza Card Saldo Restante
+  const cardSaldoContainer = document.getElementById('cardSaldoContainer');
+  const cardSaldoRestante = document.getElementById('cardSaldoRestante');
+  const badgeStatusSaldo = document.getElementById('badgeStatusSaldo');
+  const msgAuxiliarSaldo = document.getElementById('msgAuxiliarSaldo');
+
+  cardSaldoRestante.textContent = formatarMoedaBR(saldoRestante);
+
+  if (saldoRestante >= 0) {
+    cardSaldoContainer.className = "p-5 rounded-2xl border shadow-sm relative overflow-hidden transition-all duration-300 bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20";
+    cardSaldoRestante.className = "text-2xl md:text-3xl font-extrabold tracking-tight font-mono text-emerald-600 dark:text-emerald-400";
+    badgeStatusSaldo.className = "text-xs px-2.5 py-0.5 rounded-full font-bold shadow-sm bg-emerald-600 text-white";
+    badgeStatusSaldo.textContent = "Dentro do limite";
+    msgAuxiliarSaldo.className = "text-xs font-medium mt-1 text-emerald-700 dark:text-emerald-300";
+    msgAuxiliarSaldo.textContent = `Sobra dentro do orçamento estabelecido (${formatarMoedaBR(saldoRestante)}).`;
+  } else {
+    cardSaldoContainer.className = "p-5 rounded-2xl border shadow-sm relative overflow-hidden transition-all duration-300 bg-rose-500/15 border-rose-500 dark:bg-rose-950/30 animate-pulse";
+    cardSaldoRestante.className = "text-2xl md:text-3xl font-extrabold tracking-tight font-mono text-rose-600 dark:text-rose-400";
+    badgeStatusSaldo.className = "text-xs px-2.5 py-0.5 rounded-full font-bold shadow-sm bg-rose-600 text-white animate-bounce";
+    badgeStatusSaldo.textContent = "Estouro de Teto!";
+    msgAuxiliarSaldo.className = "text-xs font-bold mt-1 text-rose-700 dark:text-rose-300";
+    msgAuxiliarSaldo.textContent = `⚠️ Estourou ${formatarMoedaBR(saldoRestante)} — desmarque itens para equilibrar!`;
+  }
+
+  // Atualiza Composição (% e Valores)
+  const pctUrg = totalMarcado > 0 ? Math.round((compUrg / totalMarcado * 100) * 10) / 10 : 0;
+  const pctNec = totalMarcado > 0 ? Math.round((compNec / totalMarcado * 100) * 10) / 10 : 0;
+  const pctDes = totalMarcado > 0 ? Math.round((compDes / totalMarcado * 100) * 10) / 10 : 0;
+
+  document.getElementById('barUrgencia').style.width = pctUrg + '%';
+  document.getElementById('barNecessidade').style.width = pctNec + '%';
+  document.getElementById('barDesejo').style.width = pctDes + '%';
+
+  document.getElementById('txtPctUrgencia').textContent = pctUrg + '%';
+  document.getElementById('txtPctNecessidade').textContent = pctNec + '%';
+  document.getElementById('txtPctDesejo').textContent = pctDes + '%';
+
+  document.getElementById('txtValUrgencia').textContent = formatarMoedaBR(compUrg);
+  document.getElementById('txtValNecessidade').textContent = formatarMoedaBR(compNec);
+  document.getElementById('txtValDesejo').textContent = formatarMoedaBR(compDes);
+}
+
+// SALVAR TETO ORÇAMENTÁRIO
+async function salvarTetoOrcamento(valorStr) {
+  const val = parseMoedaBR(valorStr);
+  try {
+    const resp = await fetch('/api/simulador/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teto_orcamento: val })
+    });
+    const data = await resp.json();
+    if (data.sucesso) {
+      tetoOrcamentoAtual = data.teto_orcamento;
+      document.getElementById('inputTetoOrcamento').value = data.teto_formatado;
+      recalcularSimulador();
+      if (typeof showToast === 'function') {
+        showToast('Teto Salvo!', `Orçamento atualizado para ${data.teto_formatado}`);
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao salvar teto:', err);
+  }
+}
+
+// TOGGLE ITEM (MARCAR / DESMARCAR)
+async function toggleItemSimulador(id, marcado) {
+  const row = document.getElementById(`row-item-${id}`);
+  if (!row) return;
+
+  // Atualização otimista imediata na interface
+  const novoSel = marcado ? '1' : '0';
+  row.setAttribute('data-selecionado', novoSel);
+
+  if (marcado) {
+    row.classList.remove('opacity-45', 'bg-slate-50/40', 'dark:bg-slate-900/40');
+  } else {
+    row.classList.add('opacity-45', 'bg-slate-50/40', 'dark:bg-slate-900/40');
+  }
+
+  recalcularSimulador();
+
+  // Persistência assíncrona
+  try {
+    const resp = await fetch(`/api/simulador/${id}/toggle`, { method: 'POST' });
+    const data = await resp.json();
+    if (!data.sucesso) {
+      console.error('Erro no toggle do backend:', data.erro);
+    }
+  } catch (err) {
+    console.error('Erro de conexão ao alternar item:', err);
+  }
+}
+
+// SELETORES DO FORM NOVO ITEM
+function selecionarTipoNovo(tipo) {
+  document.getElementById('novoTipo').value = tipo;
+  const btns = document.querySelectorAll('#btnGroupTipo .btn-tipo-option');
+  btns.forEach(b => {
+    const t = b.getAttribute('data-tipo');
+    if (t === tipo) {
+      if (tipo === 'urgencia') {
+        b.className = "btn-tipo-option px-2 py-2 text-xs font-bold rounded-xl border transition flex items-center justify-center gap-1 bg-rose-600 border-rose-600 text-white shadow-sm";
+      } else if (tipo === 'necessidade') {
+        b.className = "btn-tipo-option px-2 py-2 text-xs font-bold rounded-xl border transition flex items-center justify-center gap-1 bg-sky-600 border-sky-600 text-white shadow-sm";
+      } else {
+        b.className = "btn-tipo-option px-2 py-2 text-xs font-bold rounded-xl border transition flex items-center justify-center gap-1 bg-purple-600 border-purple-600 text-white shadow-sm";
+      }
+    } else {
+      b.className = "btn-tipo-option px-2 py-2 text-xs font-semibold rounded-xl border transition flex items-center justify-center gap-1 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800";
+    }
+  });
+}
+
+function selecionarSolicitanteNovo(solic) {
+  document.getElementById('novoSolicitante').value = solic;
+  const btns = document.querySelectorAll('#btnGroupSolicitante .btn-solic-option');
+  btns.forEach(b => {
+    const s = b.getAttribute('data-solicitante');
+    if (s === solic) {
+      b.className = "btn-solic-option px-3.5 py-2 text-xs font-bold rounded-xl border transition bg-emerald-600 border-emerald-600 text-white shadow-sm";
+    } else {
+      b.className = "btn-solic-option px-3.5 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition";
+    }
+  });
+}
+
+// CRIAR NOVO ITEM
+async function criarItemSimulador(e) {
+  e.preventDefault();
+  const desc = document.getElementById('novoDescricao').value.trim();
+  const val = parseMoedaBR(document.getElementById('novoValor').value);
+  const tipo = document.getElementById('novoTipo').value;
+  const solic = document.getElementById('novoSolicitante').value;
+
+  if (!desc) {
+    if (typeof showToast === 'function') showToast('Atenção', 'Informe a descrição da demanda.', true);
+    return;
+  }
+  if (val <= 0) {
+    if (typeof showToast === 'function') showToast('Atenção', 'Informe um valor maior que zero.', true);
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/simulador', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        descricao: desc,
+        valor_estimado: val,
+        tipo: tipo,
+        solicitante: solic
+      })
+    });
+    const data = await resp.json();
+    if (data.sucesso) {
+      if (typeof showToast === 'function') showToast('Demanda Criada!', 'Item inserido na simulação.');
+      setTimeout(() => location.reload(), 250);
+    } else {
+      if (typeof showToast === 'function') showToast('Erro', data.erro || 'Falha ao salvar demanda.', true);
+    }
+  } catch (err) {
+    console.error('Erro ao criar item:', err);
+  }
+}
+
+// EXCLUIR ITEM
+async function excluirItemSimulador(id) {
+  if (!confirm('Deseja realmente remover esta demanda do simulador?')) return;
+  try {
+    const resp = await fetch(`/api/simulador/${id}/excluir`, { method: 'POST' });
+    const data = await resp.json();
+    if (data.sucesso) {
+      const row = document.getElementById(`row-item-${id}`);
+      if (row) row.remove();
+      recalcularSimulador();
+      if (typeof showToast === 'function') showToast('Removido', 'Demanda excluída com sucesso.');
+    }
+  } catch (err) {
+    console.error('Erro ao excluir:', err);
+  }
+}
+
+// MODAL EDITAR
+function abrirModalEditar(id) {
+  const row = document.getElementById(`row-item-${id}`);
+  if (!row) return;
+
+  document.getElementById('editId').value = id;
+  document.getElementById('editDescricao').value = row.getAttribute('data-descricao') || '';
+  document.getElementById('editValor').value = formatarMoedaBR(parseFloat(row.getAttribute('data-valor') || 0));
+  
+  const tipo = row.getAttribute('data-tipo') || 'necessidade';
+  const solic = row.getAttribute('data-solicitante') || 'Carlos';
+
+  selecionarTipoEdit(tipo);
+  selecionarSolicEdit(solic);
+
+  document.getElementById('modalEditar').classList.remove('hidden');
+}
+
+function fecharModalEditar() {
+  document.getElementById('modalEditar').classList.add('hidden');
+}
+
+function selecionarTipoEdit(tipo) {
+  document.getElementById('editTipo').value = tipo;
+  const btns = document.querySelectorAll('#editBtnGroupTipo .btn-edit-tipo');
+  btns.forEach(b => {
+    const t = b.getAttribute('data-tipo');
+    if (t === tipo) {
+      if (tipo === 'urgencia') b.className = "btn-edit-tipo px-2 py-2 text-xs font-bold rounded-xl border bg-rose-600 border-rose-600 text-white shadow-sm";
+      else if (tipo === 'necessidade') b.className = "btn-edit-tipo px-2 py-2 text-xs font-bold rounded-xl border bg-sky-600 border-sky-600 text-white shadow-sm";
+      else b.className = "btn-edit-tipo px-2 py-2 text-xs font-bold rounded-xl border bg-purple-600 border-purple-600 text-white shadow-sm";
+    } else {
+      b.className = "btn-edit-tipo px-2 py-2 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300";
+    }
+  });
+}
+
+function selecionarSolicEdit(solic) {
+  document.getElementById('editSolicitante').value = solic;
+  const btns = document.querySelectorAll('#editBtnGroupSolic .btn-edit-solic');
+  btns.forEach(b => {
+    const s = b.getAttribute('data-solic');
+    if (s === solic) {
+      b.className = "btn-edit-solic px-3 py-1.5 text-xs font-bold rounded-xl border bg-emerald-600 border-emerald-600 text-white shadow-sm";
+    } else {
+      b.className = "btn-edit-solic px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300";
+    }
+  });
+}
+
+async function salvarEdicaoItem(e) {
+  e.preventDefault();
+  const id = document.getElementById('editId').value;
+  const desc = document.getElementById('editDescricao').value.trim();
+  const val = parseMoedaBR(document.getElementById('editValor').value);
+  const tipo = document.getElementById('editTipo').value;
+  const solic = document.getElementById('editSolicitante').value;
+
+  try {
+    const resp = await fetch(`/api/simulador/${id}/editar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        descricao: desc,
+        valor_estimado: val,
+        tipo: tipo,
+        solicitante: solic
+      })
+    });
+    const data = await resp.json();
+    if (data.sucesso) {
+      fecharModalEditar();
+      if (typeof showToast === 'function') showToast('Atualizado!', 'Demanda editada com sucesso.');
+      setTimeout(() => location.reload(), 250);
+    }
+  } catch (err) {
+    console.error('Erro ao salvar edição:', err);
+  }
+}
+
+// MODAL APROVAR
+function abrirModalAprovar(id) {
+  const row = document.getElementById(`row-item-${id}`);
+  if (!row) return;
+
+  document.getElementById('aprovId').value = id;
+  document.getElementById('aprovDescricao').textContent = row.getAttribute('data-descricao') || '';
+  document.getElementById('aprovValor').textContent = formatarMoedaBR(parseFloat(row.getAttribute('data-valor') || 0));
+
+  selecionarDestinoAprov('cartao');
+  document.getElementById('modalAprovar').classList.remove('hidden');
+}
+
+function fecharModalAprovar() {
+  document.getElementById('modalAprovar').classList.add('hidden');
+}
+
+function selecionarDestinoAprov(destino) {
+  document.getElementById('aprovDestino').value = destino;
+  const btnCartao = document.getElementById('btnDestinoCartao');
+  const btnConta = document.getElementById('btnDestinoConta');
+  const secCartao = document.getElementById('secaoDestinoCartao');
+  const secConta = document.getElementById('secaoDestinoConta');
+
+  if (destino === 'cartao') {
+    btnCartao.className = "px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition bg-emerald-600 border-emerald-600 text-white shadow-sm";
+    btnConta.className = "px-3.5 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800";
+    secCartao.classList.remove('hidden');
+    secConta.classList.add('hidden');
+  } else {
+    btnConta.className = "px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition bg-emerald-600 border-emerald-600 text-white shadow-sm";
+    btnCartao.className = "px-3.5 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800";
+    secConta.classList.remove('hidden');
+    secCartao.classList.add('hidden');
+  }
+}
+
+async function executarAprovacaoItem(e) {
+  e.preventDefault();
+  const id = document.getElementById('aprovId').value;
+  const destino = document.getElementById('aprovDestino').value;
+  const categoria = document.getElementById('aprovCategoria').value;
+
+  const payload = {
+    destino: destino,
+    categoria: categoria,
+  };
+
+  if (destino === 'cartao') {
+    payload.cartao_id = document.getElementById('aprovCartaoId').value;
+    payload.parcelas = document.getElementById('aprovParcelas').value;
+    payload.fatura_destino = document.getElementById('aprovFaturaDestino').value;
+  } else {
+    payload.conta_id = document.getElementById('aprovContaId').value;
+    payload.pago = document.getElementById('aprovPago').checked ? 1 : 0;
+  }
+
+  try {
+    const resp = await fetch(`/api/simulador/${id}/aprovar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.sucesso) {
+      fecharModalAprovar();
+      if (typeof showToast === 'function') showToast('Aprovado!', data.mensagem || 'Demanda convertida em transação.');
+      setTimeout(() => location.reload(), 300);
+    } else {
+      if (typeof showToast === 'function') showToast('Erro', data.erro || 'Falha ao aprovar demanda.', true);
+    }
+  } catch (err) {
+    console.error('Erro na aprovação:', err);
+  }
+}
+
+// INICIALIZAÇÃO
+document.addEventListener('DOMContentLoaded', () => {
+  recalcularSimulador();
+});
+</script>
+{% endblock %}
