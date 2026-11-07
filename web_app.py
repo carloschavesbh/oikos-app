@@ -1602,6 +1602,15 @@ async def pagina_lancamentos(
 
     qtd_atrasadas = len(transacoes_atrasadas)
 
+    # Saldo consolidado das contas ativas (reaproveitando saldo_service)
+    res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+    saldo_atual_disponivel = float(res_saldo.get("saldo_consolidado", 0.0))
+    contas_ativas_resumo = [
+        {"nome": c["conta_nome"], "saldo": float(c["saldo_atual"])}
+        for c in res_saldo.get("contas", [])
+        if c.get("tipo") != "cofrinho" and c.get("incluir_saldo_consolidado", 1) == 1
+    ]
+
     conn.close()
     saldo_periodo = tot_receitas - tot_despesas
 
@@ -1616,6 +1625,9 @@ async def pagina_lancamentos(
             "total_receitas": tot_receitas,
             "total_despesas": tot_despesas,
             "saldo_periodo": saldo_periodo,
+            "saldo_atual_disponivel": saldo_atual_disponivel,
+            "saldo_consolidado": saldo_atual_disponivel,
+            "contas_ativas_resumo": contas_ativas_resumo,
             "mes": mes,
             "ano": ano,
             "hoje_formatado": hoje.strftime("%d/%m/%Y"),

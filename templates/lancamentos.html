@@ -54,30 +54,77 @@
     </div>
   </div>
 
-  <!-- MINI CARDS RESUMO DO MÊS (MOBILE-FIRST) -->
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
-    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
-      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Total Receitas ({{ mes_nome }})
+  <!-- MINI CARDS RESUMO DO MÊS E SALDO EM CAIXA (MOBILE-FIRST) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 w-full">
+    <!-- Card 1: Total Receitas -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full flex flex-col justify-between">
+      <div>
+        <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> 
+          <span class="truncate">Total Receitas ({{ mes_nome }})</span>
+        </div>
+        <div class="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate">
+          {{ total_receitas | moeda }}
+        </div>
       </div>
-      <div class="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate">
-        {{ total_receitas | moeda }}
+      <div class="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 mt-1 truncate">
+        Entradas no mês
       </div>
     </div>
-    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
-      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full bg-rose-500"></span> Total Despesas ({{ mes_nome }})
+
+    <!-- Card 2: Total Despesas -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full flex flex-col justify-between">
+      <div>
+        <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span> 
+          <span class="truncate">Total Despesas ({{ mes_nome }})</span>
+        </div>
+        <div class="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 truncate">
+          {{ total_despesas | moeda }}
+        </div>
       </div>
-      <div class="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 truncate">
-        {{ total_despesas | moeda }}
+      <div class="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 mt-1 truncate">
+        Saídas e compromissos
       </div>
     </div>
-    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full">
-      <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-        <span class="w-2 h-2 rounded-full {% if saldo_periodo >= 0 %}bg-blue-500{% else %}bg-amber-500{% endif %}"></span> Balanço do Período
+
+    <!-- Card 3: Balanço do Período -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full flex flex-col justify-between">
+      <div>
+        <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full {% if saldo_periodo >= 0 %}bg-emerald-500{% else %}bg-rose-500{% endif %} shrink-0"></span> 
+          <span class="truncate">Balanço do Período</span>
+        </div>
+        <div class="text-xl sm:text-2xl font-black {% if saldo_periodo >= 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} truncate">
+          {{ saldo_periodo | moeda }}
+        </div>
       </div>
-      <div class="text-xl sm:text-2xl font-black {% if saldo_periodo >= 0 %}text-blue-600 dark:text-blue-400{% else %}text-amber-600 dark:text-amber-400{% endif %} truncate">
-        {{ saldo_periodo | moeda }}
+      <div class="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 mt-1 truncate">
+        {% if saldo_periodo >= 0 %}Superávit operacional{% else %}Déficit operacional{% endif %}
+      </div>
+    </div>
+
+    <!-- Card 4: Saldo Atual Disponível -->
+    <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full flex flex-col justify-between">
+      <div>
+        <div class="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 flex items-center justify-between gap-1.5">
+          <div class="flex items-center gap-1.5 min-w-0 truncate">
+            <svg class="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>
+            </svg>
+            <span class="truncate">Saldo Atual Disponível</span>
+          </div>
+        </div>
+        <div class="text-xl sm:text-2xl font-black {% if saldo_atual_disponivel >= 0 %}text-slate-900 dark:text-white{% else %}text-rose-600 dark:text-rose-400{% endif %} truncate" title="Soma das contas ativas em caixa">
+          {{ saldo_atual_disponivel | moeda }}
+        </div>
+      </div>
+      <div class="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-between">
+        <span class="truncate">Posição em caixa hoje</span>
+        <a href="/contas" title="Ver detalhes das contas e cofrinhos" class="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold ml-1 shrink-0 transition">
+          <span>Contas</span>
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        </a>
       </div>
     </div>
   </div>
