@@ -7521,7 +7521,7 @@ async def api_chat(request: Request):
         # Contexto dinâmico das finanças e turnos em tempo real
         ctx = obter_contexto_oikos_para_gemini(conn)
 
-        system_instruction = f"""Você é o Assistente Inteligente do Oikos, o ecossistema familiar de finanças e central de motorista de aplicativo.
+        system_instruction = f"""Você é o Konos, o mordomo financeiro da Oikonomia (o ecossistema financeiro familiar e operacional de Carlos e família).
 Seu tom é profissional, extremamente direto, curto e objetivo (sem introduções prolixas, enrolação ou floreados).
 
 Hoje é {ctx['hoje']} ({ctx['dia_semana']}).
