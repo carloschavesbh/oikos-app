@@ -178,10 +178,10 @@
       <!-- GASTOS POR CATEGORIA DESTA FATURA (Donut Chart - Col 4) -->
       <div class="lg:col-span-4 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs">
         <div class="flex items-center justify-between gap-1 pb-1 border-b border-slate-100 dark:border-slate-800/80">
-          <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <span>🍩</span> Gastos por Categoria
           </h2>
-          <span class="text-[10px] font-extrabold text-slate-700 dark:text-slate-300">
+          <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
             {{ crd.total_fatura | moeda }}
           </span>
         </div>
@@ -208,12 +208,12 @@
           <!-- Legenda Compacta das Categorias -->
           <div class="flex-1 min-w-0 space-y-1 max-h-24 overflow-y-auto custom-scroll pr-0.5">
             {% for f in crd.categorias_fatura[:4] %}
-            <div class="flex items-center justify-between text-[11px] leading-tight gap-1">
+            <div class="flex items-center justify-between gap-1 leading-tight">
               <div class="flex items-center gap-1.5 min-w-0 truncate">
                 <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ f.cor }};"></span>
-                <span class="text-slate-700 dark:text-slate-300 font-medium truncate" title="{{ f.categoria }}">{{ f.categoria }}</span>
+                <span class="text-xs text-slate-700 dark:text-slate-300 font-medium truncate" title="{{ f.categoria }}">{{ f.categoria }}</span>
               </div>
-              <span class="text-slate-900 dark:text-white font-bold shrink-0 text-[10px]">
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
                 {{ f.pct }}%
               </span>
             </div>
@@ -285,8 +285,8 @@
           {% elif crd.total_fatura > 0 %}
           <button type="button"
                   onclick="pagarFaturaCartao()"
-                  class="h-9 px-3.5 py-1.5 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer text-white active:scale-95">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                  class="h-8 px-3 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition inline-flex items-center gap-1 cursor-pointer active:scale-95">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
             <span>Pagar Fatura</span>
           </button>
           {% endif %}
@@ -309,7 +309,7 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               {% for item in crd.compras %}
               <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition cursor-pointer"
-                  onclick="abrirDrawerEditarCompraDoItem({{ item | tojson }})"
+                  onclick="abrirEdicaoCompraCartao({{ item.id }})"
                   title="Clique para ver detalhes e editar esta compra">
                 <td class="py-2 px-3 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
                   {{ item.data_compra_formatada or item.data_formatada }}
@@ -335,7 +335,7 @@
                 </td>
                 <td class="py-2.5 px-3 text-center whitespace-nowrap">
                   {% if item.is_fixo or (item.grupo_parcelamento and 'fixa' in item.grupo_parcelamento) or ('wellhub' in item.descricao.lower()) %}
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-300 font-medium">Fixo</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60" title="Despesa Recorrente Fixa"><svg class="w-3 h-3 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Fixo</span>
                   {% elif item.numero_parcela and item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {{ item.numero_parcela }}/{{ item.total_parcelas_compra }}
@@ -345,7 +345,7 @@
                       {{ item.total_parcelas_compra }}x
                     </span>
                   {% else %}
-                    <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">À vista</span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/50">À vista</span>
                   {% endif %}
                 </td>
                 <td class="py-2 px-3 text-right whitespace-nowrap font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
@@ -364,7 +364,7 @@
                          onclick="event.stopPropagation()"
                          class="menu-dropdown-cartao hidden absolute right-0 top-full mt-1 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
                       <button type="button"
-                              onclick='event.stopPropagation(); abrirDrawerEditarCompraDoItem({{ item | tojson }})'
+                              onclick="event.stopPropagation(); abrirEdicaoCompraCartao({{ item.id }})"
                               class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition text-left cursor-pointer">
                         <span>✏️</span> Editar Compra
                       </button>
@@ -1526,6 +1526,37 @@
   // ==========================================
   let itemCompraAtivoDrawer = null;
 
+  // Mapa global de compras da fatura para abertura segura sem conflito de aspas
+  const COMPRAS_FATURA_MAP = {
+    {% if cartao_ativo and cartao_ativo.compras %}
+      {% for item in cartao_ativo.compras %}
+      "{{ item.id }}": {{ item | tojson }},
+      {% endfor %}
+    {% elif cartoes and cartoes[0].compras %}
+      {% for item in cartoes[0].compras %}
+      "{{ item.id }}": {{ item | tojson }},
+      {% endfor %}
+    {% endif %}
+  };
+
+  async function abrirEdicaoCompraCartao(id) {
+    if (!id) return;
+    let item = COMPRAS_FATURA_MAP[String(id)] || COMPRAS_FATURA_MAP[Number(id)];
+    if (!item) {
+      try {
+        const resp = await fetch(`/api/transacoes/${id}`);
+        if (resp.ok) {
+          item = await resp.json();
+        }
+      } catch (e) {
+        console.warn('Erro ao buscar compra via API:', e);
+      }
+    }
+    if (item) {
+      abrirDrawerEditarCompraDoItem(item);
+    }
+  }
+
   function abrirDrawerEditarCompraDoItem(item) {
     if (!item) return;
     itemCompraAtivoDrawer = item;
@@ -1916,17 +1947,24 @@
   }
 
   // Suporte a visualização/screenshot automatizado de demonstração
-  window.addEventListener('DOMContentLoaded', () => {
+  function verificarParametrosDemo() {
     const urlParams = new URLSearchParams(window.location.search);
+    const editarId = urlParams.get('editar_id') || urlParams.get('editar_compra_id');
+    if (editarId) {
+      setTimeout(() => {
+        abrirEdicaoCompraCartao(editarId);
+      }, 100);
+      return;
+    }
     if (urlParams.get('demo_modal_pagar_fatura') === '1') {
       setTimeout(() => {
         abrirModalPagarFaturaCartao();
-      }, 300);
+      }, 150);
     }
     if (urlParams.get('demo_editar_cartao') === '1') {
       setTimeout(() => {
         abrirModalEditarCartao(1, 'Cartão Inter Aparecida', 'Mastercard', 5000, 1, 10, '0000', 'Carlos', '#ff7a00', 'inter');
-      }, 300);
+      }, 150);
     }
     if (urlParams.get('demo_modal_juros') === '1') {
       setTimeout(() => {
@@ -1941,21 +1979,15 @@
         if (p) p.value = '2';
         aoDigitarJuros(j);
         definirResponsavelCartao('Família');
-      }, 400);
+      }, 200);
     }
     if (urlParams.get('demo_drawer') === '1' || urlParams.get('demo_drawer_juros') === '1') {
       setTimeout(() => {
-        const compras = {{ (cartao_ativo.compras if (cartao_ativo and cartao_ativo.compras) else []) | tojson }};
-        const itemEmp = compras.find(it => it.id === 2725) || (compras.length ? compras[0] : null);
-        if (itemEmp) {
-          abrirDrawerEditarCompraDoItem(itemEmp);
-          const chkRec = document.getElementById('edit-compra-creditar-receita');
-          if (chkRec) {
-            chkRec.checked = true;
-            aoAlternarCreditoReceitaDrawer();
-          }
+        const itemEmp = COMPRAS_FATURA_MAP["21"] || Object.values(COMPRAS_FATURA_MAP)[0];
+        if (itemEmp && itemEmp.id) {
+          abrirEdicaoCompraCartao(itemEmp.id);
         }
-      }, 400);
+      }, 150);
     }
     if (urlParams.get('demo_modal_casado') === '1') {
       setTimeout(() => {
@@ -1973,17 +2005,24 @@
           aoAlternarCreditoReceita();
         }
         definirResponsavelCartao('Carlos');
-      }, 400);
+      }, 200);
     }
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', verificarParametrosDemo);
+  } else {
+    verificarParametrosDemo();
+  }
 </script>
 <!-- DRAWER LATERAL DESLIZANTE PARA DETALHES E EDIÇÃO DE COMPRA -->
-<div id="drawer-editar-compra" class="fixed inset-0 z-50 pointer-events-none transition-opacity duration-300 opacity-0">
+{% set is_demo_drawer = (request.query_params.get('demo_drawer') == '1' or request.query_params.get('editar_id') or request.query_params.get('editar_compra_id') or request.query_params.get('demo_drawer_juros') == '1') %}
+<div id="drawer-editar-compra" class="fixed inset-0 z-50 {% if is_demo_drawer %}pointer-events-auto opacity-100{% else %}pointer-events-none transition-opacity duration-300 opacity-0{% endif %}">
   <!-- Backdrop Escurecido Clicável -->
   <div id="drawer-backdrop" onclick="fecharDrawerEditarCompra()" class="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"></div>
 
   <!-- Painel Lateral Deslizante -->
-  <div id="drawer-panel" class="absolute top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out pointer-events-auto">
+  <div id="drawer-panel" class="absolute top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between transform {% if is_demo_drawer %}translate-x-0{% else %}translate-x-full{% endif %} transition-transform duration-300 ease-in-out pointer-events-auto">
     <!-- Cabeçalho do Drawer -->
     <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
       <div class="flex items-center gap-2.5">
