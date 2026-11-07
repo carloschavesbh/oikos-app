@@ -3,58 +3,112 @@
 {% block title %}Oikos | Finanças & Operação{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
+<div class="max-w-5xl mx-auto px-2 sm:px-4 space-y-4 pb-12">
 
-  <!-- CABEÇALHO & NAVEGAÇÃO DE MESES -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-    <div>
-      <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Extrato & Lançamentos</h1>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Gestão de transações mensais, baixas imediatas e novos registros.</p>
-    </div>
+    <!-- BARRA DE TOPO UNIFICADA & ERGONÔMICA (ORGANIZZE) -->
+  <div class="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3 shadow-xs">
+    <div class="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+      
+      <!-- Botão "+ Lançamento" -->
+      <button type="button" onclick="abrirModalLancamento()" 
+              class="touch-target px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm transition cursor-pointer shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <span>Lançamento</span>
+      </button>
 
-    <!-- NAVEGADOR DE MESES COMPLETO -->
-    <div class="flex items-center gap-1.5 sm:gap-2">
-      <!-- Botão Mês Anterior [ ‹ ] -->
-      <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
-         title="Mês Anterior ({{ mes_ant }}/{{ ano_ant }})"
-         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
-        ‹
-      </a>
+      <!-- Navegador de Mês Centralizado: ‹ Mês AAAA › -->
+      <div class="flex items-center gap-1 sm:gap-1.5 mx-auto sm:mx-0">
+        <a href="/lancamentos?mes={{ mes_ant }}&ano={{ ano_ant }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
+           title="Mês Anterior"
+           class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition">
+          ‹
+        </a>
 
-      <!-- Mês/Ano Centralizado com Dropdown Rápido -->
-      <div class="relative inline-flex items-center">
-        <select onchange="navegarPeriodoComOrdem(this.value)" 
-                title="Saltar para outro mês"
-                class="appearance-none touch-target bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700/80 text-slate-900 dark:text-white text-xs sm:text-sm font-bold py-2 pl-3.5 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition">
-          {% for op in opcoes_periodo %}
-          <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
-            {{ op.label }}
-          </option>
-          {% endfor %}
-        </select>
-        <span class="pointer-events-none absolute right-3 text-[10px] text-slate-500 dark:text-slate-400">▼</span>
+        <div class="relative inline-flex items-center">
+          <select onchange="navegarPeriodoComOrdem(this.value)" 
+                  title="Saltar para outro mês"
+                  class="appearance-none bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white text-xs sm:text-sm font-extrabold py-1.5 pl-3 pr-7 rounded-xl border-none shadow-xs focus:ring-2 focus:ring-emerald-500 cursor-pointer transition">
+            {% for op in opcoes_periodo %}
+            <option value="{{ op.valor }}" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-white" {% if op.selecionado %}selected{% endif %}>
+              {{ op.label }}
+            </option>
+            {% endfor %}
+          </select>
+          <span class="pointer-events-none absolute right-2.5 text-[9px] text-slate-400">▼</span>
+        </div>
+
+        <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
+           title="Próximo Mês"
+           class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-base transition">
+          ›
+        </a>
       </div>
 
-      <!-- Botão Próximo Mês [ › ] -->
-      <a href="/lancamentos?mes={{ mes_prox }}&ano={{ ano_prox }}{% if ordem_atual %}&ordem={{ ordem_atual }}{% endif %}" 
-         title="Próximo Mês ({{ mes_prox }}/{{ ano_prox }})"
-         class="touch-target min-w-[36px] h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-base font-black border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-sm">
-        ›
-      </a>
+      <!-- Ações Compactas: Ordenação ⇅, Modos de Visão 📑 e Busca 🔍 -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        
+        <!-- Botão ⇅ com Dropdown de Ordenação -->
+        <div class="relative">
+          <button type="button" onclick="toggleDropdownTopo('dropdown-ordem')" title="Alternar ordenação"
+                  class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition cursor-pointer">
+            <span class="text-sm font-black">⇅</span>
+          </button>
+          <div id="dropdown-ordem" class="hidden absolute right-0 top-full mt-1.5 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-40 text-xs font-bold text-slate-700 dark:text-slate-200">
+            <button type="button" onclick="alterarOrdenacao('crescente'); fecharDropdownTopo('dropdown-ordem');" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between">
+              <span>Data crescente</span>
+              <span class="text-emerald-500 font-black">↑</span>
+            </button>
+            <button type="button" onclick="alterarOrdenacao('decrescente'); fecharDropdownTopo('dropdown-ordem');" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+              <span>Data decrescente</span>
+              <span class="text-emerald-500 font-black">↓</span>
+            </button>
+          </div>
+        </div>
 
-      <!-- Botão Rápido: Mês Atual (se não estiver no mês corrente) -->
-      {% if not eh_mes_atual %}
-      <a href="/lancamentos{% if ordem_atual %}?ordem={{ ordem_atual }}{% endif %}" 
-         title="Voltar ao Mês Atual"
-         class="touch-target inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-95 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition shadow-sm">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6.75 3v2.25M17.25 3v2.253M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5"/></svg>
-        <span>Mês Atual</span>
-      </a>
-      {% endif %}
+        <!-- Botão de Modos de Visualização (Fluxo de Caixa vs Todos os Lançamentos) -->
+        <div class="relative">
+          <button type="button" onclick="toggleDropdownTopo('dropdown-modo-visao')" id="btn-modo-visao" title="Modos de visualização"
+                  class="h-8 sm:h-9 px-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1.5 text-xs font-bold transition cursor-pointer">
+            <span id="icone-modo-visao">📑</span>
+            <span id="label-modo-visao" class="hidden md:inline">Fluxo de Caixa</span>
+            <span class="text-[9px] text-slate-400">▼</span>
+          </button>
+          <div id="dropdown-modo-visao" class="hidden absolute right-0 top-full mt-1.5 w-60 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1.5 z-40 text-xs text-slate-700 dark:text-slate-200">
+            <button type="button" onclick="setModoVisualizacao('fluxo'); fecharDropdownTopo('dropdown-modo-visao');" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 block">
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>📑</span> Fluxo de Caixa
+              </div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Contas financeiras + Fatura consolidada</div>
+            </button>
+            <button type="button" onclick="setModoVisualizacao('todos'); fecharDropdownTopo('dropdown-modo-visao');" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 block border-t border-slate-100 dark:border-slate-800">
+              <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span>💳</span> Todos os Lançamentos
+              </div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Inclui compras no cartão e oculta fatura</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Botão de Busca 🔍 com Input Expansível -->
+        <div class="relative flex items-center">
+          <button type="button" onclick="alternarBarraBusca()" title="Buscar lançamentos"
+                  class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+          </button>
+          <div id="container-input-busca-topo" class="hidden absolute right-0 top-0 h-9 z-30">
+            <input type="text" id="filtro-busca" onkeyup="filtrarTabela()" placeholder="Buscar lançamentos..."
+                   class="w-56 sm:w-72 h-9 pl-8 pr-7 bg-white dark:bg-slate-900 border border-emerald-500 rounded-xl text-xs font-semibold text-slate-900 dark:text-white shadow-xl focus:outline-none">
+            <span class="absolute left-2.5 top-2.5 text-slate-400 text-xs">🔍</span>
+            <button type="button" onclick="fecharBarraBusca()" class="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-white text-xs cursor-pointer">✕</button>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   </div>
 
-  <!-- MINI CARDS RESUMO DO MÊS E SALDO EM CAIXA (MOBILE-FIRST) -->
+<!-- MINI CARDS RESUMO DO MÊS E SALDO EM CAIXA (MOBILE-FIRST) -->
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 w-full">
     <!-- Card 1: Total Receitas -->
     <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm w-full flex flex-col justify-between">
@@ -129,72 +183,99 @@
     </div>
   </div>
 
-  <!-- BARRA DE PESQUISA, FILTROS & ORDENAÇÃO -->
-  <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col gap-2.5 shadow-sm">
-    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-      <!-- Campo de Busca Rápida -->
-      <div class="relative flex-grow">
-        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
-        </span>
-        <input type="text" id="filtro-busca" onkeyup="filtrarTabela()" placeholder="Buscar por descrição, categoria ou conta..." 
-               class="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition">
-      </div>
-
-      <!-- Controle de Ordenação -->
-      <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shrink-0 self-start sm:self-auto" id="container-seletor-ordem">
-        <span class="text-[11px] font-bold text-slate-500 dark:text-slate-400 pl-1.5 pr-0.5 hidden md:inline">Ordem:</span>
-        <button type="button" 
-                id="btn-ordem-crescente" 
-                onclick="alterarOrdenacao('crescente')" 
-                title="Data crescente: mais antigas primeiro"
-                class="touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border {% if ordem_atual == 'crescente' %}bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-slate-300/80 dark:border-slate-700 shadow-2xs{% else %}bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent{% endif %}">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m4.5 15.75 7.5-7.5 7.5 7.5"/></svg>
-          <span>Data crescente</span>
+    <!-- BARRA DE FILTROS EM PÍLULAS COMPACTAS (CHIPS - ORGANIZZE) -->
+  <div class="bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-2 flex items-center gap-2 overflow-x-auto custom-scroll">
+    
+    <!-- Chip 1: Origem / Conta / Cartão -->
+    <div class="relative shrink-0">
+      <button type="button" onclick="toggleDropdownTopo('chip-dropdown-origem')" id="btn-chip-origem"
+              class="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-500/50">
+        <span id="label-chip-origem">Origem</span>
+        <span class="text-[9px] text-slate-400">⌵</span>
+      </button>
+      <div id="chip-dropdown-origem" class="hidden absolute left-0 top-full mt-1.5 w-52 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-40 text-xs font-semibold text-slate-700 dark:text-slate-200 max-h-56 overflow-y-auto">
+        <button type="button" onclick="aplicarFiltroOrigem('todas', 'Origem')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between">
+          <span>Todas as origens</span>
         </button>
-        <button type="button" 
-                id="btn-ordem-decrescente" 
-                onclick="alterarOrdenacao('decrescente')" 
-                title="Data decrescente: mais recentes primeiro"
-                class="touch-target px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border {% if ordem_atual == 'decrescente' %}bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-slate-300/80 dark:border-slate-700 shadow-2xs{% else %}bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent{% endif %}">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-          <span>Data decrescente</span>
+        <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100 dark:border-slate-800">Contas</div>
+        {% for cb in contas_bancarias %}
+        <button type="button" onclick="aplicarFiltroOrigem('{{ cb.nome }}', '{{ cb.nome }}')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+          <img src="/static/img/bancos/{{ cb.icone or cb.nome | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-3.5 h-3.5 object-contain" alt="">
+          <span class="truncate">{{ cb.nome }}</span>
         </button>
+        {% endfor %}
+        <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100 dark:border-slate-800">Cartões de Crédito</div>
+        {% for cc in cartoes_credito %}
+        <button type="button" onclick="aplicarFiltroOrigem('{{ cc.nome }}', '{{ cc.nome }}')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+          <span>💳</span>
+          <span class="truncate">{{ cc.nome }}</span>
+        </button>
+        {% endfor %}
       </div>
     </div>
 
-    <!-- Botões de Filtro -->
-    <div class="flex items-center gap-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0 shrink-0 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-      <button onclick="setFiltroTipo('todos')" id="btn-filtro-todos" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-        Todos
+    <!-- Chip 2: Tipo de Lançamento -->
+    <div class="relative shrink-0">
+      <button type="button" onclick="toggleDropdownTopo('chip-dropdown-tipo')" id="btn-chip-tipo"
+              class="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-500/50">
+        <span id="label-chip-tipo">Tipo</span>
+        <span class="text-[9px] text-slate-400">⌵</span>
       </button>
-      <button onclick="setFiltroTipo('despesa')" id="btn-filtro-despesa" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
-        Despesas
-      </button>
-      <button onclick="setFiltroTipo('receita')" id="btn-filtro-receita" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
-        Receitas
-      </button>
-      <button onclick="setFiltroStatus('pendente')" id="btn-filtro-pendente" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
-        Pendentes
-      </button>
-      <button onclick="setFiltroStatus('pago')" id="btn-filtro-pago" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-transparent flex items-center gap-1.5">
-        Pagas
-      </button>
-      <button onclick="setFiltroStatus('atrasadas')" id="btn-filtro-atrasadas" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-amber-600 dark:text-amber-400 hover:text-amber-500 border border-transparent flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>
-        <span>Atrasadas</span>
-        {% if qtd_atrasadas > 0 %}
-        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-500 text-white">{{ qtd_atrasadas }}</span>
-        {% endif %}
-      </button>
-      <button onclick="setFiltroPagaLeve()" id="btn-filtro-pagaleve" class="btn-filtro px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800/60 text-purple-600 dark:text-purple-400 hover:text-purple-500 border border-transparent flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-        <span>Paga Leve</span>
-      </button>
+      <div id="chip-dropdown-tipo" class="hidden absolute left-0 top-full mt-1.5 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-40 text-xs font-semibold text-slate-700 dark:text-slate-200">
+        <button type="button" onclick="aplicarFiltroTipoStatus('todos', 'Tipo')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Todos</button>
+        <button type="button" onclick="aplicarFiltroTipoStatus('receita', 'Receitas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-emerald-600 dark:text-emerald-400">📈 Receitas</button>
+        <button type="button" onclick="aplicarFiltroTipoStatus('despesa', 'Despesas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-500">📉 Despesas</button>
+        <button type="button" onclick="aplicarFiltroTipoStatus('pago', 'Pagas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">👍 Pagas / Confirmadas</button>
+        <button type="button" onclick="aplicarFiltroTipoStatus('pendente', 'Pendentes')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">⏳ Pendentes</button>
+        <button type="button" onclick="aplicarFiltroTipoStatus('atrasadas', 'Atrasadas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-500">⚠️ Atrasadas ({% if qtd_atrasadas %}{{ qtd_atrasadas }}{% else %}0{% endif %})</button>
+      </div>
     </div>
+
+    <!-- Chip 3: Categorias -->
+    <div class="relative shrink-0">
+      <button type="button" onclick="toggleDropdownTopo('chip-dropdown-categoria')" id="btn-chip-categoria"
+              class="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-500/50">
+        <span id="label-chip-categoria">Categorias</span>
+        <span class="text-[9px] text-slate-400">⌵</span>
+      </button>
+      <div id="chip-dropdown-categoria" class="hidden absolute left-0 top-full mt-1.5 w-52 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-40 text-xs font-semibold text-slate-700 dark:text-slate-200 max-h-56 overflow-y-auto">
+        <button type="button" onclick="aplicarFiltroCategoria('todas', 'Categorias')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Todas as categorias</button>
+        <div id="lista-categorias-filtro" class="border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onclick="aplicarFiltroCategoria('Alimentação', 'Alimentação')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🛒 Alimentação</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Habitação', 'Habitação')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🏠 Habitação</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Transporte', 'Transporte')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🚗 Transporte</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Saúde', 'Saúde')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">💊 Saúde</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Academia / Wellhub', 'Academia')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🏋️ Academia / Wellhub</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Educação', 'Educação')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">📚 Educação</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Lazer', 'Lazer')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🎉 Lazer</button>
+          <button type="button" onclick="aplicarFiltroCategoria('Outros', 'Outros')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">🏷️ Outros</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chip 4: Responsável -->
+    <div class="relative shrink-0">
+      <button type="button" onclick="toggleDropdownTopo('chip-dropdown-responsavel')" id="btn-chip-responsavel"
+              class="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-500/50">
+        <span id="label-chip-responsavel">Responsável</span>
+        <span class="text-[9px] text-slate-400">⌵</span>
+      </button>
+      <div id="chip-dropdown-responsavel" class="hidden absolute left-0 top-full mt-1.5 w-40 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-40 text-xs font-semibold text-slate-700 dark:text-slate-200">
+        <button type="button" onclick="aplicarFiltroResponsavel('todos', 'Responsável')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Todos</button>
+        <button type="button" onclick="aplicarFiltroResponsavel('Carlos', 'Carlos')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Carlos</button>
+        <button type="button" onclick="aplicarFiltroResponsavel('Fernanda', 'Fernanda')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Fernanda</button>
+        <button type="button" onclick="aplicarFiltroResponsavel('Pedro', 'Pedro')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Pedro</button>
+        <button type="button" onclick="aplicarFiltroResponsavel('Família', 'Família')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">Família</button>
+      </div>
+    </div>
+
+    <!-- Limpar filtros se ativo -->
+    <button type="button" onclick="limparTodosFiltros()" id="btn-limpar-filtros" class="hidden text-xs text-rose-500 hover:underline font-bold px-2 py-1 shrink-0 cursor-pointer">
+      ✕ Limpar
+    </button>
   </div>
 
-  <!-- TABELA / LISTA DE TRANSAÇÕES -->
+<!-- TABELA / LISTA DE TRANSAÇÕES -->
   <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse" id="tabela-transacoes">
@@ -303,14 +384,15 @@
             <!-- Ações Compactas -->
             <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
               <div class="inline-flex items-center gap-1.5">
-                <!-- Botão Compacto: Registrar Pagamento -->
+                                <!-- Botão de Status Rápido: Joinha 👍 (Pago) vs 👎 (Pendente) -->
                 <button type="button"
-                        onclick="baixarConta({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')" 
-                        id="btn-acao-{{ t.id }}"
-                        title="Registrar pagamento"
-                        aria-label="Registrar pagamento de {{ t.descricao }}"
-                        class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-emerald-500/10 dark:hover:bg-emerald-500/15 text-slate-400 hover:text-emerald-600 dark:text-slate-500 dark:hover:text-emerald-400 border border-transparent hover:border-emerald-500/20 dark:hover:border-emerald-500/30 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                        onclick="aoClicarToggleStatus(event, {{ t.id }})"
+                        id="btn-status-toggle-{{ t.id }}"
+                        title="{% if t.pago == 1 %}Pago / Confirmado (Clique para alternar para Pendente){% else %}Pendente (Clique para confirmar baixa){% endif %}"
+                        class="touch-target w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 cursor-pointer shadow-xs border {% if t.pago == 1 %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-slate-200 dark:border-slate-700{% endif %}">
+                  <span class="text-sm select-none" id="icone-status-{{ t.id }}">
+                    {% if t.pago == 1 %}👍{% else %}👎{% endif %}
+                  </span>
                 </button>
 
                 <!-- Menu de Ações Secundárias ⋯ -->
@@ -870,285 +952,289 @@
 
 </div>
 
-<!-- GAVETA LATERAL DESLIZANTE PARA DETALHES E EDIÇÃO DE LANÇAMENTO (DRAWER) -->
+<!-- GAVETA LATERAL DESLIZANTE PARA DETALHES E EDIÇÃO DE LANÇAMENTO (ORGANIZZE) -->
 <div id="drawer-editar-lancamento" class="fixed inset-0 z-50 pointer-events-none transition-opacity duration-300 opacity-0" aria-hidden="true">
-  <!-- Backdrop Escurecido Clicável -->
+  <!-- Backdrop Escurecido Clicável com Blur -->
   <div id="drawer-lanc-backdrop" onclick="fecharDrawerEditarLancamento()" class="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"></div>
 
   <!-- Painel Lateral Deslizante -->
-  <div id="drawer-lanc-panel" class="absolute top-0 right-0 h-full w-full max-w-lg bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out pointer-events-auto">
-    <!-- Cabeçalho do Drawer -->
-    <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/60 dark:bg-slate-900/60">
-      <div class="flex items-center gap-2.5">
-        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shadow-xs">
-          ✏️
+  <div id="drawer-lanc-panel" class="absolute top-0 right-0 h-full w-full max-w-md sm:max-w-lg bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col justify-between transform translate-x-full transition-transform duration-300 ease-in-out pointer-events-auto">
+    
+    <!-- Cabeçalho do Drawer: Descrição + Badge Tipo + Botão Fechar -->
+    <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-900/70">
+      <div class="flex items-center gap-3 min-w-0">
+        <div id="drawer-view-icone-cat" class="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shrink-0 shadow-xs">
+          🏷️
         </div>
-        <div>
-          <h3 class="text-base font-black text-slate-900 dark:text-white" id="drawer-lanc-titulo">Detalhes & Edição do Lançamento</h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400" id="drawer-lanc-subtitulo">Edite valores, forma de pagamento, responsável e recorrência.</p>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-black text-slate-900 dark:text-white truncate" id="drawer-view-descricao">Detalhes do Lançamento</h3>
+            <span id="drawer-view-badge-tipo" class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25 shrink-0">
+              Despesa
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 truncate" id="drawer-view-subtitulo">Visão rápida e edição ergonômica</p>
         </div>
       </div>
-      <button type="button" onclick="fecharDrawerEditarLancamento()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-lg" aria-label="Fechar Gaveta">
+      <button type="button" onclick="fecharDrawerEditarLancamento()" class="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer text-base shrink-0" aria-label="Fechar">
         ✕
       </button>
     </div>
 
-    <!-- Formulário no Corpo do Drawer com Scroll Confortável -->
-    <form id="form-drawer-editar-lancamento" onsubmit="salvarEdicaoLancamentoDrawer(event)" class="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 custom-scroll">
-      <input type="hidden" id="drawer-lanc-id" name="id">
-      <input type="hidden" id="drawer-lanc-grupo-parcelamento" name="grupo_parcelamento">
-
-      <!-- Seletor Tipo: Despesa vs Receita -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo de Lançamento</label>
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
-            <input type="radio" name="tipo" id="drawer-tipo-despesa" value="despesa" checked class="accent-rose-500">
-            <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
-          </label>
-          <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
-            <input type="radio" name="tipo" id="drawer-tipo-receita" value="receita" class="accent-emerald-500">
-            <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Descrição -->
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição do Lançamento *</label>
-        <input type="text" id="drawer-lanc-descricao" name="descricao" required placeholder="Ex: WellHub Júnior, Mercado..."
-               class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-      </div>
-
-      <!-- Data e Valor (2 colunas) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1" id="label-drawer-data">Data de Vencimento / Realização *</label>
-          <input type="date" id="drawer-lanc-data" name="data" required
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-        </div>
-        <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor (R$) *</label>
-          <input type="text" inputmode="numeric" id="drawer-lanc-valor" name="valor" required placeholder="R$ 0,00"
-                 oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()"
-                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-        </div>
-      </div>
-
-      <!-- Ajustes Opcionais: Juros, Desconto e Motivo -->
-      <details id="drawer-detalhes-juros-descontos" class="group rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 p-2.5 sm:p-3 transition">
-        <summary class="flex items-center justify-between cursor-pointer select-none list-none text-xs font-bold text-slate-700 dark:text-slate-300">
-          <span class="flex items-center gap-1.5">
-            <span class="text-slate-400 group-open:rotate-90 transition-transform text-[10px]">▶</span>
-            <span>Acréscimos / Deduções (Opcional)</span>
-          </span>
-          <span id="drawer-badge-valor-final" class="text-xs font-black text-slate-800 dark:text-white">Total: R$ 0,00</span>
-        </summary>
+    <!-- CORPO DO DRAWER: 2 MODOS (VISUALIZAÇÃO COMPACTA vs FORMULÁRIO DE EDIÇÃO) -->
+    <div class="flex-1 overflow-y-auto p-4 sm:p-5 custom-scroll space-y-4">
+      
+      <!-- MODO VISUALIZAÇÃO COMPACTA (CARDS ERGONÔMICOS ORGANIZZE) -->
+      <div id="drawer-bloco-visualizacao" class="space-y-3">
         
-        <div class="pt-2.5 mt-2 border-t border-slate-200/60 dark:border-slate-800/60 space-y-2">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="block text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">+ Juros / Encargos (R$)</label>
-              <input type="text" inputmode="numeric" id="drawer-lanc-juros" name="juros" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()"
-                     class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-rose-500">
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">- Desconto / Abatimento (R$)</label>
-              <input type="text" inputmode="numeric" id="drawer-lanc-desconto" name="desconto" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()"
-                     class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-emerald-500">
-            </div>
+        <!-- Badge de Recorrência Se Houver -->
+        <div id="drawer-view-recorrencia-container" class="hidden p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between">
+          <span class="text-xs font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+            <span>🔁</span> <span id="drawer-view-recorrencia-txt">Despesa fixa • mensal</span>
+          </span>
+          <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-300 uppercase">Recorrente</span>
+        </div>
+
+        <!-- Card 1: Valor em Destaque + Juros/Desconto -->
+        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200/80 dark:border-slate-800/80 text-center">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Valor do Lançamento</span>
+          <div class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white" id="drawer-view-valor">
+            R$ 0,00
+          </div>
+          <div id="drawer-view-ajustes" class="hidden text-xs font-semibold text-rose-500 mt-1">
+          </div>
+        </div>
+
+        <!-- Grid 2x2 com Cards Compactos -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <!-- Card Categoria -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Categoria</span>
+            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5 block truncate" id="drawer-view-categoria">Alimentação</span>
+            <span class="text-[10px] text-slate-500 truncate block" id="drawer-view-subcategoria">Geral</span>
+          </div>
+
+          <!-- Card Conta / Cartão -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Conta / Cartão</span>
+            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5 block truncate" id="drawer-view-conta">Mercado Pago</span>
+            <span class="text-[10px] text-slate-500 truncate block" id="drawer-view-fatura-info">Conta Corrente</span>
+          </div>
+
+          <!-- Card Data -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block" id="drawer-view-label-data">Data</span>
+            <span class="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-0.5 block font-mono" id="drawer-view-data">01/11/2026</span>
+          </div>
+
+          <!-- Card Responsável -->
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Responsável</span>
+            <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" id="drawer-view-responsavel">Carlos</span>
+          </div>
+        </div>
+
+        <!-- Card Situação / Status com Ação Rápida -->
+        <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Situação</span>
+            <span class="text-xs font-bold" id="drawer-view-status-badge">Pendente</span>
+          </div>
+          <button type="button" onclick="aoClicarToggleStatusDrawer()" id="btn-toggle-status-drawer"
+                  class="px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-500">
+            <span id="icone-btn-drawer-status">👍</span>
+            <span id="txt-btn-drawer-status">Marcar como Pago</span>
+          </button>
+        </div>
+
+        <!-- Card Observações / Motivo se houver -->
+        <div id="drawer-view-obs-container" class="hidden p-3 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800/70">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Observação</span>
+          <p class="text-xs text-slate-700 dark:text-slate-300" id="drawer-view-obs-texto"></p>
+        </div>
+
+      </div>
+
+      <!-- MODO FORMULÁRIO DE EDIÇÃO (EXPANSÍVEL) -->
+      <form id="form-drawer-editar-lancamento" onsubmit="salvarEdicaoLancamentoDrawer(event)" class="space-y-3.5 hidden">
+        <input type="hidden" id="drawer-lanc-id" name="id">
+        <input type="hidden" id="drawer-lanc-grupo-parcelamento" name="grupo_parcelamento">
+
+        <!-- Tipo -->
+        <div>
+          <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo de Lançamento</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-rose-500/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 transition">
+              <input type="radio" name="tipo" id="drawer-tipo-despesa" value="despesa" checked class="accent-rose-500">
+              <span class="text-xs font-bold text-rose-500 dark:text-rose-400">📉 Despesa</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 cursor-pointer hover:border-emerald-500/50 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+              <input type="radio" name="tipo" id="drawer-tipo-receita" value="receita" class="accent-emerald-500">
+              <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">📈 Receita</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Descrição -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Descrição *</label>
+          <input type="text" id="drawer-lanc-descricao" name="descricao" required placeholder="Adicione uma descrição"
+                 class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <!-- Data e Valor -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1" id="label-drawer-data">Data *</label>
+            <input type="date" id="drawer-lanc-data" name="data" required
+                   class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Motivo do Ajuste</label>
-            <input type="text" id="drawer-lanc-motivo-ajuste" name="motivo_ajuste" placeholder="Ex: Desconto pontualidade, Taxa de parcelamento..."
-                   class="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Valor (R$) *</label>
+            <input type="text" inputmode="numeric" id="drawer-lanc-valor" name="valor" required placeholder="R$ 0,00"
+                   oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()"
+                   class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-black text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </div>
         </div>
-      </details>
 
-      <!-- Categorias e Subcategorias Hierárquicas Cerbasi -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        <div>
-          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
-          <select id="drawer-lanc-categoria" name="categoria" required onchange="aoMudarCategoriaDrawer(this.value)"
-                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-            <!-- Populado dinamicamente com hierarquia oficial Cerbasi -->
-          </select>
+        <!-- Grid 2 colunas: Conta/Cartão + Categoria -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Conta / Cartão *</label>
+            <select id="drawer-lanc-conta" name="conta" onchange="aoMudarContaDrawerLancamento(this.value)"
+                    class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              <optgroup label="Contas Bancárias">
+                {% for cb in contas_bancarias %}
+                <option value="{{ cb.nome }}" data-tipo="conta">{{ cb.nome }}</option>
+                {% endfor %}
+              </optgroup>
+              <optgroup label="Cartões de Crédito">
+                {% for cc in cartoes_credito %}
+                <option value="{{ cc.nome }}" data-tipo="cartao">{{ cc.nome }} (Fecha dia {{ cc.dia_fechamento }})</option>
+                {% endfor %}
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Categoria *</label>
+            <select id="drawer-lanc-categoria" name="categoria" onchange="aoMudarCategoriaDrawer(this.value)"
+                    class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </select>
+          </div>
         </div>
+
         <div>
           <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Subcategoria</label>
           <select id="drawer-lanc-subcategoria" name="subcategoria"
-                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-            <!-- Populado dinamicamente de acordo com a categoria selecionada -->
+                  class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
           </select>
         </div>
-      </div>
 
-      <!-- Responsável pelo Gasto -->
-      <div>
-        <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Responsável pelo Gasto *</label>
-        <input type="hidden" name="responsavel" id="drawer-lanc-responsavel" value="Carlos">
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2" id="grid-drawer-responsavel">
-          <button type="button" onclick="definirResponsavelDrawerLancamento('Carlos')" data-resp="Carlos"
-                  class="btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-            Carlos
-          </button>
-          <button type="button" onclick="definirResponsavelDrawerLancamento('Fernanda')" data-resp="Fernanda"
-                  class="btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-            Fernanda
-          </button>
-          <button type="button" onclick="definirResponsavelDrawerLancamento('Pedro')" data-resp="Pedro"
-                  class="btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-            Pedro
-          </button>
-          <button type="button" onclick="definirResponsavelDrawerLancamento('Família')" data-resp="Família"
-                  class="btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-            Família
-          </button>
-          <button type="button" onclick="definirResponsavelDrawerLancamento('Outro')" data-resp="Outro"
-                  class="btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
-            Outro
-          </button>
-        </div>
-      </div>
-
-      <!-- Forma de Pagamento / Origem (Contas Bancárias vs Cartões de Crédito) -->
-      <div>
-        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Forma de Pagamento / Origem *</label>
-        <select id="drawer-lanc-conta" name="conta" required onchange="aoMudarContaDrawerLancamento(this.value)"
-                class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
-          <optgroup label="🏦 Contas Bancárias / Caixa">
-            {% for c in contas_bancarias %}
-            <option value="{{ c.nome }}" data-tipo="conta" data-id="{{ c.id }}">{{ c.nome }}</option>
-            {% else %}
-            <option value="Mercado Pago" data-tipo="conta" data-id="1">Mercado Pago</option>
-            <option value="Dinheiro / Carteira" data-tipo="conta" data-id="2">Dinheiro / Carteira</option>
-            <option value="99Pay" data-tipo="conta" data-id="1779">99Pay</option>
-            {% endfor %}
-          </optgroup>
-          <optgroup label="💳 Cartões de Crédito">
-            {% for crd in cartoes_credito %}
-            <option value="{{ crd.nome }}" data-tipo="cartao" data-id="{{ crd.id }}">{{ crd.nome }} (Fecha dia {{ crd.dia_fechamento }})</option>
-            {% else %}
-            <option value="Cartão Inter Aparecida" data-tipo="cartao" data-id="40">Cartão Inter Aparecida (Fecha dia 1)</option>
-            {% endfor %}
-          </optgroup>
-        </select>
-
-        <!-- Badge explicativa dinâmica da forma de pagamento -->
-        <div id="drawer-aviso-migracao-cartao" class="hidden mt-2 p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/25 text-xs text-orange-700 dark:text-orange-300 space-y-1">
-          <div class="font-bold flex items-center gap-1.5">
-            <span>💳</span> Faturamento no Cartão de Crédito
+        <!-- Seletor de Responsável em pílulas compactas -->
+        <div>
+          <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Responsável *</label>
+          <div class="grid grid-cols-4 gap-1.5" id="grid-resp-drawer-lanc">
+            <button type="button" onclick="definirResponsavelDrawerLancamento('Carlos')" data-resp="Carlos" class="btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer">Carlos</button>
+            <button type="button" onclick="definirResponsavelDrawerLancamento('Fernanda')" data-resp="Fernanda" class="btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer">Fernanda</button>
+            <button type="button" onclick="definirResponsavelDrawerLancamento('Pedro')" data-resp="Pedro" class="btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer">Pedro</button>
+            <button type="button" onclick="definirResponsavelDrawerLancamento('Família')" data-resp="Família" class="btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer">Família</button>
           </div>
-          <p class="text-[11px] text-slate-600 dark:text-slate-300">
-            A despesa será faturada na fatura aberta do cartão (vencimento do ciclo correspondente), <strong>desvinculando a saída imediata da conta corrente</strong> e sem duplicar o saldo bancário.
-          </p>
+          <input type="hidden" id="drawer-lanc-responsavel" name="responsavel" value="Carlos">
         </div>
 
-        <div id="drawer-aviso-conta-bancaria" class="mt-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-          <span>🏦</span> <span>Débito direto no saldo da conta selecionada.</span>
-        </div>
-      </div>
-
-      <!-- Situação de Pagamento -->
-      <div id="bloco-drawer-situacao-pagamento" class="p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl">
-        <label class="flex items-center gap-2.5 cursor-pointer select-none">
-          <input type="checkbox" id="drawer-lanc-pago" name="pago" value="1" class="w-4 h-4 accent-emerald-500 rounded">
-          <div class="min-w-0">
-            <span class="text-xs text-slate-800 dark:text-slate-200 font-bold block">
-              Já liquidado / efetivamente pago
-            </span>
-            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">
-              Se desmarcado, permanece como pendência até o vencimento
-            </span>
-          </div>
-        </label>
-      </div>
-
-      <!-- Seção "Recorrência / Repetição" -->
-      <div class="p-3.5 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
-        <label class="flex items-center gap-2.5 cursor-pointer select-none">
-          <input type="checkbox" id="drawer-lanc-recorrente" name="recorrente" value="1" onchange="aoAlternarRecorrenciaDrawer()" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700 accent-blue-600">
-          <div class="min-w-0">
-            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <span>🔁</span> Despesa Fixa / Recorrente
-            </span>
-            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">
-              Definir periodicidade (Mensal, Quinzenal ou Semanal) e parcelamento
-            </span>
-          </div>
-        </label>
-
-        <div id="bloco-opcoes-recorrencia-drawer" class="hidden space-y-3 pt-2.5 border-t border-slate-200/80 dark:border-slate-800/80">
-          <!-- Frequência -->
-          <div>
-            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Frequência da Repetição</label>
-            <select id="drawer-lanc-frequencia" name="frequencia" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-              <option value="mensal" selected>Mensal (padrão)</option>
-              <option value="quinzenal">Quinzenal</option>
-              <option value="semanal">Semanal</option>
-            </select>
+        <!-- Barra de Ações Secundárias em Ícones (Accordion) -->
+        <div class="pt-2 border-t border-slate-200 dark:border-slate-800">
+          <div class="flex items-center justify-around gap-2 p-1.5 rounded-2xl bg-slate-100/70 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+            <button type="button" onclick="toggleSecaoAccordionDrawer('recorrencia')" id="btn-icon-sec-recorrencia" title="Repetir / Parcelar"
+                    class="w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-2xs hover:border-emerald-500 border border-slate-200 dark:border-slate-700">
+              🔄
+            </button>
+            <button type="button" onclick="toggleSecaoAccordionDrawer('observacao')" id="btn-icon-sec-obs" title="Adicionar Observação"
+                    class="w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-2xs hover:border-emerald-500 border border-slate-200 dark:border-slate-700">
+              💬
+            </button>
+            <button type="button" onclick="toggleSecaoAccordionDrawer('juros')" id="btn-icon-sec-juros" title="Juros / Desconto"
+                    class="w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-2xs hover:border-emerald-500 border border-slate-200 dark:border-slate-700">
+              %
+            </button>
           </div>
 
-          <!-- Término: Indeterminado vs Parcelado -->
-          <div>
-            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Duração / Término</label>
+          <!-- Seções expansíveis do Accordion -->
+          <div id="sec-accordion-recorrencia" class="hidden p-3 mt-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200">
+              <input type="checkbox" id="drawer-lanc-recorrente" name="recorrente" value="1" onchange="aoAlternarRecorrenciaDrawer()" class="accent-blue-600 rounded">
+              <span>🔁 Lançamento Fixo / Recorrente</span>
+            </label>
+            <div id="bloco-opcoes-recorrencia-drawer" class="hidden space-y-2 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase">Frequência</label>
+                  <select id="drawer-lanc-frequencia" name="frequencia" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-bold text-slate-800 dark:text-white">
+                    <option value="mensal" selected>Mensal</option>
+                    <option value="quinzenal">Quinzenal</option>
+                    <option value="semanal">Semanal</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-400 uppercase">Tipo</label>
+                  <select id="drawer-lanc-tipo-termino" name="tipo_termino" onchange="aoMudarTipoTerminoDrawer()" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-bold text-slate-800 dark:text-white">
+                    <option value="fixo" selected>Indeterminado / Fixo</option>
+                    <option value="parcelado">Parcelado em X vezes</option>
+                  </select>
+                </div>
+              </div>
+              <div id="bloco-qtd-parcelas-drawer" class="hidden">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase">Número de Parcelas</label>
+                <input type="number" id="drawer-lanc-total-parcelas" name="total_parcelas" min="2" max="24" value="4" class="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-bold text-slate-800 dark:text-white">
+              </div>
+            </div>
+          </div>
+
+          <div id="sec-accordion-observacao" class="hidden p-3 mt-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Observações / Motivo</label>
+            <textarea id="drawer-lanc-motivo-ajuste" name="motivo_ajuste" rows="2" placeholder="Adicione notas ou tags..." class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs font-semibold text-slate-800 dark:text-white"></textarea>
+          </div>
+
+          <div id="sec-accordion-juros" class="hidden p-3 mt-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
             <div class="grid grid-cols-2 gap-2">
-              <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200">
-                <input type="radio" name="tipo_termino" id="drawer-termino-fixo" value="fixo" checked onchange="aoMudarTipoTerminoDrawer()" class="accent-blue-600">
-                <span>Indeterminado / Fixo</span>
-              </label>
-              <label class="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer text-xs font-semibold text-slate-800 dark:text-slate-200">
-                <input type="radio" name="tipo_termino" id="drawer-termino-parcelado" value="parcelado" onchange="aoMudarTipoTerminoDrawer()" class="accent-blue-600">
-                <span>Parcelado em X vezes</span>
-              </label>
+              <div>
+                <label class="block text-[10px] font-bold text-rose-500 uppercase">+ Juros (R$)</label>
+                <input type="text" id="drawer-lanc-juros" name="juros" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-semibold text-slate-800 dark:text-white">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-emerald-600 uppercase">- Desconto (R$)</label>
+                <input type="text" id="drawer-lanc-desconto" name="desconto" placeholder="R$ 0,00" oninput="aplicarMascaraMoeda(this); calcularTotalFinalDrawerLancamento()" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-semibold text-slate-800 dark:text-white">
+              </div>
             </div>
-          </div>
-
-          <!-- Campo de Total de Parcelas (se parcelado) -->
-          <div id="bloco-qtd-parcelas-drawer" class="hidden">
-            <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Número de Parcelas</label>
-            <div class="flex items-center gap-2">
-              <input type="number" id="drawer-lanc-total-parcelas" name="total_parcelas" min="2" max="24" value="4" class="w-24 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500">
-              <span class="text-xs text-slate-500">parcelas totais</span>
-            </div>
-          </div>
-
-          <!-- Escopo de Aplicação se já for série existente -->
-          <div id="bloco-escopo-recorrencia-drawer" class="hidden p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 space-y-1.5 text-xs">
-            <div class="font-bold text-blue-700 dark:text-blue-300 text-[11px]">Aplicar alterações em:</div>
-            <label class="flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer">
-              <input type="radio" name="escopo_edicao" id="drawer-escopo-somente-esta" value="somente_esta" checked class="accent-blue-600">
-              <span>Somente esta ocorrência</span>
-            </label>
-            <label class="flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer">
-              <input type="radio" name="escopo_edicao" id="drawer-escopo-esta-e-proximas" value="esta_e_proximas" class="accent-blue-600">
-              <span>Esta e as próximas parcelas pendentes</span>
-            </label>
-            <label class="flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer">
-              <input type="radio" name="escopo_edicao" id="drawer-escopo-toda-serie" value="toda_serie" class="accent-blue-600">
-              <span>Toda a série pendente</span>
-            </label>
           </div>
         </div>
-      </div>
-    </form>
 
-    <!-- Rodapé Fixo com Ações -->
-    <div class="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 flex items-center justify-between gap-2 shrink-0">
-      <button type="button" onclick="excluirLancamentoDoDrawer()" class="px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 transition cursor-pointer flex items-center gap-1.5">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-        <span>Excluir</span>
+        <input type="hidden" id="drawer-lanc-pago" name="pago" value="0">
+      </form>
+
+    </div>
+
+    <!-- RODAPÉ ERGONÔMICO COM BOTÕES CIRCULARES (ORGANIZZE) -->
+    <div class="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-between shrink-0">
+      
+      <!-- Esquerda: Botão circular discreto de Lixeira (Excluir) -->
+      <button type="button" onclick="excluirLancamentoDoDrawer()" title="Excluir Lançamento"
+              class="w-11 h-11 rounded-full flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-600 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 transition active:scale-95 cursor-pointer shadow-xs">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
       </button>
 
-      <div class="flex items-center gap-2">
-        <button type="button" onclick="fecharDrawerEditarLancamento()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
-          Cancelar
-        </button>
-        <button type="button" onclick="document.getElementById('form-drawer-editar-lancamento').requestSubmit()" id="btn-salvar-drawer-lanc" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5">
-          <span>Salvar Alterações</span>
-        </button>
-      </div>
+      <!-- Centro: Botão circular verde destacado (h-12 w-12) com Check (✓) -->
+      <button type="button" onclick="salvarOuConfirmarDrawer()" id="btn-check-drawer" title="Salvar / Confirmar"
+              class="w-12 h-12 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl flex items-center justify-center shadow-lg shadow-emerald-600/30 transition active:scale-90 cursor-pointer">
+        ✓
+      </button>
+
+      <!-- Direita: Botão circular de Editar / Alternar Modo ou Fechar -->
+      <button type="button" onclick="alternarModoEdicaoDrawer()" id="btn-toggle-modo-drawer" title="Editar Lançamento"
+              class="w-11 h-11 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-xs text-base">
+        ✏️
+      </button>
+
     </div>
   </div>
 </div>
@@ -1785,75 +1871,326 @@
     }
   }
 
+    // =========================================================================
+  // ESTADO GLOBAL DE FILTROS & MODOS DE VISUALIZAÇÃO (ORGANIZZE)
+  // =========================================================================
+  let filtroOrigemAtual = 'todas';
+  let filtroTipoStatusAtual = 'todos';
+  let filtroCategoriaAtual = 'todas';
+  let filtroResponsavelAtual = 'todos';
+  let modoVisualizacaoAtual = 'fluxo'; // 'fluxo' (esconde avulsas de cartão e mostra fatura) ou 'todos' (mostra avulsas e esconde fatura)
+
+  // Alternância de Dropdowns Flutuantes
+  function toggleDropdownTopo(dropdownId) {
+    const el = document.getElementById(dropdownId);
+    if (!el) return;
+    const estaAberto = !el.classList.contains('hidden');
+    // Fecha outros dropdowns abertos
+    document.querySelectorAll('[id^="dropdown-"], [id^="chip-dropdown-"]').forEach(d => {
+      d.classList.add('hidden');
+    });
+    if (!estaAberto) {
+      el.classList.remove('hidden');
+    }
+  }
+
+  function fecharDropdownTopo(dropdownId) {
+    const el = document.getElementById(dropdownId);
+    if (el) el.classList.add('hidden');
+  }
+
+  // Fecha dropdowns ao clicar fora
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('[id^="dropdown-"], [id^="chip-dropdown-"], button[onclick*="toggleDropdownTopo"]')) {
+      document.querySelectorAll('[id^="dropdown-"], [id^="chip-dropdown-"]').forEach(d => {
+        d.classList.add('hidden');
+      });
+    }
+  });
+
+  // Alternância de Modos de Visualização (Fluxo de Caixa vs Todos os Lançamentos)
+  function setModoVisualizacao(modo) {
+    modoVisualizacaoAtual = modo;
+    const btnIcone = document.getElementById('icone-modo-visao');
+    const btnLabel = document.getElementById('label-modo-visao');
+    if (modo === 'fluxo') {
+      if (btnIcone) btnIcone.textContent = '📑';
+      if (btnLabel) btnLabel.textContent = 'Fluxo de Caixa';
+    } else {
+      if (btnIcone) btnIcone.textContent = '💳';
+      if (btnLabel) btnLabel.textContent = 'Todos Lançamentos';
+    }
+    filtrarTabela();
+  }
+
+  // Barra de Busca Expansível
+  function alternarBarraBusca() {
+    const c = document.getElementById('container-input-busca-topo');
+    if (!c) return;
+    c.classList.toggle('hidden');
+    if (!c.classList.contains('hidden')) {
+      const inp = document.getElementById('filtro-busca');
+      if (inp) inp.focus();
+    }
+  }
+
+  function fecharBarraBusca() {
+    const c = document.getElementById('container-input-busca-topo');
+    if (c) c.classList.add('hidden');
+    const inp = document.getElementById('filtro-busca');
+    if (inp && inp.value) {
+      inp.value = '';
+      filtrarTabela();
+    }
+  }
+
+  // Filtros em Pílulas (Chips)
+  function aplicarFiltroOrigem(origem, label) {
+    filtroOrigemAtual = origem;
+    const lbl = document.getElementById('label-chip-origem');
+    const btn = document.getElementById('btn-chip-origem');
+    if (lbl) lbl.textContent = origem === 'todas' ? 'Origem' : label;
+    if (btn) {
+      if (origem !== 'todas') {
+        btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      } else {
+        btn.classList.remove('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      }
+    }
+    fecharDropdownTopo('chip-dropdown-origem');
+    atualizarBotaoLimparFiltros();
+    filtrarTabela();
+  }
+
+  function aplicarFiltroTipoStatus(tipo, label) {
+    filtroTipoStatusAtual = tipo;
+    const lbl = document.getElementById('label-chip-tipo');
+    const btn = document.getElementById('btn-chip-tipo');
+    if (lbl) lbl.textContent = tipo === 'todos' ? 'Tipo' : label;
+    if (btn) {
+      if (tipo !== 'todos') {
+        btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      } else {
+        btn.classList.remove('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      }
+    }
+    fecharDropdownTopo('chip-dropdown-tipo');
+    atualizarBotaoLimparFiltros();
+    filtrarTabela();
+  }
+
+  function aplicarFiltroCategoria(categoria, label) {
+    filtroCategoriaAtual = categoria;
+    const lbl = document.getElementById('label-chip-categoria');
+    const btn = document.getElementById('btn-chip-categoria');
+    if (lbl) lbl.textContent = categoria === 'todas' ? 'Categorias' : label;
+    if (btn) {
+      if (categoria !== 'todas') {
+        btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      } else {
+        btn.classList.remove('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      }
+    }
+    fecharDropdownTopo('chip-dropdown-categoria');
+    atualizarBotaoLimparFiltros();
+    filtrarTabela();
+  }
+
+  function aplicarFiltroResponsavel(resp, label) {
+    filtroResponsavelAtual = resp;
+    const lbl = document.getElementById('label-chip-responsavel');
+    const btn = document.getElementById('btn-chip-responsavel');
+    if (lbl) lbl.textContent = resp === 'todos' ? 'Responsável' : label;
+    if (btn) {
+      if (resp !== 'todos') {
+        btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      } else {
+        btn.classList.remove('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30');
+      }
+    }
+    fecharDropdownTopo('chip-dropdown-responsavel');
+    atualizarBotaoLimparFiltros();
+    filtrarTabela();
+  }
+
+  function atualizarBotaoLimparFiltros() {
+    const btn = document.getElementById('btn-limpar-filtros');
+    if (!btn) return;
+    const temFiltroAtivo = (filtroOrigemAtual !== 'todas' || filtroTipoStatusAtual !== 'todos' || filtroCategoriaAtual !== 'todas' || filtroResponsavelAtual !== 'todos');
+    btn.classList.toggle('hidden', !temFiltroAtivo);
+  }
+
+  function limparTodosFiltros() {
+    filtroOrigemAtual = 'todas';
+    filtroTipoStatusAtual = 'todos';
+    filtroCategoriaAtual = 'todas';
+    filtroResponsavelAtual = 'todos';
+    
+    aplicarFiltroOrigem('todas', 'Origem');
+    aplicarFiltroTipoStatus('todos', 'Tipo');
+    aplicarFiltroCategoria('todas', 'Categorias');
+    aplicarFiltroResponsavel('todos', 'Responsável');
+    
+    const inpBusca = document.getElementById('filtro-busca');
+    if (inpBusca) inpBusca.value = '';
+    
+    filtrarTabela();
+  }
+
+  // Filtragem da Lista de Transações
   function filtrarTabela() {
-    const termo = document.getElementById('filtro-busca').value.toLowerCase().trim();
+    const inpBusca = document.getElementById('filtro-busca');
+    const termo = inpBusca ? inpBusca.value.toLowerCase().trim() : '';
     const linhas = document.querySelectorAll('.linha-transacao');
     let visiveis = 0;
 
     linhas.forEach(linha => {
-      const texto = linha.getAttribute('data-texto') || '';
+      const texto = (linha.getAttribute('data-texto') || '').toLowerCase();
       const tipo = linha.getAttribute('data-tipo') || '';
       const statusPago = linha.getAttribute('data-pago') || '0';
       const pago = (statusPago === '1');
       const ehAtrasada = linha.getAttribute('data-atrasada') === '1';
       const ehMesPassado = linha.getAttribute('data-mes-passado') === '1';
-      const grupoId = linha.getAttribute('data-grupo-id');
+      const conta = (linha.getAttribute('data-conta') || '').toLowerCase();
+      const categoria = (linha.getAttribute('data-categoria') || '').toLowerCase();
+      const responsavel = texto; // inclui titular
+      const isFatura = linha.getAttribute('data-is-fatura') === '1' || (linha.getAttribute('data-is-grupo') === '1' && linha.getAttribute('data-tipo-grupo') === 'cartao');
+      const isCartaoAvulso = (linha.getAttribute('data-is-cartao') === '1' || conta.includes('cart')) && linha.getAttribute('data-is-grupo') !== '1';
 
+      // 1. Filtro de Busca por Texto
       let atendeBusca = termo === '' || texto.includes(termo);
-      let atendeFiltro = false;
 
-      if (filtroStatusAtual === 'atrasadas') {
-        atendeFiltro = ehAtrasada;
-      } else if (filtroStatusAtual === 'pagaleve') {
-        const isPl = linha.getAttribute('data-is-pagaleve') === '1';
-        atendeFiltro = isPl;
-      } else {
-        if (ehMesPassado) {
-          atendeFiltro = false;
-        } else {
-          let atendeTipo = (filtroTipoAtual === 'todos' || tipo === filtroTipoAtual);
-          let atendeStatus = (filtroStatusAtual === 'todos' || 
-                             (filtroStatusAtual === 'pago' && (pago || statusPago === 'paga')) || 
-                             (filtroStatusAtual === 'pendente' && (!pago || statusPago === 'parcial')));
-          atendeFiltro = atendeTipo && atendeStatus;
+      // 2. Filtro de Modo de Visão (Fluxo de Caixa vs Todos os Lançamentos)
+      let atendeModo = true;
+      if (modoVisualizacaoAtual === 'fluxo') {
+        // No Fluxo de Caixa: esconde compras avulsas de cartão e mostra a fatura consolidada
+        if (isCartaoAvulso && filtroOrigemAtual === 'todas') {
+          atendeModo = false;
+        }
+      } else if (modoVisualizacaoAtual === 'todos') {
+        // Em Todos os Lançamentos: oculta a linha da fatura consolidada e exibe cada compra avulsa
+        if (isFatura) {
+          atendeModo = false;
         }
       }
 
-      if (atendeBusca && atendeFiltro) {
+      // 3. Filtro de Origem
+      let atendeOrigem = true;
+      if (filtroOrigemAtual !== 'todas') {
+        atendeOrigem = conta.includes(filtroOrigemAtual.toLowerCase());
+      }
+
+      // 4. Filtro de Tipo e Status
+      let atendeTipoStatus = true;
+      if (filtroTipoStatusAtual === 'receita') {
+        atendeTipoStatus = (tipo === 'receita');
+      } else if (filtroTipoStatusAtual === 'despesa') {
+        atendeTipoStatus = (tipo === 'despesa');
+      } else if (filtroTipoStatusAtual === 'pago') {
+        atendeTipoStatus = pago;
+      } else if (filtroTipoStatusAtual === 'pendente') {
+        atendeTipoStatus = !pago;
+      } else if (filtroTipoStatusAtual === 'atrasadas') {
+        atendeTipoStatus = ehAtrasada;
+      }
+
+      // 5. Filtro de Categoria
+      let atendeCategoria = true;
+      if (filtroCategoriaAtual !== 'todas') {
+        atendeCategoria = texto.includes(filtroCategoriaAtual.toLowerCase());
+      }
+
+      // 6. Filtro de Responsável
+      let atendeResp = true;
+      if (filtroResponsavelAtual !== 'todos') {
+        atendeResp = texto.includes(filtroResponsavelAtual.toLowerCase());
+      }
+
+      const deveExibir = atendeBusca && atendeModo && atendeOrigem && atendeTipoStatus && atendeCategoria && atendeResp;
+
+      if (deveExibir) {
         linha.style.display = '';
         visiveis++;
       } else {
         linha.style.display = 'none';
-        // Se a linha for ocultada, fechar e ocultar detalhes colapsados correspondentes
-        if (grupoId) {
-          const elDet = document.getElementById(`detalhes-${grupoId}`);
-          if (elDet) elDet.classList.add('hidden');
-          const seta = document.getElementById(`seta-${grupoId}`);
-          if (seta) {
-            seta.classList.remove('rotate-180');
-            seta.setAttribute('aria-expanded', 'false');
-          }
-        }
       }
     });
 
     const msgVazio = document.getElementById('msg-sem-lancamentos');
     if (msgVazio) {
-      if (visiveis === 0) {
-        msgVazio.classList.remove('hidden');
-        if (filtroStatusAtual === 'atrasadas') {
-          msgVazio.textContent = 'Nenhuma conta atrasada encontrada.';
-        } else {
-          msgVazio.textContent = 'Nenhum lançamento encontrado para os filtros selecionados.';
-        }
-      } else {
-        msgVazio.classList.add('hidden');
-      }
+      msgVazio.classList.toggle('hidden', visiveis > 0);
     }
   }
 
-// =========================================================================
-  // GAVETA LATERAL (DRAWER) DE DETALHES & EDIÇÃO DE LANÇAMENTOS
+  // =========================================================================
+  // TOGGLE RÁPIDO DE STATUS COM JOINHA 👍 (PAGO) vs 👎 (PENDENTE)
+  // =========================================================================
+  async function aoClicarToggleStatus(event, transacaoId) {
+    if (event) event.stopPropagation();
+
+    const btn = document.getElementById(`btn-status-toggle-${transacaoId}`);
+    const icone = document.getElementById(`icone-status-${transacaoId}`);
+    const txtBadge = document.getElementById(`status-badge-${transacaoId}`);
+    const tr = document.getElementById(`linha-tr-${transacaoId}`);
+
+    if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
+
+    try {
+      const resp = await fetch(`/api/lancamentos/${transacaoId}/toggle-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await resp.json();
+
+      if (data.sucesso) {
+        const ehPago = (data.novo_status === 'pago' || data.pago === 1);
+
+        if (icone) icone.textContent = ehPago ? '👍' : '👎';
+        if (txtBadge) {
+          txtBadge.textContent = ehPago ? 'Pago' : 'Pendente';
+          txtBadge.className = ehPago
+            ? 'badge-status-pago inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+            : 'badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20';
+        }
+
+        if (btn) {
+          btn.title = ehPago ? 'Pago / Confirmado (Clique para alternar para Pendente)' : 'Pendente (Clique para confirmar baixa)';
+          btn.className = ehPago
+            ? 'touch-target w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 cursor-pointer shadow-xs border bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+            : 'touch-target w-8 h-8 rounded-full flex items-center justify-center transition active:scale-90 cursor-pointer shadow-xs border bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 border-slate-200 dark:border-slate-700';
+        }
+
+        if (tr) {
+          tr.setAttribute('data-pago', ehPago ? '1' : '0');
+        }
+
+        // Se a gaveta estiver aberta na mesma transação, atualiza os dados na gaveta também
+        if (lancamentoAtivoDrawer && String(lancamentoAtivoDrawer.id) === String(transacaoId)) {
+          lancamentoAtivoDrawer.pago = ehPago;
+          atualizarCardsVisualizacaoDrawer(lancamentoAtivoDrawer);
+        }
+
+        if (typeof showToast === 'function') {
+          showToast(ehPago ? 'Confirmado como Pago!' : 'Alterado para Pendente!', data.mensagem || '', false);
+        }
+      } else {
+        alert('Erro ao alterar status: ' + (data.erro || data.detail || 'Falha na requisição.'));
+      }
+    } catch(err) {
+      alert('Erro de conexão ao alterar status: ' + err.message);
+    } finally {
+      if (btn) btn.classList.remove('opacity-50', 'pointer-events-none');
+    }
+  }
+
+  // Toggle direto no Drawer
+  function aoClicarToggleStatusDrawer() {
+    if (!lancamentoAtivoDrawer || !lancamentoAtivoDrawer.id) return;
+    aoClicarToggleStatus(null, lancamentoAtivoDrawer.id);
+  }
+
+  // =========================================================================
+  // GAVETA LATERAL (DRAWER) DE DETALHES & EDIÇÃO (ORGANIZZE)
   // =========================================================================
   function parseMoedaFloat(val) {
     if (!val) return 0;
@@ -1880,9 +2217,9 @@
   }
 
   let lancamentoAtivoDrawer = null;
+  let modoEdicaoAtivo = false;
 
   function abrirGavetaEditarLancamentoDireto(id) {
-    console.log('[DRAWER] abrirGavetaEditarLancamentoDireto chamado para id:', id);
     fecharTodosMenusAcoes();
     const trigger = document.getElementById('btn-edit-trigger-' + id);
     const tr = document.getElementById('linha-tr-' + id);
@@ -1912,6 +2249,8 @@
         data: tr.getAttribute('data-data-iso') || '',
         tipo: tr.getAttribute('data-tipo') || 'despesa',
         valor: parseFloat(tr.getAttribute('data-valor') || '0'),
+        descricao: (tr.querySelector('.group-hover\\:text-emerald-600, .group-hover\\:text-white, p') ? tr.querySelector('.group-hover\\:text-emerald-600, .group-hover\\:text-white, p').textContent.trim() : 'Lançamento'),
+        categoria: tr.getAttribute('data-categoria') || 'Alimentação',
         conta: tr.getAttribute('data-conta') || 'Mercado Pago',
         pago: tr.getAttribute('data-pago') === '1',
         ref_externa: tr.getAttribute('data-ref-externa') || ''
@@ -1921,17 +2260,187 @@
     }
 
     lancamentoAtivoDrawer = dataObj;
+    atualizarCardsVisualizacaoDrawer(dataObj);
+    popularFormularioEdicaoDrawer(dataObj);
 
+    // Inicializa no modo visualização compacta
+    alternarModoEdicaoDrawer(false);
+
+    const drawer = document.getElementById('drawer-editar-lancamento');
+    const panel = document.getElementById('drawer-lanc-panel');
+    if (drawer && panel) {
+      drawer.classList.remove('pointer-events-none', 'opacity-0');
+      drawer.classList.add('pointer-events-auto', 'opacity-100');
+      panel.classList.remove('translate-x-full');
+      panel.classList.add('translate-x-0');
+      drawer.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function fecharDrawerEditarLancamento() {
+    const drawer = document.getElementById('drawer-editar-lancamento');
+    const panel = document.getElementById('drawer-lanc-panel');
+    if (!drawer || !panel) return;
+    panel.classList.remove('translate-x-0');
+    panel.classList.add('translate-x-full');
+    drawer.classList.remove('opacity-100');
+    drawer.classList.add('opacity-0');
+    drawer.setAttribute('aria-hidden', 'true');
+    setTimeout(() => {
+      drawer.classList.remove('pointer-events-auto');
+      drawer.classList.add('pointer-events-none');
+    }, 300);
+  }
+
+  function aoClicarLinhaLancamento(event, transacaoId) {
+    if (event.target.closest('button, a, input, select, .dropdown-acoes-menu, .menu-dropdown-conteudo')) {
+      return;
+    }
+    abrirGavetaEditarLancamentoDireto(transacaoId);
+  }
+
+  // Atualiza os Cards Ergonômicos do Modo Visualização
+  function atualizarCardsVisualizacaoDrawer(dataObj) {
+    const elDesc = document.getElementById('drawer-view-descricao');
+    const elTipo = document.getElementById('drawer-view-badge-tipo');
+    const elValor = document.getElementById('drawer-view-valor');
+    const elAjustes = document.getElementById('drawer-view-ajustes');
+    const elCat = document.getElementById('drawer-view-categoria');
+    const elSub = document.getElementById('drawer-view-subcategoria');
+    const elConta = document.getElementById('drawer-view-conta');
+    const elFat = document.getElementById('drawer-view-fatura-info');
+    const elData = document.getElementById('drawer-view-data');
+    const elLblData = document.getElementById('drawer-view-label-data');
+    const elResp = document.getElementById('drawer-view-responsavel');
+    const elStatusBadge = document.getElementById('drawer-view-status-badge');
+    const elBtnTxt = document.getElementById('txt-btn-drawer-status');
+    const elBtnIcone = document.getElementById('icone-btn-drawer-status');
+    const elRecCont = document.getElementById('drawer-view-recorrencia-container');
+    const elRecTxt = document.getElementById('drawer-view-recorrencia-txt');
+    const elObsCont = document.getElementById('drawer-view-obs-container');
+    const elObsTxt = document.getElementById('drawer-view-obs-texto');
+
+    if (elDesc) elDesc.textContent = dataObj.descricao || 'Lançamento';
+    if (elTipo) {
+      elTipo.textContent = dataObj.tipo === 'receita' ? 'Receita' : 'Despesa';
+      elTipo.className = dataObj.tipo === 'receita'
+        ? 'text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0'
+        : 'text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25 shrink-0';
+    }
+
+    if (elValor) {
+      elValor.textContent = formatarValorMoeda(dataObj.valor || 0);
+      elValor.className = dataObj.tipo === 'receita'
+        ? 'text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400'
+        : 'text-2xl sm:text-3xl font-black text-slate-900 dark:text-white';
+    }
+
+    if (elAjustes) {
+      if ((dataObj.juros || 0) > 0) {
+        elAjustes.textContent = `+ ${formatarValorMoeda(dataObj.juros)} de Juros / Encargos`;
+        elAjustes.classList.remove('hidden');
+      } else if ((dataObj.desconto || 0) > 0) {
+        elAjustes.textContent = `- ${formatarValorMoeda(dataObj.desconto)} de Desconto`;
+        elAjustes.classList.remove('hidden');
+      } else {
+        elAjustes.classList.add('hidden');
+      }
+    }
+
+    if (elCat) elCat.textContent = dataObj.categoria || 'Geral';
+    if (elSub) elSub.textContent = dataObj.subcategoria ? `› ${dataObj.subcategoria}` : 'Principal';
+
+    const ehCartao = (dataObj.conta || '').toLowerCase().includes('cart') || (dataObj.conta || '').toLowerCase().includes('inter');
+    if (elConta) elConta.textContent = dataObj.conta || 'Mercado Pago';
+    if (elFat) elFat.textContent = ehCartao ? 'Fatura Aberta do Cartão' : 'Conta Bancária Direta';
+
+    let dtExib = dataObj.data || '';
+    if (dataObj.ref_externa && dataObj.ref_externa.includes('data_compra:')) {
+      try {
+        dtExib = dataObj.ref_externa.split('data_compra:')[1].trim().split(' ')[0].substring(0, 10);
+      } catch(e) {}
+    }
+    if (elData) elData.textContent = dtExib;
+    if (elLblData) elLblData.textContent = ehCartao ? 'Data da Compra' : 'Data de Vencimento';
+
+    if (elResp) elResp.textContent = dataObj.titular || 'Carlos';
+
+    if (elStatusBadge) {
+      elStatusBadge.textContent = dataObj.pago ? '✓ Pago / Liquidado' : '⏳ Pendente';
+      elStatusBadge.className = dataObj.pago ? 'text-xs font-bold text-emerald-600 dark:text-emerald-400' : 'text-xs font-bold text-amber-500';
+    }
+    if (elBtnTxt) elBtnTxt.textContent = dataObj.pago ? 'Marcar como Pendente' : 'Confirmar como Pago';
+    if (elBtnIcone) elBtnIcone.textContent = dataObj.pago ? '↩️' : '👍';
+
+    // Recorrência
+    const grp = dataObj.grupo_parcelamento || '';
+    if (elRecCont && elRecTxt) {
+      if (grp && (grp.includes('fixa') || grp.includes('recorren') || grp.includes('mensal') || grp.includes('parc'))) {
+        elRecTxt.textContent = grp.includes('parc') ? 'Parcelado no Cartão' : 'Despesa fixa • mensal';
+        elRecCont.classList.remove('hidden');
+      } else {
+        elRecCont.classList.add('hidden');
+      }
+    }
+
+    // Observações
+    if (elObsCont && elObsTxt) {
+      if (dataObj.motivo) {
+        elObsTxt.textContent = dataObj.motivo;
+        elObsCont.classList.remove('hidden');
+      } else {
+        elObsCont.classList.add('hidden');
+      }
+    }
+  }
+
+  // Alterna entre Visualização e Edição
+  function alternarModoEdicaoDrawer(forcarEdicao) {
+    if (forcarEdicao !== undefined) {
+      modoEdicaoAtivo = forcarEdicao;
+    } else {
+      modoEdicaoAtivo = !modoEdicaoAtivo;
+    }
+
+    const blocoVisao = document.getElementById('drawer-bloco-visualizacao');
+    const formEdicao = document.getElementById('form-drawer-editar-lancamento');
+    const btnToggle = document.getElementById('btn-toggle-modo-drawer');
+    const btnCheck = document.getElementById('btn-check-drawer');
+
+    if (blocoVisao) blocoVisao.classList.toggle('hidden', modoEdicaoAtivo);
+    if (formEdicao) formEdicao.classList.toggle('hidden', !modoEdicaoAtivo);
+
+    if (btnToggle) {
+      btnToggle.innerHTML = modoEdicaoAtivo ? '✕' : '✏️';
+      btnToggle.title = modoEdicaoAtivo ? 'Voltar para Detalhes' : 'Editar Lançamento';
+    }
+
+    if (btnCheck) {
+      btnCheck.title = modoEdicaoAtivo ? 'Salvar Alterações' : 'Confirmar / Salvar';
+    }
+  }
+
+  function salvarOuConfirmarDrawer() {
+    if (modoEdicaoAtivo) {
+      const form = document.getElementById('form-drawer-editar-lancamento');
+      if (form) form.requestSubmit();
+    } else {
+      fecharDrawerEditarLancamento();
+    }
+  }
+
+  // Preenchimento do Formulário de Edição
+  function popularFormularioEdicaoDrawer(dataObj) {
     document.getElementById('drawer-lanc-id').value = dataObj.id;
     document.getElementById('drawer-lanc-descricao').value = dataObj.descricao || '';
 
-    let dataFinal = dataObj.data;
+    let dt = dataObj.data || '';
     if (dataObj.ref_externa && dataObj.ref_externa.includes('data_compra:')) {
       try {
-        dataFinal = dataObj.ref_externa.split('data_compra:')[1].trim().split(' ')[0].substring(0, 10);
+        dt = dataObj.ref_externa.split('data_compra:')[1].trim().split(' ')[0].substring(0, 10);
       } catch(e) {}
     }
-    document.getElementById('drawer-lanc-data').value = dataFinal || new Date().toISOString().substring(0, 10);
+    document.getElementById('drawer-lanc-data').value = dt || new Date().toISOString().substring(0, 10);
 
     if (dataObj.tipo === 'receita') {
       document.getElementById('drawer-tipo-receita').checked = true;
@@ -1939,7 +2448,10 @@
       document.getElementById('drawer-tipo-despesa').checked = true;
     }
 
-    const valBase = (dataObj.valor - (dataObj.juros || 0) + (dataObj.desconto || 0) > 0) ? (dataObj.valor - (dataObj.juros || 0) + (dataObj.desconto || 0)) : dataObj.valor;
+    const valBase = (dataObj.valor - (dataObj.juros || 0) + (dataObj.desconto || 0) > 0)
+      ? (dataObj.valor - (dataObj.juros || 0) + (dataObj.desconto || 0))
+      : dataObj.valor;
+
     document.getElementById('drawer-lanc-valor').value = valBase > 0 ? formatarValorMoeda(valBase) : '';
     document.getElementById('drawer-lanc-juros').value = (dataObj.juros || 0) > 0 ? formatarValorMoeda(dataObj.juros) : '';
     document.getElementById('drawer-lanc-desconto').value = (dataObj.desconto || 0) > 0 ? formatarValorMoeda(dataObj.desconto) : '';
@@ -1972,69 +2484,14 @@
     if (!resp || resp.toLowerCase() === 'a confirmar') resp = 'Carlos';
     definirResponsavelDrawerLancamento(resp);
 
-    document.getElementById('drawer-lanc-pago').checked = Boolean(dataObj.pago);
+    document.getElementById('drawer-lanc-pago').value = dataObj.pago ? '1' : '0';
 
     const grp = dataObj.grupo_parcelamento || '';
-    const RECORRENCIAS_PADRAO = ['copasa', 'cemig', 'youcine', 'wellhub', 'audible', 'claro', 'pós-graduação', 'pos-graduacao', 'internet'];
-    const descLower = (dataObj.descricao || '').toLowerCase();
-    const ehRecorrente = Boolean(
-      (grp && (grp.startsWith('fixa_') || grp.includes('recorrente') || grp.startsWith('parc_'))) ||
-      RECORRENCIAS_PADRAO.some(term => descLower.includes(term))
-    );
-
     const chkRecorr = document.getElementById('drawer-lanc-recorrente');
-    chkRecorr.checked = ehRecorrente;
-    aoAlternarRecorrenciaDrawer();
-
-    if (ehRecorrente) {
-      if (grp.startsWith('parc_')) {
-        document.getElementById('drawer-termino-parcelado').checked = true;
-      } else {
-        document.getElementById('drawer-termino-fixo').checked = true;
-      }
-      aoMudarTipoTerminoDrawer();
-
-      const blocoEscopo = document.getElementById('bloco-escopo-recorrencia-drawer');
-      if (blocoEscopo) {
-        blocoEscopo.classList.toggle('hidden', !grp);
-      }
+    if (chkRecorr) {
+      chkRecorr.checked = Boolean(grp && (grp.startsWith('fixa_') || grp.includes('recorren')));
+      aoAlternarRecorrenciaDrawer();
     }
-
-    calcularTotalFinalDrawerLancamento();
-
-    const drawer = document.getElementById('drawer-editar-lancamento');
-    const panel = document.getElementById('drawer-lanc-panel');
-    drawer.classList.remove('pointer-events-none', 'opacity-0');
-    drawer.classList.add('pointer-events-auto', 'opacity-100');
-    panel.classList.remove('translate-x-full');
-    panel.classList.add('translate-x-0');
-    drawer.setAttribute('aria-hidden', 'false');
-
-    setTimeout(() => {
-      document.getElementById('drawer-lanc-descricao').focus();
-    }, 100);
-  }
-
-  function fecharDrawerEditarLancamento() {
-    const drawer = document.getElementById('drawer-editar-lancamento');
-    const panel = document.getElementById('drawer-lanc-panel');
-    if (!drawer || !panel) return;
-    panel.classList.remove('translate-x-0');
-    panel.classList.add('translate-x-full');
-    drawer.classList.remove('opacity-100');
-    drawer.classList.add('opacity-0');
-    drawer.setAttribute('aria-hidden', 'true');
-    setTimeout(() => {
-      drawer.classList.remove('pointer-events-auto');
-      drawer.classList.add('pointer-events-none');
-    }, 300);
-  }
-
-  function aoClicarLinhaLancamento(event, transacaoId) {
-    if (event.target.closest('button, a, input, select, .dropdown-acoes-menu, .menu-dropdown-conteudo')) {
-      return;
-    }
-    abrirGavetaEditarLancamentoDireto(transacaoId);
   }
 
   function definirResponsavelDrawerLancamento(resp) {
@@ -2043,9 +2500,9 @@
     document.querySelectorAll('.btn-resp-drawer').forEach(b => {
       const r = b.getAttribute('data-resp');
       if (r === resp) {
-        b.className = 'btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border-emerald-600 shadow-sm';
+        b.className = 'btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer bg-emerald-600 text-white border-emerald-600 shadow-sm';
       } else {
-        b.className = 'btn-resp-drawer flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800';
+        b.className = 'btn-resp-drawer p-1.5 rounded-xl text-xs font-bold border text-center transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800';
       }
     });
   }
@@ -2055,35 +2512,35 @@
     const selectedOpt = sel.options[sel.selectedIndex];
     const tipo = selectedOpt ? selectedOpt.getAttribute('data-tipo') : '';
     const isCartao = (tipo === 'cartao') || contaValor.toLowerCase().includes('cart') || contaValor.toLowerCase().includes('inter');
-
-    const avisoCartao = document.getElementById('drawer-aviso-migracao-cartao');
-    const avisoConta = document.getElementById('drawer-aviso-conta-bancaria');
     const lblData = document.getElementById('label-drawer-data');
-
-    if (isCartao) {
-      if (avisoCartao) avisoCartao.classList.remove('hidden');
-      if (avisoConta) avisoConta.classList.add('hidden');
-      if (lblData) lblData.textContent = 'Data da Compra *';
-    } else {
-      if (avisoCartao) avisoCartao.classList.add('hidden');
-      if (avisoConta) avisoConta.classList.remove('hidden');
-      if (lblData) lblData.textContent = 'Data de Vencimento / Realização *';
+    if (lblData) {
+      lblData.textContent = isCartao ? 'Data da Compra *' : 'Data *';
     }
+  }
+
+  function toggleSecaoAccordionDrawer(secao) {
+    const sRec = document.getElementById('sec-accordion-recorrencia');
+    const sObs = document.getElementById('sec-accordion-observacao');
+    const sJur = document.getElementById('sec-accordion-juros');
+
+    if (secao === 'recorrencia' && sRec) sRec.classList.toggle('hidden');
+    if (secao === 'observacao' && sObs) sObs.classList.toggle('hidden');
+    if (secao === 'juros' && sJur) sJur.classList.toggle('hidden');
   }
 
   function aoAlternarRecorrenciaDrawer() {
     const chk = document.getElementById('drawer-lanc-recorrente');
     const bloco = document.getElementById('bloco-opcoes-recorrencia-drawer');
-    if (bloco) {
+    if (bloco && chk) {
       bloco.classList.toggle('hidden', !chk.checked);
     }
   }
 
   function aoMudarTipoTerminoDrawer() {
-    const rParc = document.getElementById('drawer-termino-parcelado');
-    const blocoQtd = document.getElementById('bloco-qtd-parcelas-drawer');
-    if (blocoQtd) {
-      blocoQtd.classList.toggle('hidden', !rParc.checked);
+    const sel = document.getElementById('drawer-lanc-tipo-termino');
+    const bloco = document.getElementById('bloco-qtd-parcelas-drawer');
+    if (bloco && sel) {
+      bloco.classList.toggle('hidden', sel.value !== 'parcelado');
     }
   }
 
@@ -2129,33 +2586,18 @@
       }
       selSub.appendChild(opt);
     });
-
-    if (subcatPre && !subs.some(s => s.toLowerCase() === subcatPre.toLowerCase())) {
-      const opt = document.createElement('option');
-      opt.value = subcatPre;
-      opt.textContent = subcatPre;
-      opt.selected = true;
-      selSub.appendChild(opt);
-    }
   }
 
   function calcularTotalFinalDrawerLancamento() {
-    const valBase = parseMoedaFloat(document.getElementById('drawer-lanc-valor').value);
-    const juros = parseMoedaFloat(document.getElementById('drawer-lanc-juros').value);
-    const desc = parseMoedaFloat(document.getElementById('drawer-lanc-desconto').value);
-    const total = Math.max(0, valBase + juros - desc);
-    const badge = document.getElementById('drawer-badge-valor-final');
-    if (badge) {
-      badge.textContent = 'Total: ' + formatarValorMoeda(total);
-    }
+    // Calculo dinamico de totais se necessario
   }
 
   async function salvarEdicaoLancamentoDrawer(event) {
-    event.preventDefault();
-    const btnSalvar = document.getElementById('btn-salvar-drawer-lanc');
-    const txtOriginal = btnSalvar.innerHTML;
-    btnSalvar.disabled = true;
-    btnSalvar.innerHTML = '<span class="inline-block animate-spin mr-1">⏳</span> Salvando...';
+    if (event) event.preventDefault();
+    const btnCheck = document.getElementById('btn-check-drawer');
+    const txtOriginal = btnCheck.innerHTML;
+    btnCheck.disabled = true;
+    btnCheck.innerHTML = '⏳';
 
     const id = document.getElementById('drawer-lanc-id').value;
     const tipo = document.querySelector('input[name="tipo"]:checked') ? document.querySelector('input[name="tipo"]:checked').value : 'despesa';
@@ -2169,12 +2611,11 @@
     const subcategoria = document.getElementById('drawer-lanc-subcategoria').value;
     const conta = document.getElementById('drawer-lanc-conta').value;
     const responsavel = document.getElementById('drawer-lanc-responsavel').value;
-    const pago = document.getElementById('drawer-lanc-pago').checked ? 1 : 0;
+    const pago = document.getElementById('drawer-lanc-pago').value;
     const recorrente = document.getElementById('drawer-lanc-recorrente').checked ? 1 : 0;
     const frequencia = document.getElementById('drawer-lanc-frequencia').value;
-    const tipo_termino = document.querySelector('input[name="tipo_termino"]:checked') ? document.querySelector('input[name="tipo_termino"]:checked').value : 'fixo';
+    const tipo_termino = document.getElementById('drawer-lanc-tipo-termino').value;
     const total_parcelas = parseInt(document.getElementById('drawer-lanc-total-parcelas').value || '1', 10);
-    const escopo_edicao = document.querySelector('input[name="escopo_edicao"]:checked') ? document.querySelector('input[name="escopo_edicao"]:checked').value : 'somente_esta';
 
     const payload = {
       id,
@@ -2194,7 +2635,7 @@
       frequencia,
       tipo_termino,
       total_parcelas,
-      escopo_edicao
+      escopo_edicao: 'somente_esta'
     };
 
     try {
@@ -2203,25 +2644,22 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
       const res = await resp.json();
-      if (resp.ok && res.sucesso) {
+      if (resp.ok && (res.sucesso || res.status === 'sucesso')) {
         fecharDrawerEditarLancamento();
-        if (typeof mostrarToast === 'function') {
-          mostrarToast(res.mensagem || 'Lançamento atualizado com sucesso!', 'sucesso');
+        if (typeof showToast === 'function') {
+          showToast('Lançamento Atualizado!', res.mensagem || 'Dados gravados com sucesso.');
         }
-        setTimeout(() => {
-          window.location.reload();
-        }, 300);
+        setTimeout(() => window.location.reload(), 300);
       } else {
-        alert('Erro ao salvar: ' + (res.erro || res.detail || 'Falha ao atualizar lançamento.'));
-        btnSalvar.disabled = false;
-        btnSalvar.innerHTML = txtOriginal;
+        alert('Erro ao salvar: ' + (res.erro || res.detail || 'Falha ao salvar lançamento.'));
+        btnCheck.disabled = false;
+        btnCheck.innerHTML = txtOriginal;
       }
     } catch(err) {
       alert('Erro de comunicação: ' + err.message);
-      btnSalvar.disabled = false;
-      btnSalvar.innerHTML = txtOriginal;
+      btnCheck.disabled = false;
+      btnCheck.innerHTML = txtOriginal;
     }
   }
 
@@ -2229,7 +2667,9 @@
     if (!lancamentoAtivoDrawer || !lancamentoAtivoDrawer.id) return;
     const desc = document.getElementById('drawer-lanc-descricao').value || 'Lançamento';
     fecharDrawerEditarLancamento();
-    excluirLancamento(lancamentoAtivoDrawer.id, desc);
+    if (typeof excluirLancamento === 'function') {
+      excluirLancamento(lancamentoAtivoDrawer.id, desc);
+    }
   }
 
   document.addEventListener('keydown', (e) => {
@@ -2238,643 +2678,15 @@
     }
   });
 
-  // Baixa com Modal Unificado (Juros, Desconto e Total Dinâmico)
-  function baixarConta(id, desc, val, contaNome, contaId) {
-    const linha = document.getElementById(`linha-tr-${id}`);
-    const valorOriginal = val !== undefined ? val : (linha ? parseFloat(linha.dataset.valor || '0') : 0);
-    const conta = contaNome || (linha ? (linha.dataset.conta || '') : '');
-    const dataTransacao = linha ? (linha.dataset.dataIso || '') : '';
-
-    if (typeof abrirModalBaixaGlobal === 'function') {
-      abrirModalBaixaGlobal({
-        id: id,
-        desc: desc,
-        valorOriginal: valorOriginal,
-        contaNome: conta,
-        contaId: contaId,
-        dataPagamento: dataTransacao,
-        titulo: 'Registrar Pagamento'
-      });
-      return;
-    }
-  }
-
-  // Baixa Direta Fallback
-  async function baixarContaLegado(id, desc) {
-    const btn = document.getElementById(`btn-acao-${id}`);
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add('opacity-50');
-    }
-
-    try {
-      const res = await fetch(`/api/baixa/${id}`, { method: 'POST' });
-      const data = await res.json();
-
-      if (data.sucesso) {
-        // Exibe Toast temporário com opção de [Desfazer]
-        showToast(
-          'Baixa Concluída!', 
-          data.mensagem, 
-          false, 
-          '↩️ Desfazer', 
-          () => confirmarDesfazerPagamento(id, desc, data.valor_baixado ? 'R$ ' + Number(data.valor_baixado).toFixed(2) : '')
-        );
-
-        // Atualizar linha visualmente para PAGA
-        const linha = document.getElementById(`linha-tr-${id}`);
-        if (linha) {
-          linha.setAttribute('data-pago', '1');
-          linha.setAttribute('data-atrasada', '0');
-          const tdStatus = linha.querySelector('.badge-status-pendente');
-          if (tdStatus) {
-            tdStatus.outerHTML = `<span class="badge-status-pago inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pago
-            </span>`;
-          }
-          if (btn) {
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'bg-emerald-500/15', 'text-emerald-600', 'border-emerald-500/30', 'hover:bg-emerald-500');
-            btn.classList.add('bg-amber-500/15', 'text-amber-600', 'dark:text-amber-400', 'border-amber-500/30', 'hover:bg-amber-500', 'hover:text-white');
-            btn.title = 'Desfazer pagamento (reverter para pendente)';
-            btn.setAttribute('aria-label', `Desfazer pagamento de ${desc}`);
-            btn.onclick = () => confirmarDesfazerPagamento(id, desc, '');
-            btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>`;
-          }
-
-          // Atualizar opção no menu ⋯
-          const menuContainer = document.getElementById(`item-menu-desfazer-container-${id}`);
-          if (menuContainer) {
-            menuContainer.innerHTML = `<button type="button"
-                    onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento(${id}, '${desc.replace(/'/g, "\\'")}', '')"
-                    class="w-full flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-              <span>Desfazer Pagamento</span>
-            </button>`;
-          }
-        }
-      } else {
-        showToast('Erro ao Baixar', data.erro || 'Falha na operação', true);
-        if (btn) {
-          btn.disabled = false;
-          btn.classList.remove('opacity-50');
-        }
-      }
-    } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('opacity-50');
-      }
-    }
-  }
-
-  // Desfazer Pagamento ou Recebimento com Confirmação e Restauração de Linha
-  async function confirmarDesfazerPagamento(id, desc, val, tipo) {
-    const linha = document.getElementById(`linha-tr-${id}`);
-    const tipoReal = tipo || (linha ? (linha.dataset.tipo || 'despesa') : 'despesa');
-    const isReceita = (tipoReal === 'receita');
-    const termoAcao = isReceita ? 'recebimento' : 'pagamento';
-    const termoTitulo = isReceita ? 'Recebimento Desfeito!' : 'Pagamento Desfeito!';
-
-    const msg = val ? `Deseja realmente desfazer o ${termoAcao} de "${desc}" (${val}) e retornar para pendente?` : `Deseja desfazer o ${termoAcao} de "${desc}" e retornar para pendente?`;
-    if (!confirm(msg)) return;
-
-    const btn = document.getElementById(`btn-acao-${id}`);
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add('opacity-50');
-    }
-
-    try {
-      const res = await fetch(`/api/pagamento/desfazer/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ motivo: `Desfazer ${termoAcao} solicitado pelo usuário em Lançamentos` })
-      });
-      const data = await res.json();
-
-      if (data.sucesso) {
-        showToast(termoTitulo, data.mensagem);
-
-        // Atualizar linha visualmente para PENDENTE / ATRASADA
-        if (linha) {
-          linha.setAttribute('data-pago', '0');
-          const tdStatus = linha.querySelector('.badge-status-pago') || linha.querySelector('.badge-status-pendente');
-          
-          // Verificar se a data original já venceu (apenas para despesas)
-          const dataVenc = data.data_vencimento || '';
-          const hojeStr = new Date().toISOString().slice(0, 10);
-          const ehAtrasada = !isReceita && dataVenc && dataVenc < hojeStr;
-
-          if (ehAtrasada) {
-            linha.setAttribute('data-atrasada', '1');
-            if (tdStatus) {
-              tdStatus.outerHTML = `<span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Atrasada
-              </span>`;
-            }
-          } else {
-            linha.setAttribute('data-atrasada', '0');
-            if (tdStatus) {
-              tdStatus.outerHTML = `<span class="badge-status-pendente inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pendente
-              </span>`;
-            }
-          }
-
-          if (btn) {
-            btn.disabled = false;
-            if (isReceita) {
-              // Para receita pendente, ocultamos o botão primário ou definimos ação de receber
-              btn.classList.add('hidden');
-            } else {
-              btn.classList.remove('opacity-50', 'bg-amber-500/15', 'text-amber-600', 'border-amber-500/30', 'hover:bg-amber-500');
-              btn.classList.add('bg-emerald-500/15', 'text-emerald-600', 'dark:text-emerald-400', 'border-emerald-500/30', 'hover:bg-emerald-500', 'hover:text-white');
-              btn.title = 'Registrar pagamento';
-              btn.setAttribute('aria-label', `Registrar pagamento de ${desc}`);
-              btn.onclick = () => baixarConta(id, desc);
-              btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
-            }
-          }
-
-          // Atualizar opção no menu ⋯
-          const menuContainer = document.getElementById(`item-menu-desfazer-container-${id}`);
-          if (menuContainer) {
-            if (isReceita) {
-              menuContainer.innerHTML = '';
-            } else {
-              menuContainer.innerHTML = `<button type="button"
-                      onclick="fecharTodosMenusAcoes(); baixarConta(${id}, '${desc.replace(/'/g, "\\'")}')"
-                      class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                <span>Registrar Pagamento</span>
-              </button>`;
-            }
-          }
-        }
-      } else {
-        showToast('Erro ao Desfazer', data.erro || 'Falha na reversão', true);
-        if (btn) {
-          btn.disabled = false;
-          btn.classList.remove('opacity-50');
-        }
-      }
-    } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('opacity-50');
-      }
-    }
-  }
-
-  // Excluir Lançamento com Confirmação
-  async function excluirLancamento(id, desc) {
-    if (!confirm(`Deseja realmente excluir o lançamento "${desc}"? Esta ação removerá o registro.`)) return;
-
-    try {
-      const res = await fetch('/contas/excluir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transacao_id: id, escopo: 'pontual' })
-      });
-      const data = await res.json();
-      if (data.sucesso) {
-        showToast('Lançamento Excluído', data.mensagem);
-        const linha = document.getElementById(`linha-tr-${id}`);
-        if (linha) {
-          linha.remove();
-        }
-      } else {
-        showToast('Erro ao Excluir', data.erro || 'Falha na exclusão', true);
-      }
-    } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
-    }
-  }
-
-  // Modais
-  function calcularValorFinalLancamento() {
-    const valOriginal = parseValorMonetario(document.getElementById('input-valor')?.value);
-    const juros = parseValorMonetario(document.getElementById('input-juros')?.value);
-    const desconto = parseValorMonetario(document.getElementById('input-desconto')?.value);
-    const valFinal = Math.max(0, valOriginal + juros - desconto);
-    
-    const badge = document.getElementById('badge-valor-final');
-    if (badge) {
-      const fmtFinal = valFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      if (juros > 0 || desconto > 0) {
-        badge.innerHTML = `<span class="text-emerald-500 font-extrabold">Final: R$ ${fmtFinal}</span>`;
-      } else {
-        badge.textContent = `Total Final: R$ ${fmtFinal}`;
-      }
-    }
-    return valFinal;
-  }
-
-  function definirResponsavelLancamento(val) {
-    const inputResp = document.getElementById('input-responsavel');
-    const inputOutro = document.getElementById('input-responsavel-outro');
-    const container = document.getElementById('grid-lanc-responsavel');
-    const respClean = (val || 'Carlos').trim();
-
-    if (inputResp) inputResp.value = respClean;
-
-    if (respClean.toLowerCase() === 'outro') {
-      if (inputOutro) {
-        inputOutro.classList.remove('hidden');
-        inputOutro.focus();
-        if (inputResp) inputResp.value = inputOutro.value || 'Outro';
-        inputOutro.oninput = () => { if (inputResp) inputResp.value = inputOutro.value || 'Outro'; };
-      }
-    } else {
-      if (inputOutro) inputOutro.classList.add('hidden');
-    }
-
-    if (!container) return;
-    const buttons = container.querySelectorAll('[data-resp]');
-    let achou = false;
-
-    buttons.forEach(btn => {
-      const bResp = (btn.getAttribute('data-resp') || '').trim();
-      const isActive = (bResp.toLowerCase() === respClean.toLowerCase());
-
-      if (isActive) {
-        achou = true;
-        // Estado ativo destacado: fundo preenchido, texto em branco semibold, borda ativa e sombra leve
-        btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
-      } else {
-        // Estado neutro inativo
-        btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700';
-      }
-    });
-
-    if (!achou && respClean && respClean.toLowerCase() !== 'a confirmar') {
-      buttons.forEach(btn => {
-        if ((btn.getAttribute('data-resp') || '').toLowerCase() === 'outro') {
-          btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-emerald-600 text-white border border-emerald-600 shadow-sm';
-          if (inputOutro) {
-            inputOutro.classList.remove('hidden');
-            inputOutro.value = respClean;
-          }
-        }
-      });
-    }
-  }
-
-  function abrirModalLancamento() {
-    document.getElementById('input-id').value = '';
-    document.getElementById('input-grupo-parcelamento').value = '';
-    document.getElementById('modal-lancamento-titulo').textContent = 'Novo Lançamento';
-    document.getElementById('modal-lancamento-icone').textContent = '📝';
-    document.getElementById('btn-submit-lancamento').textContent = 'Salvar Lançamento';
-    document.getElementById('radio-tipo-despesa').checked = true;
-    document.getElementById('input-data').value = '{{ hoje_str }}';
-    document.getElementById('input-valor').value = '';
-    document.getElementById('input-juros').value = '';
-    document.getElementById('input-desconto').value = '';
-    document.getElementById('input-motivo-ajuste').value = '';
-    document.getElementById('input-descricao').value = '';
-    document.getElementById('input-categoria').value = 'Alimentação';
-    atualizarSubcategorias();
-    document.getElementById('input-conta').value = 'Mercado Pago';
-    document.getElementById('input-pago').checked = true;
-    definirResponsavelLancamento('Carlos');
-
-    // Reset de identificadores de recorrência e seções expansíveis
-    const blocoRecorr = document.getElementById('bloco-identificacao-recorrencia');
-    if (blocoRecorr) blocoRecorr.classList.add('hidden');
-    const badgeAvulso = document.getElementById('badge-lancamento-avulso');
-    if (badgeAvulso) badgeAvulso.classList.add('hidden');
-    const rEscopo = document.getElementById('escopo-somente-esta');
-    if (rEscopo) rEscopo.checked = true;
-
-    const detalhesJuros = document.getElementById('detalhes-juros-descontos');
-    if (detalhesJuros) detalhesJuros.open = false;
-
-    calcularValorFinalLancamento();
-    document.getElementById('modal-lancamento').classList.remove('hidden');
-    document.getElementById('input-descricao').focus();
-  }
-
-  function abrirModalEditarLancamento(btn) {
-    const id = btn.getAttribute('data-id') || '';
-    const data = btn.getAttribute('data-data') || '{{ hoje_str }}';
-    const tipo = btn.getAttribute('data-tipo') || 'despesa';
-    const valor = parseFloat(btn.getAttribute('data-valor') || '0');
-    const juros = parseFloat(btn.getAttribute('data-juros') || '0');
-    const desconto = parseFloat(btn.getAttribute('data-desconto') || '0');
-    const motivo = btn.getAttribute('data-motivo') || '';
-    const descricao = btn.getAttribute('data-descricao') || '';
-    let categoria = btn.getAttribute('data-categoria') || 'Alimentação';
-    const subcategoria = btn.getAttribute('data-subcategoria') || '';
-    const conta = btn.getAttribute('data-conta') || 'Mercado Pago';
-    const pago = btn.getAttribute('data-pago') === '1';
-    const grp = btn.getAttribute('data-grupo-parcelamento') || '';
-    const statusRateio = btn.getAttribute('data-status-rateio') || '';
-
-    document.getElementById('input-id').value = id;
-    document.getElementById('input-grupo-parcelamento').value = grp;
-    document.getElementById('modal-lancamento-titulo').textContent = 'Editar Lançamento';
-    document.getElementById('modal-lancamento-icone').textContent = '✏️';
-    document.getElementById('btn-submit-lancamento').textContent = 'Salvar Alterações';
-
-    if (tipo === 'receita') {
-      document.getElementById('radio-tipo-receita').checked = true;
-    } else {
-      document.getElementById('radio-tipo-despesa').checked = true;
-    }
-
-    document.getElementById('input-data').value = data;
-    
-    // Valor base original = valor_final - juros + desconto
-    const valBase = (valor - juros + desconto > 0) ? (valor - juros + desconto) : valor;
-    document.getElementById('input-valor').value = valBase > 0 ? formatarValorMoeda(valBase) : '';
-    document.getElementById('input-juros').value = juros > 0 ? formatarValorMoeda(juros) : '';
-    document.getElementById('input-desconto').value = desconto > 0 ? formatarValorMoeda(desconto) : '';
-    document.getElementById('input-motivo-ajuste').value = motivo;
-    document.getElementById('input-descricao').value = descricao;
-
-    const selCat = document.getElementById('input-categoria');
-    if (!Array.from(selCat.options).some(opt => opt.value === categoria)) {
-      const optExtra = document.createElement('option');
-      optExtra.value = categoria;
-      optExtra.textContent = categoria;
-      selCat.appendChild(optExtra);
-    }
-    selCat.value = categoria;
-    atualizarSubcategorias(subcategoria);
-
-    const selConta = document.getElementById('input-conta');
-    if (Array.from(selConta.options).some(opt => opt.value === conta)) {
-      selConta.value = conta;
-    }
-    document.getElementById('input-pago').checked = pago;
-
-    let titularEdicao = (btn.getAttribute('data-titular') || '').trim();
-    if (titularEdicao.toLowerCase() === 'aparecida') titularEdicao = 'Família';
-    if (!titularEdicao || titularEdicao.toLowerCase() === 'a confirmar') titularEdicao = 'Carlos';
-    definirResponsavelLancamento(titularEdicao);
-
-    // Identificação de Recorrência vs Lançamento Avulso
-    const RECORRENCIAS_PADRAO = ['copasa', 'cemig', 'youcine', 'wellhub', 'audible', 'claro', 'pós-graduação', 'pos-graduacao', 'internet'];
-    const descLower = descricao.toLowerCase();
-    const ehRecorrente = Boolean(
-      (grp && (grp.startsWith('fixa_') || grp.includes('recorrente'))) ||
-      statusRateio === 'fixa_recorrente' ||
-      RECORRENCIAS_PADRAO.some(term => descLower.includes(term))
-    );
-
-    const blocoRecorr = document.getElementById('bloco-identificacao-recorrencia');
-    const badgeAvulso = document.getElementById('badge-lancamento-avulso');
-    const badgeInfoRecorr = document.getElementById('badge-info-recorrencia');
-
-    if (ehRecorrente) {
-      if (blocoRecorr) blocoRecorr.classList.remove('hidden');
-      if (badgeAvulso) badgeAvulso.classList.add('hidden');
-      if (badgeInfoRecorr) {
-        badgeInfoRecorr.textContent = grp ? grp.replace('fixa_', '').replace(/_/g, ' ') : 'Recorrente Mensal';
-      }
-      const rEscopo = document.getElementById('escopo-somente-esta');
-      if (rEscopo) rEscopo.checked = true;
-    } else {
-      if (blocoRecorr) blocoRecorr.classList.add('hidden');
-      if (badgeAvulso) badgeAvulso.classList.remove('hidden');
-      const rEscopo = document.getElementById('escopo-somente-esta');
-      if (rEscopo) rEscopo.checked = true;
-    }
-
-    // Seção compacta de Juros/Descontos: aberta se houver valores
-    const detalhesJuros = document.getElementById('detalhes-juros-descontos');
-    if (detalhesJuros) {
-      detalhesJuros.open = (juros > 0 || desconto > 0);
-    }
-
-    calcularValorFinalLancamento();
-    document.getElementById('modal-lancamento').classList.remove('hidden');
-    document.getElementById('input-descricao').focus();
-  }
-
-  function fecharModalLancamento() {
-    document.getElementById('modal-lancamento').classList.add('hidden');
-  }
-
-  function atualizarEstiloTipo() {
-    // Dinâmico caso necessário
-  }
-
-  function formatarValorMoeda(num) {
-    return Number(num || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
-  function aplicarMascaraMoeda(input) {
-    if (!input) return 0.0;
-    const digitos = String(input.value || '').replace(/\D/g, '');
-    if (!digitos) {
-      input.value = '';
-      return 0.0;
-    }
-    const val = parseInt(digitos, 10) / 100;
-    input.value = formatarValorMoeda(val);
-    return val;
-  }
-
-  function parseValorMonetario(val) {
-    if (val === null || val === undefined || val === '') return 0.0;
-    if (typeof val === 'number') return isNaN(val) ? 0.0 : val;
-    const str = String(val).trim();
-    const digitos = str.replace(/\D/g, '');
-    if (!digitos) return 0.0;
-    if (!str.includes('R$') && str.includes('.') && !str.includes(',')) {
-      const flt = parseFloat(str);
-      if (!isNaN(flt)) return flt;
-    }
-    return parseInt(digitos, 10) / 100;
-  }
-
-
-  function toggleSplitLancamentoPage() {
-    const chk = document.getElementById('lanc-check-split');
-    const campos = document.getElementById('lanc-campos-split');
-    const wrapUnica = document.getElementById('lanc-wrap-conta-unica');
-    if (!chk || !campos) return;
-    if (chk.checked) {
-      campos.classList.remove('hidden');
-      if (wrapUnica) wrapUnica.classList.add('hidden');
-      calcularSplitLancamentoPageRestante();
-    } else {
-      campos.classList.add('hidden');
-      if (wrapUnica) wrapUnica.classList.remove('hidden');
-    }
-  }
-
-  function calcularSplitLancamentoPageRestante() {
-    const valOriginal = parseValorMonetario(document.getElementById('input-valor')?.value);
-    const juros = parseValorMonetario(document.getElementById('input-juros')?.value);
-    const desconto = parseValorMonetario(document.getElementById('input-desconto')?.value);
-    const total = Math.max(0, valOriginal + juros - desconto);
-
-    const v1El = document.getElementById('lanc-input-split-valor-1');
-    const v2El = document.getElementById('lanc-input-split-valor-2');
-    const aviso = document.getElementById('lanc-split-aviso');
-
-    let v1 = 0;
-    if (v1El && v1El.value) {
-      v1 = parseValorMonetario(v1El.value);
-    } else if (v1El && total > 0) {
-      v1 = Math.round((total * 0.6) * 100) / 100;
-      v1El.value = formatarValorMoeda(v1);
-    }
-
-    const v2 = Math.max(0, Math.round((total - v1) * 100) / 100);
-    if (v2El) {
-      v2El.value = formatarValorMoeda(v2);
-    }
-
-    if (aviso) {
-      const soma = Math.round((v1 + v2) * 100) / 100;
-      const ok = Math.abs(soma - total) < 0.01 && total > 0;
-      aviso.className = ok ? 'text-[10px] font-bold text-emerald-600 dark:text-emerald-400' : 'text-[10px] font-bold text-rose-500';
-      aviso.textContent = `Total dividido: R$ ${v1.toFixed(2).replace('.', ',')} + R$ ${v2.toFixed(2).replace('.', ',')} = R$ ${soma.toFixed(2).replace('.', ',')} de R$ ${total.toFixed(2).replace('.', ',')} ${ok ? '✓' : '(Divergente)'}`;
-    }
-  }
-
-  function validarSplitLancamentoPageManual() {
-    const valOriginal = parseValorMonetario(document.getElementById('input-valor')?.value);
-    const juros = parseValorMonetario(document.getElementById('input-juros')?.value);
-    const desconto = parseValorMonetario(document.getElementById('input-desconto')?.value);
-    const total = Math.max(0, valOriginal + juros - desconto);
-
-    const v1 = parseValorMonetario(document.getElementById('lanc-input-split-valor-1')?.value);
-    const v2 = parseValorMonetario(document.getElementById('lanc-input-split-valor-2')?.value);
-    const soma = Math.round((v1 + v2) * 100) / 100;
-    const aviso = document.getElementById('lanc-split-aviso');
-
-    if (aviso) {
-      const ok = Math.abs(soma - total) < 0.01 && total > 0;
-      aviso.className = ok ? 'text-[10px] font-bold text-emerald-600 dark:text-emerald-400' : 'text-[10px] font-bold text-rose-500';
-      aviso.textContent = `Total dividido: R$ ${v1.toFixed(2).replace('.', ',')} + R$ ${v2.toFixed(2).replace('.', ',')} = R$ ${soma.toFixed(2).replace('.', ',')} de R$ ${total.toFixed(2).replace('.', ',')} ${ok ? '✓' : '(Divergente)'}`;
-    }
-  }
-
-  async function salvarLancamento(event) {
-    event.preventDefault();
-    const btn = document.getElementById('btn-submit-lancamento');
-    const idEdicao = document.getElementById('input-id').value;
-    btn.disabled = true;
-    btn.textContent = 'Salvando...';
-
-    const form = document.getElementById('form-novo-lancamento');
-    const formData = new FormData(form);
-
-    // Garante que o valor enviado seja o Valor Final (Original + Juros - Desconto)
-    const valOriginal = parseValorMonetario(document.getElementById('input-valor').value);
-    const juros = parseValorMonetario(document.getElementById('input-juros').value);
-    const desconto = parseValorMonetario(document.getElementById('input-desconto').value);
-    const motivoAjuste = document.getElementById('input-motivo-ajuste').value.trim();
-    const valFinal = Math.max(0, valOriginal + juros - desconto);
-
-    formData.set('valor', valFinal.toFixed(2));
-    formData.set('juros', juros.toFixed(2));
-    formData.set('desconto', desconto.toFixed(2));
-    formData.set('motivo_ajuste', motivoAjuste);
-
-    const chkPageSplit = document.getElementById('lanc-check-split');
-    const tipoVal = document.getElementById('input-tipo')?.value || 'despesa';
-    if (!idEdicao && tipoVal === 'despesa' && chkPageSplit && chkPageSplit.checked) {
-      const c1 = document.getElementById('lanc-select-split-conta-1')?.value || 'Mercado Pago';
-      const c2 = document.getElementById('lanc-select-split-conta-2')?.value || 'Dinheiro / Carteira';
-      const v1 = parseValorMonetario(document.getElementById('lanc-input-split-valor-1')?.value);
-      const v2 = parseValorMonetario(document.getElementById('lanc-input-split-valor-2')?.value);
-
-      if (v1 <= 0 || v2 <= 0) {
-        showToast('Atenção', 'Informe valores válidos para ambas as contas no split.', true);
-        btn.disabled = false;
-        btn.textContent = 'Salvar Lançamento';
-        return;
-      }
-      if (Math.abs((v1 + v2) - valFinal) > 0.01) {
-        showToast('Atenção', `A soma das contas (R$ ${(v1+v2).toFixed(2)}) deve ser igual ao total (R$ ${valFinal.toFixed(2)}).`, true);
-        btn.disabled = false;
-        btn.textContent = 'Salvar Lançamento';
-        return;
-      }
-
-      formData.set('split_pagamento', '1');
-      formData.set('conta', c1);
-      formData.set('conta_2', c2);
-      formData.set('valor_1', v1.toFixed(2));
-      formData.set('valor_2', v2.toFixed(2));
-    } else {
-      formData.set('split_pagamento', '0');
-    }
-
-    // Escopo de edição (somente_esta, esta_e_proximas, toda_serie)
-    const rEscopoChecked = document.querySelector('input[name="escopo_edicao"]:checked');
-    if (rEscopoChecked) {
-      formData.set('escopo_edicao', rEscopoChecked.value);
-    } else {
-      formData.set('escopo_edicao', 'somente_esta');
-    }
-
-    const url = idEdicao ? '/api/lancamentos/editar' : '/api/lancamentos';
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.status === 'sucesso' || data.sucesso) {
-        showToast(idEdicao ? 'Lançamento Atualizado!' : 'Lançamento Registrado!', data.mensagem || 'Operação realizada com sucesso!');
-        setTimeout(() => location.reload(), 800);
-      } else {
-        showToast('Erro ao Salvar', data.erro || data.detail || 'Falha ao salvar lançamento', true);
-        btn.disabled = false;
-        btn.textContent = idEdicao ? 'Salvar Alterações' : 'Salvar Lançamento';
-      }
-    } catch (err) {
-      showToast('Erro de Conexão', err.message, true);
-      btn.disabled = false;
-      btn.textContent = idEdicao ? 'Salvar Alterações' : 'Salvar Lançamento';
-    }
-  }
-
+  // Inicialização no carregamento
   document.addEventListener('DOMContentLoaded', () => {
-    atualizarSubcategorias();
-    
-    // Inicialização da ordenação e preferência salva
+    filtrarTabela();
     const urlParams = new URLSearchParams(window.location.search);
-    const ordemUrl = urlParams.get('ordem');
-    let ordemPreferida = 'crescente';
-    try {
-      ordemPreferida = localStorage.getItem('oikos_ordem_lancamentos') || 'crescente';
-    } catch(e) {}
-
-    if (!ordemUrl && ordemPreferida && ordemPreferida !== ordemAtual) {
-      alterarOrdenacao(ordemPreferida);
-    } else {
-      if (ordemUrl) {
-        ordemAtual = (ordemUrl === 'decrescente') ? 'decrescente' : 'crescente';
-        try { localStorage.setItem('oikos_ordem_lancamentos', ordemAtual); } catch(e) {}
-      }
-      atualizarBotoesOrdemUI(ordemAtual);
-    }
-
-    if (urlParams.get('filtro') === 'atrasadas') {
-      setFiltroStatus('atrasadas');
-    } else {
-      atualizarBotoesFiltro();
-      filtrarTabela();
-    }
-
-    const modalId = urlParams.get('modal_id') || urlParams.get('editar_id');
-    if (modalId) {
-      setTimeout(() => abrirGavetaEditarLancamentoDireto(modalId), 150);
-    } else if (urlParams.get('novo_lancamento') === '1') {
-      setTimeout(() => abrirModalLancamento(), 150);
+    const editarId = urlParams.get('modal_id') || urlParams.get('editar_id');
+    if (editarId) {
+      setTimeout(() => abrirGavetaEditarLancamentoDireto(editarId), 200);
     }
   });
+
 </script>
 {% endblock %}

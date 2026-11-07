@@ -2400,6 +2400,88 @@ async def api_editar_lancamento_unificado(
         conn.close()
 
 
+@app.post("/api/lancamentos/{transacao_id}/toggle-status")
+async def api_toggle_status_lancamento(transacao_id: int):
+    """
+    Alterna imediatamente o status de um lançamento entre Pendente e Pago (estilo Organizze):
+    - Se estava Pago (pago=1): reverte para Pendente, estornando da conta se aplicável.
+    - Se estava Pendente (pago=0): confirma como Pago, debitando da conta correspondente se afetar saldo.
+    """
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM transacoes WHERE id = ?", (transacao_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Lançamento não encontrado."})
+        
+        t = dict(row)
+        pago_atual = int(t.get("pago") or 0)
+        descricao = t.get("descricao") or "Lançamento"
+        hoje_str = date.today().strftime("%Y-%m-%d")
+        
+        if pago_atual == 1:
+            try:
+                saldo_service.desfazer_pagamento_transacao(conn, transacao_id, motivo="Toggle rápido para Pendente")
+            except Exception:
+                pass
+            cur.execute("""
+                UPDATE transacoes 
+                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL 
+                WHERE id = ?
+            """, (transacao_id,))
+            conn.commit()
+            return JSONResponse({
+                "sucesso": True,
+                "novo_status": "pendente",
+                "pago": 0,
+                "id": transacao_id,
+                "mensagem": f"'{descricao}' marcado como Pendente."
+            })
+        else:
+            valor_total = float(t.get("valor") or 0.0)
+            conta_id = int(t.get("conta_id") or 1)
+            afeta = int(t.get("afeta_saldo_bancario") if t.get("afeta_saldo_bancario") is not None else 1)
+            
+            # Não debita se for cartão de crédito avulso
+            eh_cartao = (t.get("tipo") == "cartao") or str(t.get("conta") or "").lower().startswith("cart")
+            if eh_cartao:
+                afeta = 0
+
+            try:
+                if afeta == 1:
+                    saldo_service.registrar_pagamento(
+                        conn,
+                        transacao_id=transacao_id,
+                        data_pagamento=hoje_str,
+                        valor_pago=valor_total,
+                        conta_id=conta_id,
+                        afeta_saldo_bancario=1,
+                        observacao="Baixa rápida via toggle Organizze"
+                    )
+            except Exception:
+                pass
+                
+            cur.execute("""
+                UPDATE transacoes 
+                SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?, valor_pago = ?
+                WHERE id = ?
+            """, (hoje_str, valor_total, transacao_id))
+            conn.commit()
+            return JSONResponse({
+                "sucesso": True,
+                "novo_status": "pago",
+                "pago": 1,
+                "id": transacao_id,
+                "mensagem": f"'{descricao}' confirmado como Pago!"
+            })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 # =============================================================================
 # ROTAS: CONTAS & COFRINHOS
 # =============================================================================
