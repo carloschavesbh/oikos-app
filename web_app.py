@@ -1170,10 +1170,33 @@ async def pagina_lancamentos(
         except Exception:
             pass
 
-    if ano is None:
-        ano = hoje.year
-    if mes is None or mes < 1 or mes > 12:
-        mes = hoje.month
+    if mes is None and ano is None:
+        cur_chk = conn.cursor()
+        if c:
+            cur_chk.execute("SELECT dia_fechamento FROM cartoes WHERE id = ?", (c,))
+            r_chk = cur_chk.fetchone()
+            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
+        else:
+            cur_chk.execute("SELECT dia_fechamento FROM cartoes ORDER BY id ASC LIMIT 1")
+            r_chk = cur_chk.fetchone()
+            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
+
+        # Se já passou do fechamento deste mês (ex: hoje > 01/11), fatura aberta padrão é o próximo ciclo (Dezembro/2026)
+        if hoje.day >= dia_fech_padrao:
+            if hoje.month == 12:
+                mes = 1
+                ano = hoje.year + 1
+            else:
+                mes = hoje.month + 1
+                ano = hoje.year
+        else:
+            mes = hoje.month
+            ano = hoje.year
+    else:
+        if ano is None:
+            ano = hoje.year
+        if mes is None or mes < 1 or mes > 12:
+            mes = hoje.month
 
     materializar_parcelas_futuras_cartao(conn)
     MESES_PT = [
@@ -3545,10 +3568,33 @@ async def pagina_cartoes(
     conn = conectar_db()
     hoje = date.today()
 
-    if ano is None:
-        ano = hoje.year
-    if mes is None or mes < 1 or mes > 12:
-        mes = hoje.month
+    if mes is None and ano is None:
+        cur_chk = conn.cursor()
+        if c:
+            cur_chk.execute("SELECT dia_fechamento FROM cartoes WHERE id = ?", (c,))
+            r_chk = cur_chk.fetchone()
+            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
+        else:
+            cur_chk.execute("SELECT dia_fechamento FROM cartoes ORDER BY id ASC LIMIT 1")
+            r_chk = cur_chk.fetchone()
+            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
+
+        # Se já passou do fechamento deste mês (ex: hoje > 01/11), fatura aberta padrão é o próximo ciclo (Dezembro/2026)
+        if hoje.day >= dia_fech_padrao:
+            if hoje.month == 12:
+                mes = 1
+                ano = hoje.year + 1
+            else:
+                mes = hoje.month + 1
+                ano = hoje.year
+        else:
+            mes = hoje.month
+            ano = hoje.year
+    else:
+        if ano is None:
+            ano = hoje.year
+        if mes is None or mes < 1 or mes > 12:
+            mes = hoje.month
 
     garantir_schema_cartoes(conn)
     materializar_parcelas_futuras_cartao(conn)
@@ -3703,6 +3749,31 @@ async def pagina_cartoes(
         total_pago = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 1)
         total_pendente = sum(float(it["valor"] or 0.0) for it in compras if it["pago"] == 0)
 
+        # Agrupamento de Gastos por Categoria da Fatura para Donut Chart
+        PALETA_CORES_DONUT = [
+            "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6",
+            "#ec4899", "#06b6d4", "#f97316", "#64748b"
+        ]
+        gastos_por_cat = {}
+        for it in compras:
+            c_nome = (it.get("categoria") or "Outros").strip()
+            gastos_por_cat[c_nome] = gastos_por_cat.get(c_nome, 0.0) + float(it.get("valor") or 0.0)
+
+        categorias_fatura = []
+        offset_donut = 0.0
+        for idx, (cat_nome, cat_val) in enumerate(sorted(gastos_por_cat.items(), key=lambda x: x[1], reverse=True)):
+            pct = (cat_val / tot_fatura * 100.0) if tot_fatura > 0 else 0.0
+            cor = PALETA_CORES_DONUT[idx % len(PALETA_CORES_DONUT)]
+            categorias_fatura.append({
+                "categoria": cat_nome,
+                "valor": cat_val,
+                "pct": round(pct, 1),
+                "cor": cor,
+                "dasharray": f"{pct:.2f} {max(0.0, 100.0 - pct):.2f}",
+                "dashoffset": f"{-offset_donut:.2f}"
+            })
+            offset_donut += pct
+
         # Verifica se existe pagamento de fatura registrado para este cartão/mês na conta bancária
         cur.execute("""
             SELECT id, conta, valor FROM transacoes
@@ -3732,7 +3803,8 @@ async def pagina_cartoes(
             "ultimos_digitos": ultimos_digitos,
             "titular": titular_cartao,
             "icone": icone_cartao,
-            "compras": compras
+            "compras": compras,
+            "categorias_fatura": categorias_fatura
         }
         cartoes_dados.append(c_info)
 

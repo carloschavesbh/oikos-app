@@ -1,26 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Oikos | Cartões de Crédito & Faturas{% endblock %}
+{% block title %}Oikos | Meus Cartões{% endblock %}
 
 {% block content %}
 <div class="space-y-5 w-full min-w-0 max-w-full overflow-x-hidden">
 
-  <!-- CABEÇALHO -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800/80">
-    <div>
-      <div class="flex items-center gap-2">
-        <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-          <span>💳</span> Cartões de Crédito & Faturas
-        </h1>
-        <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-          Cartões Reais
-        </span>
-      </div>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Controle de limites, fechamento e faturas reais dos cartões cadastrados.</p>
+  <!-- CABEÇALHO DESPOLUÍDO -->
+  <div class="flex items-center justify-between gap-3 pb-2.5 border-b border-slate-200 dark:border-slate-800/80">
+    <div class="flex items-center gap-2">
+      <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+        <span>💳</span> Meus Cartões
+      </h1>
+      <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+        Cartões Reais
+      </span>
     </div>
 
-    <!-- Ações do Topo: Seletor de Cartões + Botões de Ação -->
-    <div class="flex flex-wrap items-center gap-2">
+    <!-- Ações do Topo: Seletor de Cartões + Botão Novo Cartão -->
+    <div class="flex items-center gap-2">
       {% if cartoes | length > 1 %}
       <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl">
         {% for crd in cartoes %}
@@ -36,15 +33,10 @@
       {% endif %}
 
       <button type="button"
-              onclick="abrirModalDespesaCartao({{ cartao_ativo.id if cartao_ativo else (cartoes[0].id if cartoes else 'null') }})"
-              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-        <span>+</span> Despesa no Cartão
-      </button>
-
-      <button type="button"
               onclick="abrirModalNovoCartao()"
-              class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1.5 cursor-pointer">
-        <span>+</span> Novo Cartão
+              class="h-9 px-3.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        <span>Novo Cartão</span>
       </button>
     </div>
   </div>
@@ -118,50 +110,50 @@
         </div>
       </div>
 
-      <!-- RESUMO DE LIMITES E AÇÕES DO CARTÃO ATIVO (Col 8) -->
-      <div class="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
+      <!-- RESUMO DE LIMITES E AÇÕES DO CARTÃO ATIVO (Col 4) -->
+      <div class="lg:col-span-4 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs">
         <!-- Topo com título e botões discretos no canto direito -->
-        <div class="flex flex-wrap items-center justify-between gap-2 pb-1 sm:pb-0">
-          <div class="flex flex-wrap items-center gap-1.5 min-w-0">
-            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <span>📊</span> Limites & Fatura
+        <div class="flex flex-wrap items-center justify-between gap-1 pb-1">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+              <span>📊</span> Limites
             </h2>
-            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/80">
-              Fech. dia {{ "%02d"|format(crd.dia_fechamento) }} • Venc. dia {{ "%02d"|format(crd.dia_vencimento) }}
+            <span class="text-[10px] px-1.5 py-0.2 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/80">
+              Fech. {{ "%02d"|format(crd.dia_fechamento) }} • Venc. {{ "%02d"|format(crd.dia_vencimento) }}
             </span>
           </div>
 
-          <!-- Botões discretos de Nova Despesa, Editar e Excluir -->
-          <div class="flex items-center gap-1.5 shrink-0">
+          <!-- Botões discretos de Editar e Excluir -->
+          <div class="flex items-center gap-1 shrink-0">
             <button type="button"
                     onclick='abrirModalEditarCartao({{ crd.id }}, {{ crd.nome | tojson }}, {{ crd.bandeira | tojson }}, {{ crd.limite_total }}, {{ crd.dia_fechamento }}, {{ crd.dia_vencimento }}, {{ (crd.ultimos_digitos or "0000") | tojson }}, {{ (crd.titular or "Carlos") | tojson }}, {{ (crd.cor or "#ea580c") | tojson }}, {{ (crd.icone or (crd.nome | icone_banco)) | tojson }})'
-                    class="px-2 py-1 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    class="px-1.5 py-0.5 rounded-md text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 transition flex items-center gap-0.5 cursor-pointer"
                     title="Editar Cartão">
               <span>✏️</span> Editar
             </button>
             <button type="button"
                     onclick='excluirCartao({{ crd.id }}, {{ crd.nome | tojson }})'
-                    class="px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:text-white hover:bg-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition flex items-center gap-1 cursor-pointer"
+                    class="px-1.5 py-0.5 rounded-md text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:text-white hover:bg-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 transition flex items-center gap-0.5 cursor-pointer"
                     title="Excluir Cartão">
-              <span>🗑️</span> Excluir
+              <span>🗑️</span>
             </button>
           </div>
         </div>
 
-        <!-- 3 Cards de Limite Horizontais Enxutos -->
-        <div class="grid grid-cols-3 gap-1.5 sm:gap-2.5 my-2">
-          <div class="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-2.5">
-            <p class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold leading-tight">Limite Total</p>
+        <!-- 3 Cards de Limite Horizontais Compactos -->
+        <div class="grid grid-cols-3 gap-1.5 my-1.5">
+          <div class="bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 rounded-xl p-2">
+            <p class="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold leading-tight">Total</p>
             <p class="text-xs sm:text-sm font-black text-slate-900 dark:text-white mt-0.5 truncate leading-tight">{{ crd.limite_total | moeda }}</p>
           </div>
-          <div class="{% if crd.is_fatura_paga %}bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/80{% else %}bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80{% endif %} rounded-xl p-2.5">
+          <div class="{% if crd.is_fatura_paga %}bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/80{% else %}bg-rose-50/50 dark:bg-slate-950/60 border border-rose-200/50 dark:border-slate-800/80{% endif %} rounded-xl p-2">
             <p class="text-[9px] uppercase tracking-wider {% if crd.is_fatura_paga %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} font-bold leading-tight">
-              {% if crd.is_fatura_paga %}Fatura Paga{% elif is_fatura_atual %}Fatura Atual{% elif is_fatura_futura %}Fatura Prevista{% else %}Fatura do Mês{% endif %}
+              {% if crd.is_fatura_paga %}Fatura Paga{% else %}Fatura{% endif %}
             </p>
             <p class="text-xs sm:text-sm font-black {% if crd.is_fatura_paga %}text-emerald-600 dark:text-emerald-400{% else %}text-rose-600 dark:text-rose-400{% endif %} mt-0.5 truncate leading-tight">{{ crd.total_fatura | moeda }}</p>
           </div>
-          <div class="bg-emerald-50/50 dark:bg-slate-950/60 border border-emerald-200/50 dark:border-slate-800/80 rounded-xl p-2.5">
-            <p class="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold leading-tight">Limite Disponível</p>
+          <div class="bg-emerald-50/50 dark:bg-slate-950/60 border border-emerald-200/50 dark:border-slate-800/80 rounded-xl p-2">
+            <p class="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold leading-tight">Disponível</p>
             <p class="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 mt-0.5 truncate leading-tight">{{ crd.limite_disponivel | moeda }}</p>
           </div>
         </div>
@@ -170,16 +162,76 @@
         <div class="space-y-1">
           <div class="flex items-center justify-between text-[10px] leading-tight">
             <span class="text-slate-500 dark:text-slate-400">
-              Utilizado: <strong class="text-slate-900 dark:text-slate-200 font-bold">{{ "%.1f"|format(crd.pct_uso) }}%</strong>
+              Uso: <strong class="text-slate-900 dark:text-slate-200 font-bold">{{ "%.1f"|format(crd.pct_uso) }}%</strong>
             </span>
             <span class="text-slate-500 dark:text-slate-400">
-              Titular: <strong class="text-slate-700 dark:text-slate-300 font-semibold">{{ crd.titular or 'Carlos' }}</strong>
+              <strong class="text-slate-700 dark:text-slate-300 font-semibold">{{ crd.titular or 'Carlos' }}</strong>
             </span>
           </div>
-          <div class="w-full h-2 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-800">
+          <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-200 dark:border-slate-800">
             <div class="h-full rounded-full transition-all duration-500 {% if crd.pct_uso > 85 %}bg-gradient-to-r from-rose-500 to-orange-500{% elif crd.pct_uso > 50 %}bg-gradient-to-r from-amber-500 to-orange-400{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %}"
                  style="width: {{ [crd.pct_uso, 100]|min }}%"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- GASTOS POR CATEGORIA DESTA FATURA (Donut Chart - Col 4) -->
+      <div class="lg:col-span-4 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs">
+        <div class="flex items-center justify-between gap-1 pb-1 border-b border-slate-100 dark:border-slate-800/80">
+          <h2 class="text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+            <span>🍩</span> Gastos por Categoria
+          </h2>
+          <span class="text-[10px] font-extrabold text-slate-700 dark:text-slate-300">
+            {{ crd.total_fatura | moeda }}
+          </span>
+        </div>
+
+        {% if crd.categorias_fatura %}
+        <div class="flex items-center gap-3 my-auto py-1">
+          <!-- Donut SVG Circular -->
+          <div class="relative w-20 h-20 sm:w-22 sm:h-22 shrink-0 flex items-center justify-center">
+            <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
+              <circle cx="18" cy="18" r="15.91549430918954" fill="none" class="stroke-slate-100 dark:stroke-slate-800" stroke-width="4.5"></circle>
+              {% for f in crd.categorias_fatura %}
+              <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="{{ f.cor }}" stroke-width="4.5"
+                      stroke-dasharray="{{ f.dasharray }}" stroke-dashoffset="{{ f.dashoffset }}"
+                      class="transition-all duration-500">
+                <title>{{ f.categoria }}: {{ f.valor | moeda }} ({{ f.pct }}%)</title>
+              </circle>
+              {% endfor %}
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span class="text-xs">💳</span>
+            </div>
+          </div>
+
+          <!-- Legenda Compacta das Categorias -->
+          <div class="flex-1 min-w-0 space-y-1 max-h-24 overflow-y-auto custom-scroll pr-0.5">
+            {% for f in crd.categorias_fatura[:4] %}
+            <div class="flex items-center justify-between text-[11px] leading-tight gap-1">
+              <div class="flex items-center gap-1.5 min-w-0 truncate">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background-color: {{ f.cor }};"></span>
+                <span class="text-slate-700 dark:text-slate-300 font-medium truncate" title="{{ f.categoria }}">{{ f.categoria }}</span>
+              </div>
+              <span class="text-slate-900 dark:text-white font-bold shrink-0 text-[10px]">
+                {{ f.pct }}%
+              </span>
+            </div>
+            {% endfor %}
+            {% if crd.categorias_fatura | length > 4 %}
+            <p class="text-[9px] text-slate-400 font-semibold text-right">+{{ (crd.categorias_fatura | length) - 4 }} outras</p>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="my-auto py-3 text-center">
+          <p class="text-xs text-slate-400 font-medium">Nenhum gasto nesta fatura</p>
+        </div>
+        {% endif %}
+
+        <div class="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/80">
+          <span>Fatura de {{ mes_nome }}</span>
+          <span class="font-bold text-slate-600 dark:text-slate-300">{{ crd.compras | length }} compras</span>
         </div>
       </div>
 
@@ -204,23 +256,7 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </a>
 
-          {% if crd.is_fatura_paga %}
-          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-2xs">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Fatura Paga
-          </span>
-          {% elif is_fatura_atual %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Fatura Atual (Aberta)
-          </span>
-          {% elif is_fatura_futura %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Fatura Prevista
-          </span>
-          {% else %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/20">
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Fatura Fechada
-          </span>
-          {% endif %}
+
         </div>
 
         <div class="flex items-center gap-3">
@@ -234,22 +270,22 @@
             Total desta fatura: <strong class="text-slate-900 dark:text-white font-black text-xs sm:text-sm">{{ crd.total_fatura | moeda }}</strong>
           </span>
           {% if crd.is_fatura_paga %}
-          <div class="flex items-center gap-1.5">
-            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              <span>✓ Fatura Paga</span>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shadow-2xs">
+              <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span>Fatura Paga</span>
             </span>
             <button type="button"
                     onclick="desfazerPagamentoFaturaCartao()"
                     title="Estornar liquidação e reabrir esta fatura"
-                    class="px-2 py-1 rounded-lg text-[11px] font-semibold text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer flex items-center gap-1">
-              <span>↩</span> Desfazer
+                    class="px-2 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer flex items-center gap-1">
+              <span>↺</span> Desfazer
             </button>
           </div>
           {% elif crd.total_fatura > 0 %}
           <button type="button"
                   onclick="pagarFaturaCartao()"
-                  class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition flex items-center gap-1 cursor-pointer">
+                  class="h-9 px-3.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
             <span>Pagar Fatura</span>
           </button>
@@ -266,9 +302,8 @@
                 <th class="py-2 px-3">Descrição da Compra</th>
                 <th class="py-2 px-3 hidden sm:table-cell">Categoria</th>
                 <th class="py-2 px-3 text-center whitespace-nowrap">Parcela</th>
-                <th class="py-2 px-3 text-right whitespace-nowrap">Valor</th>
-                <th class="py-2 px-3 text-center whitespace-nowrap">Status</th>
-                <th class="py-2 px-2 text-center w-8">⋯</th>
+                <th class="py-2.5 px-4 text-right whitespace-nowrap">Valor</th>
+                <th class="py-2.5 px-3 text-center w-8">⋯</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -312,17 +347,7 @@
                 <td class="py-2 px-3 text-right whitespace-nowrap font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                   {{ item.valor | moeda }}
                 </td>
-                <td class="py-2 px-3 text-center whitespace-nowrap">
-                  {% if item.pago == 1 %}
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pago
-                  </span>
-                  {% else %}
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Na Fatura
-                  </span>
-                  {% endif %}
-                </td>
+
                 <td class="py-2 px-2 text-center whitespace-nowrap">
                   <div class="relative dropdown-acoes-menu inline-block">
                     <button type="button" 
