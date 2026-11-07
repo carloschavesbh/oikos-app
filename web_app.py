@@ -3724,6 +3724,16 @@ async def pagina_cartoes(
             except Exception:
                 dt_compra_fmt = dt_compra_str
 
+            grupo_parc = str(it["grupo_parcelamento"] or "").strip()
+            desc_lower = str(it["descricao"] or "").lower()
+            is_fixo = (
+                grupo_parc.startswith("fixa_") or
+                grupo_parc.startswith("recorrencia_") or
+                grupo_parc.startswith("fixo_") or
+                "wellhub" in desc_lower or
+                (not it["numero_parcela"] and it["total_parcelas_compra"] and "fixa" in grupo_parc.lower())
+            )
+
             compras.append({
                 "id": it["id"],
                 "data": dt_venc_str,
@@ -3740,6 +3750,8 @@ async def pagina_cartoes(
                 "pago": 1 if it["pago"] == 1 else 0,
                 "numero_parcela": it["numero_parcela"],
                 "total_parcelas_compra": it["total_parcelas_compra"],
+                "grupo_parcelamento": grupo_parc,
+                "is_fixo": is_fixo,
                 "titular": it["titular"] or titular_cartao,
                 "juros": float(it["juros"] or 0.0)
             })
@@ -3846,6 +3858,7 @@ async def pagina_cartoes(
             "ano_ant": ano_ant,
             "mes_prox": mes_prox,
             "ano_prox": ano_prox,
+            "mes_nome": mes_nome,
             "nome_mes_ano": nome_mes_ano,
             "is_fatura_atual": is_fatura_atual,
             "is_fatura_futura": is_fatura_futura,
@@ -3864,9 +3877,11 @@ async def pagina_cartoes(
     )
 
 
+@app.put("/api/cartoes/{cartao_id_param}")
+@app.post("/api/cartoes/{cartao_id_param}")
 @app.post("/api/cartoes/salvar")
 @app.post("/cartoes/salvar")
-async def api_salvar_cartao(request: Request):
+async def api_salvar_cartao(request: Request, cartao_id_param: Optional[int] = None):
     """Cria ou edita um cartão de crédito real."""
     conn = conectar_db()
     try:
@@ -3878,7 +3893,7 @@ async def api_salvar_cartao(request: Request):
             form = await request.form()
             data = dict(form)
 
-        cartao_id_raw = data.get("id") or data.get("cartao_id")
+        cartao_id_raw = data.get("id") or data.get("cartao_id") or cartao_id_param
         cartao_id = int(cartao_id_raw) if (cartao_id_raw and str(cartao_id_raw).strip().isdigit() and int(cartao_id_raw) > 0) else None
 
         nome = str(data.get("nome") or "").strip()

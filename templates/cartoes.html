@@ -65,7 +65,7 @@
       <!-- MOCKUP PROPORCIONAL REALISTA DO CARTÃO (Col 4, Aspect Ratio ~ 1.58:1) -->
       <div class="lg:col-span-4 flex items-center justify-center w-full min-w-0">
         <div class="w-full max-w-[340px] sm:max-w-sm mx-auto lg:mx-0 aspect-[1.58/1] rounded-2xl p-3 sm:p-4 shadow-md relative overflow-hidden flex flex-col justify-between border border-white/15"
-             style="background: linear-gradient(135deg, {{ crd.cor or '#ea580c' }} 0%, #0f172a 90%);">
+             style="background: linear-gradient(135deg, {{ crd.cor or '#ff7a00' }} 0%, #ea580c 45%, #0f172a 100%);">
 
           <!-- Efeito de brilho de fundo suave -->
           <div class="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
@@ -230,7 +230,7 @@
         {% endif %}
 
         <div class="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/80">
-          <span>Fatura de {{ mes_nome }}</span>
+          <span>Fatura de {{ nome_mes_ano.split(' ')[0] }}/{{ ano_selecionado }}</span>
           <span class="font-bold text-slate-600 dark:text-slate-300">{{ crd.compras | length }} compras</span>
         </div>
       </div>
@@ -285,8 +285,8 @@
           {% elif crd.total_fatura > 0 %}
           <button type="button"
                   onclick="pagarFaturaCartao()"
-                  class="h-9 px-3.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                  class="h-9 px-3.5 py-1.5 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 shadow-sm transition inline-flex items-center gap-1.5 cursor-pointer text-white active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
             <span>Pagar Fatura</span>
           </button>
           {% endif %}
@@ -333,16 +333,20 @@
                 <td class="py-2 px-3 hidden sm:table-cell text-slate-600 dark:text-slate-300 text-xs">
                   {{ item.categoria }}
                 </td>
-                <td class="py-2 px-3 text-center whitespace-nowrap">
-                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {% if item.numero_parcela and item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
+                <td class="py-2.5 px-3 text-center whitespace-nowrap">
+                  {% if item.is_fixo or (item.grupo_parcelamento and 'fixa' in item.grupo_parcelamento) or ('wellhub' in item.descricao.lower()) %}
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-300 font-medium">Fixo</span>
+                  {% elif item.numero_parcela and item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {{ item.numero_parcela }}/{{ item.total_parcelas_compra }}
-                    {% elif item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
+                    </span>
+                  {% elif item.total_parcelas_compra and item.total_parcelas_compra > 1 %}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       {{ item.total_parcelas_compra }}x
-                    {% else %}
-                      À vista
-                    {% endif %}
-                  </span>
+                    </span>
+                  {% else %}
+                    <span class="text-[11px] text-slate-400 dark:text-slate-500 font-medium">À vista</span>
+                  {% endif %}
                 </td>
                 <td class="py-2 px-3 text-right whitespace-nowrap font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
                   {{ item.valor | moeda }}
@@ -904,14 +908,17 @@
     };
 
     try {
-      const resp = await fetch('/api/cartoes/salvar', {
-        method: 'POST',
+      const cartaoId = payload.id;
+      const url = cartaoId ? `/api/cartoes/${cartaoId}` : '/api/cartoes/salvar';
+      const method = cartaoId ? 'PUT' : 'POST';
+      const resp = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const res = await resp.json();
       if (resp.ok && res.sucesso) {
-        window.location.href = `/cartoes?c=${res.cartao_id || ''}`;
+        window.location.href = `/cartoes?c=${res.cartao_id || cartaoId || ''}`;
       } else {
         alert(res.erro || 'Não foi possível salvar o cartão.');
         btn.disabled = false;
@@ -1914,6 +1921,11 @@
     if (urlParams.get('demo_modal_pagar_fatura') === '1') {
       setTimeout(() => {
         abrirModalPagarFaturaCartao();
+      }, 300);
+    }
+    if (urlParams.get('demo_editar_cartao') === '1') {
+      setTimeout(() => {
+        abrirModalEditarCartao(1, 'Cartão Inter Aparecida', 'Mastercard', 5000, 1, 10, '0000', 'Carlos', '#ff7a00', 'inter');
       }, 300);
     }
     if (urlParams.get('demo_modal_juros') === '1') {
