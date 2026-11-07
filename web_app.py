@@ -1129,8 +1129,8 @@ def materializar_recorrencias_aprovadas_mes(conn: sqlite3.Connection, ano: int, 
         cur.execute("""
             SELECT COUNT(*) FROM transacoes
             WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
-              AND data LIKE ?
-        """, (desc, f"{prefixo_mes}%"))
+              AND (data LIKE ? OR ref_externa LIKE ?)
+        """, (desc, f"{prefixo_mes}%", f"data_compra:{prefixo_mes}%"))
         
         if cur.fetchone()[0] == 0:
             dia_str = f"{rec['dia']:02d}"
@@ -1238,7 +1238,7 @@ async def pagina_lancamentos(
 
     cur.execute("""
         SELECT id, COALESCE(data_liquidacao, data) as data_efetiva, data, data_liquidacao, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
-               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
+               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste, COALESCE(ref_externa, '') as ref_externa
         FROM transacoes
         WHERE (data >= ? AND data <= ?) OR (pago = 1 AND data_liquidacao >= ? AND data_liquidacao <= ?)
         ORDER BY COALESCE(data_liquidacao, data) DESC, id DESC
@@ -1351,7 +1351,8 @@ async def pagina_lancamentos(
             "motivo_ajuste": r["motivo_ajuste"] or "",
             "eh_passada": False,
             "is_atrasada": is_atrasada,
-            "economia_badge": abast_map.get(r["id"], "")
+            "economia_badge": abast_map.get(r["id"], ""),
+            "ref_externa": r["ref_externa"] if "ref_externa" in r.keys() else ""
         }
 
         if is_cc:
@@ -1532,7 +1533,7 @@ async def pagina_lancamentos(
     # Contas atrasadas de meses anteriores: despesas pendentes com vencimento anterior ao mês selecionado
     cur.execute("""
         SELECT id, data, descricao, valor, tipo, categoria, COALESCE(subcategoria, '') as subcategoria, conta, pago, grupo_parcelamento, numero_parcela, total_parcelas_compra,
-               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste
+               titular, COALESCE(juros, 0) as juros, COALESCE(desconto, 0) as desconto, COALESCE(motivo_ajuste, '') as motivo_ajuste, COALESCE(ref_externa, '') as ref_externa
         FROM transacoes
         WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
         ORDER BY data ASC, id ASC
@@ -1597,7 +1598,8 @@ async def pagina_lancamentos(
             "desconto": float(r["desconto"] or 0.0),
             "motivo_ajuste": r["motivo_ajuste"] or "",
             "eh_passada": True,
-            "is_atrasada": True
+            "is_atrasada": True,
+            "ref_externa": r["ref_externa"] if "ref_externa" in r.keys() else ""
         })
 
     qtd_atrasadas = len(transacoes_atrasadas)
@@ -1610,6 +1612,12 @@ async def pagina_lancamentos(
         for c in res_saldo.get("contas", [])
         if c.get("tipo") != "cofrinho" and c.get("incluir_saldo_consolidado", 1) == 1
     ]
+
+    cur.execute("SELECT id, nome, tipo, icone, cor FROM contas_config WHERE tipo != 'cofrinho' ORDER BY id ASC")
+    contas_bancarias = [dict(r) for r in cur.fetchall()]
+
+    cur.execute("SELECT id, nome, bandeira, titular, dia_fechamento, dia_vencimento FROM cartoes ORDER BY id ASC")
+    cartoes_credito = [dict(r) for r in cur.fetchall()]
 
     conn.close()
     saldo_periodo = tot_receitas - tot_despesas
@@ -1628,6 +1636,8 @@ async def pagina_lancamentos(
             "saldo_atual_disponivel": saldo_atual_disponivel,
             "saldo_consolidado": saldo_atual_disponivel,
             "contas_ativas_resumo": contas_ativas_resumo,
+            "contas_bancarias": contas_bancarias,
+            "cartoes_credito": cartoes_credito,
             "mes": mes,
             "ano": ano,
             "hoje_formatado": hoje.strftime("%d/%m/%Y"),
@@ -2093,80 +2103,301 @@ async def api_criar_lancamento(
         conn.close()
 
 
+@app.post("/api/lancamentos/{transacao_id}/editar")
+@app.put("/api/lancamentos/{transacao_id}/editar")
 @app.post("/api/lancamentos/editar")
-async def api_editar_lancamento(
-    id: Optional[Any] = Form(None),
-    data: str = Form(...),
-    tipo: str = Form("despesa"),
-    valor: Any = Form(...),
-    descricao: str = Form(...),
-    categoria: str = Form(...),
-    subcategoria: Optional[str] = Form(""),
-    conta: str = Form("Mercado Pago"),
-    pago: Optional[int] = Form(0),
-    juros: Optional[Any] = Form(0.0),
-    desconto: Optional[Any] = Form(0.0),
-    motivo_ajuste: Optional[str] = Form(""),
-    escopo_edicao: Optional[str] = Form("somente_esta"),
-    responsavel: Optional[str] = Form(None)
-):
-    if not id:
-        raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
-    return await api_criar_lancamento(
-        data=data,
-        tipo=tipo,
-        valor=valor,
-        descricao=descricao,
-        categoria=categoria,
-        subcategoria=subcategoria,
-        conta=conta,
-        pago=pago,
-        id=int(id),
-        juros=juros,
-        desconto=desconto,
-        motivo_ajuste=motivo_ajuste,
-        escopo_edicao=escopo_edicao,
-        responsavel=responsavel
-    )
-
-
 @app.post("/api/lancamentos/{transacao_id}")
-async def api_editar_lancamento_por_id(
-    transacao_id: str,
-    id: Optional[Any] = Form(None),
-    data: str = Form(...),
-    tipo: str = Form("despesa"),
-    valor: Any = Form(...),
-    descricao: str = Form(...),
-    categoria: str = Form(...),
-    subcategoria: Optional[str] = Form(""),
-    conta: str = Form("Mercado Pago"),
-    pago: Optional[int] = Form(0),
-    juros: Optional[Any] = Form(0.0),
-    desconto: Optional[Any] = Form(0.0),
-    motivo_ajuste: Optional[str] = Form(""),
-    escopo_edicao: Optional[str] = Form("somente_esta"),
-    responsavel: Optional[str] = Form(None)
+@app.put("/api/lancamentos/{transacao_id}")
+async def api_editar_lancamento_unificado(
+    request: Request,
+    transacao_id: Optional[str] = None
 ):
-    tid = id if (id and str(id).strip()) else (transacao_id if transacao_id != "editar" else None)
-    if not tid:
-        raise HTTPException(status_code=400, detail="ID do lançamento não informado.")
-    return await api_criar_lancamento(
-        data=data,
-        tipo=tipo,
-        valor=valor,
-        descricao=descricao,
-        categoria=categoria,
-        subcategoria=subcategoria,
-        conta=conta,
-        pago=pago,
-        id=int(tid),
-        juros=juros,
-        desconto=desconto,
-        motivo_ajuste=motivo_ajuste,
-        escopo_edicao=escopo_edicao,
-        responsavel=responsavel
-    )
+    """
+    Endpoint completo para gaveta lateral de edição de lançamentos:
+    - Atualização de descrição, valor, categoria/subcategoria e responsável;
+    - Migração de Conta Bancária para Cartão de Crédito (desvincula da conta, faturado na fatura aberta correspondente com afeta_saldo_bancario=0);
+    - Migração de Cartão de Crédito para Conta Bancária;
+    - Suporte a Recorrência/Repetição fixa ou parcelamento em X vezes (mensal, quinzenal ou semanal).
+    """
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+    else:
+        try:
+            form = await request.form()
+            data = dict(form)
+        except Exception:
+            data = {}
+
+    tid_raw = data.get("id") or transacao_id
+    if not tid_raw or str(tid_raw).strip() in ("", "editar"):
+        return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "ID do lançamento não informado."})
+
+    try:
+        tid = int(tid_raw)
+    except Exception:
+        return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "ID inválido."})
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM transacoes WHERE id = ?", (tid,))
+        row_antiga = cur.fetchone()
+        if not row_antiga:
+            return JSONResponse(status_code=404, content={"sucesso": False, "status": "erro", "erro": "Lançamento não encontrado."})
+        tr_antiga = dict(row_antiga)
+
+        descricao = str(data.get("descricao") or tr_antiga.get("descricao") or "").strip()
+        if not descricao:
+            return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "Descrição é obrigatória."})
+
+        valor_raw = data.get("valor") or data.get("valor_original") or tr_antiga.get("valor") or 0.0
+        valor_num = converter_valor_monetario(valor_raw)
+        if valor_num <= 0:
+            return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "O valor deve ser maior que zero."})
+
+        data_req = str(data.get("data") or tr_antiga.get("data") or date.today().strftime("%Y-%m-%d"))[:10]
+        try:
+            dt_req_obj = datetime.datetime.strptime(data_req, "%Y-%m-%d").date()
+        except Exception:
+            dt_req_obj = date.today()
+
+        tipo = str(data.get("tipo") or tr_antiga.get("tipo") or "despesa").strip().lower()
+        categoria = str(data.get("categoria") or tr_antiga.get("categoria") or "Outros").strip()
+        subcategoria = str(data.get("subcategoria") or tr_antiga.get("subcategoria") or "").strip()
+        responsavel = str(data.get("responsavel") or data.get("titular") or tr_antiga.get("titular") or "Carlos").strip()
+        if responsavel.lower() in ("a confirmar", "none", ""):
+            responsavel = "Carlos"
+
+        pago_raw = data.get("pago")
+        pago_int = 1 if (pago_raw in (1, "1", True, "true", "on", "yes")) else 0
+
+        juros_num = round(converter_valor_monetario(data.get("juros") or 0.0), 2)
+        desconto_num = round(converter_valor_monetario(data.get("desconto") or 0.0), 2)
+        motivo_ajuste = str(data.get("motivo_ajuste") or "").strip()
+        escopo_edicao = str(data.get("escopo_edicao") or "somente_esta").strip().lower()
+
+        recorrente_raw = data.get("recorrente")
+        eh_recorrente = bool(recorrente_raw in (1, "1", True, "true", "on", "yes"))
+        frequencia = str(data.get("frequencia") or "mensal").strip().lower()
+        tipo_termino = str(data.get("tipo_termino") or "fixo").strip().lower()
+        try:
+            total_parc = int(data.get("total_parcelas") or 1)
+        except Exception:
+            total_parc = 1
+
+        # Identificar Conta / Cartão de Destino
+        conta_input = str(data.get("conta") or tr_antiga.get("conta") or "Mercado Pago").strip()
+        cur.execute("SELECT id, nome, dia_fechamento, dia_vencimento, titular FROM cartoes")
+        cartoes_db = cur.fetchall()
+        crd_match = None
+        for crd in cartoes_db:
+            if (conta_input.lower().startswith("cartao_") and str(crd["id"]) == conta_input.split("_")[1]) or \
+               (str(crd["id"]) == conta_input) or \
+               (crd["nome"].lower().strip() == conta_input.lower().strip()) or \
+               ("inter" in crd["nome"].lower() and "inter" in conta_input.lower()):
+                crd_match = crd
+                break
+
+        eh_cartao = (crd_match is not None)
+
+        if eh_cartao:
+            cartao_id = int(crd_match["id"])
+            cartao_nome = str(crd_match["nome"])
+            dia_fech = int(crd_match["dia_fechamento"] or 1)
+            dia_venc = int(crd_match["dia_vencimento"] or 7)
+
+            # Calcula vencimento da fatura com base na data da compra informada
+            ano_v, mes_v, dia_v = calcular_ciclo_fatura_cartao(dia_fech, dia_venc, dt_req_obj, fatura_destino="atual")
+            dt_venc_fatura = f"{ano_v:04d}-{mes_v:02d}-{dia_v:02d}"
+            ref_ext = f"data_compra:{dt_req_obj.strftime('%Y-%m-%d')}"
+
+            # Atualiza lançamento: vincula ao cartão, desobriga conta bancária (afeta_saldo_bancario=0)
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?,
+                    descricao = ?,
+                    valor = ?,
+                    tipo = ?,
+                    categoria = ?,
+                    subcategoria = ?,
+                    conta = ?,
+                    conta_id = ?,
+                    afeta_saldo_bancario = 0,
+                    pago = 0,
+                    status_pagamento = 'pendente',
+                    titular = ?,
+                    juros = ?,
+                    desconto = ?,
+                    motivo_ajuste = ?,
+                    ref_externa = ?,
+                    data_liquidacao = NULL
+                WHERE id = ?
+            """, (dt_venc_fatura, descricao, valor_num, tipo, categoria, subcategoria, cartao_nome, cartao_id, responsavel, juros_num, desconto_num, motivo_ajuste, ref_ext, tid))
+
+        else:
+            # Conta bancária regular
+            conta_id, conta_nome = resolver_conta_bancaria(conn, conta_input)
+            afeta_saldo = 1 if pago_int == 1 else 0
+            dt_liq = dt_req_obj.strftime("%Y-%m-%d") if pago_int == 1 else None
+            st_pag = "pago" if pago_int == 1 else "pendente"
+
+            cur.execute("""
+                UPDATE transacoes
+                SET data = ?,
+                    descricao = ?,
+                    valor = ?,
+                    tipo = ?,
+                    categoria = ?,
+                    subcategoria = ?,
+                    conta = ?,
+                    conta_id = ?,
+                    afeta_saldo_bancario = ?,
+                    pago = ?,
+                    status_pagamento = ?,
+                    titular = ?,
+                    juros = ?,
+                    desconto = ?,
+                    motivo_ajuste = ?,
+                    data_liquidacao = ?
+                WHERE id = ?
+            """, (dt_req_obj.strftime("%Y-%m-%d"), descricao, valor_num, tipo, categoria, subcategoria, conta_nome, conta_id, afeta_saldo, pago_int, st_pag, responsavel, juros_num, desconto_num, motivo_ajuste, dt_liq, tid))
+
+        # Recorrência / Parcelamento
+        if eh_recorrente:
+            if tipo_termino == "parcelado" and total_parc > 1:
+                grp_parc = f"parc_{tid}_{int(datetime.datetime.now().timestamp())}"
+                cur.execute("""
+                    UPDATE transacoes
+                    SET numero_parcela = 1,
+                        total_parcelas_compra = ?,
+                        grupo_parcelamento = ?
+                    WHERE id = ?
+                """, (total_parc, grp_parc, tid))
+
+                for i in range(2, total_parc + 1):
+                    passo = i - 1
+                    if frequencia == "semanal":
+                        dt_parc = dt_req_obj + datetime.timedelta(weeks=passo)
+                    elif frequencia == "quinzenal":
+                        dt_parc = dt_req_obj + datetime.timedelta(days=14 * passo)
+                    else:  # mensal
+                        m_calc = dt_req_obj.month + passo
+                        a_calc = dt_req_obj.year + ((m_calc - 1) // 12)
+                        m_calc = ((m_calc - 1) % 12) + 1
+                        d_calc = min(dt_req_obj.day, calendar.monthrange(a_calc, m_calc)[1])
+                        dt_parc = datetime.date(a_calc, m_calc, d_calc)
+
+                    if eh_cartao:
+                        ano_fp, mes_fp, dia_fp = calcular_ciclo_fatura_cartao(dia_fech, dia_venc, dt_parc)
+                        dt_venc_p = f"{ano_fp:04d}-{mes_fp:02d}-{dia_fp:02d}"
+                        ref_ext_p = f"data_compra:{dt_parc.strftime('%Y-%m-%d')}"
+                        c_nm_p = cartao_nome
+                        c_id_p = cartao_id
+                        afeta_p = 0
+                    else:
+                        dt_venc_p = dt_parc.strftime("%Y-%m-%d")
+                        ref_ext_p = None
+                        c_nm_p = conta_nome
+                        c_id_p = conta_id
+                        afeta_p = 0
+
+                    d_desc_p = f"{descricao} ({i:02d}/{total_parc:02d})"
+                    cur.execute("""
+                        INSERT INTO transacoes (
+                            data, descricao, valor, tipo, categoria, subcategoria,
+                            conta, conta_id, pago, afeta_saldo_bancario, status_pagamento,
+                            titular, numero_parcela, total_parcelas_compra, grupo_parcelamento,
+                            ref_externa
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'pendente', ?, ?, ?, ?, ?)
+                    """, (dt_venc_p, d_desc_p, valor_num, tipo, categoria, subcategoria, c_nm_p, c_id_p, afeta_p, responsavel, i, total_parc, grp_parc, ref_ext_p))
+
+            elif tipo_termino in ("fixo", "indeterminado") or eh_recorrente:
+                slug_desc = re.sub(r'[^a-zA-Z0-9]', '_', descricao.lower())[:15]
+                grp_fixa = f"fixa_{slug_desc}_{frequencia}"
+                cur.execute("""
+                    UPDATE transacoes
+                    SET status_rateio = 'fixa_recorrente',
+                        natureza_gasto = 'fixa',
+                        grupo_parcelamento = ?
+                    WHERE id = ?
+                """, (grp_fixa, tid))
+
+                for k in range(1, 4):
+                    if frequencia == "semanal":
+                        dt_fut = dt_req_obj + datetime.timedelta(weeks=k)
+                    elif frequencia == "quinzenal":
+                        dt_fut = dt_req_obj + datetime.timedelta(days=14 * k)
+                    else:  # mensal
+                        m_calc = dt_req_obj.month + k
+                        a_calc = dt_req_obj.year + ((m_calc - 1) // 12)
+                        m_calc = ((m_calc - 1) % 12) + 1
+                        d_calc = min(dt_req_obj.day, calendar.monthrange(a_calc, m_calc)[1])
+                        dt_fut = datetime.date(a_calc, m_calc, d_calc)
+
+                    if eh_cartao:
+                        ano_ff, mes_ff, dia_ff = calcular_ciclo_fatura_cartao(dia_fech, dia_venc, dt_fut)
+                        dt_reg_fut = f"{ano_ff:04d}-{mes_ff:02d}-{dia_ff:02d}"
+                        ref_ext_f = f"data_compra:{dt_fut.strftime('%Y-%m-%d')}"
+                        c_nm_f = cartao_nome
+                        c_id_f = cartao_id
+                        afeta_f = 0
+                    else:
+                        dt_reg_fut = dt_fut.strftime("%Y-%m-%d")
+                        ref_ext_f = None
+                        c_nm_f = conta_nome
+                        c_id_f = conta_id
+                        afeta_f = 0
+
+                    cur.execute("""
+                        SELECT COUNT(*) FROM transacoes
+                        WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
+                          AND (data = ? OR ref_externa = ?)
+                    """, (descricao, dt_reg_fut, ref_ext_f))
+                    if cur.fetchone()[0] == 0:
+                        cur.execute("""
+                            INSERT INTO transacoes (
+                                data, descricao, valor, tipo, categoria, subcategoria,
+                                conta, conta_id, pago, afeta_saldo_bancario, status_pagamento,
+                                titular, grupo_parcelamento, status_rateio, ref_externa
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'pendente', ?, ?, 'fixa_recorrente', ?)
+                        """, (dt_reg_fut, descricao, valor_num, tipo, categoria, subcategoria, c_nm_f, c_id_f, afeta_f, responsavel, grp_fixa, ref_ext_f))
+
+        # Escopo de edição em séries existentes
+        if tr_antiga.get("grupo_parcelamento") and escopo_edicao in ("esta_e_proximas", "toda_serie"):
+            grp_exist = tr_antiga["grupo_parcelamento"]
+            dt_ant_str = str(tr_antiga["data"])[:10]
+            if escopo_edicao == "esta_e_proximas":
+                cur.execute("""
+                    UPDATE transacoes
+                    SET valor = ?, categoria = ?, subcategoria = ?, titular = ?
+                    WHERE grupo_parcelamento = ? AND data > ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                """, (valor_num, categoria, subcategoria, responsavel, grp_exist, dt_ant_str, tid))
+            else:
+                cur.execute("""
+                    UPDATE transacoes
+                    SET valor = ?, categoria = ?, subcategoria = ?, titular = ?
+                    WHERE grupo_parcelamento = ? AND (pago = 0 OR pago IS NULL) AND id != ?
+                """, (valor_num, categoria, subcategoria, responsavel, grp_exist, tid))
+
+        conn.commit()
+        return JSONResponse(content={
+            "sucesso": True,
+            "status": "sucesso",
+            "mensagem": "Lançamento atualizado com sucesso!",
+            "id": tid,
+            "eh_cartao": eh_cartao,
+            "conta": cartao_nome if eh_cartao else conta_nome,
+            "data_fatura": dt_venc_fatura if eh_cartao else dt_req_obj.strftime("%Y-%m-%d")
+        })
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"sucesso": False, "status": "erro", "erro": str(e)})
+    finally:
+        conn.close()
 
 
 # =============================================================================
