@@ -1171,27 +1171,8 @@ async def pagina_lancamentos(
             pass
 
     if mes is None and ano is None:
-        cur_chk = conn.cursor()
-        if c:
-            cur_chk.execute("SELECT dia_fechamento FROM cartoes WHERE id = ?", (c,))
-            r_chk = cur_chk.fetchone()
-            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
-        else:
-            cur_chk.execute("SELECT dia_fechamento FROM cartoes ORDER BY id ASC LIMIT 1")
-            r_chk = cur_chk.fetchone()
-            dia_fech_padrao = int(r_chk[0]) if r_chk and r_chk[0] else 1
-
-        # Se já passou do fechamento deste mês (ex: hoje > 01/11), fatura aberta padrão é o próximo ciclo (Dezembro/2026)
-        if hoje.day >= dia_fech_padrao:
-            if hoje.month == 12:
-                mes = 1
-                ano = hoje.year + 1
-            else:
-                mes = hoje.month + 1
-                ano = hoje.year
-        else:
-            mes = hoje.month
-            ano = hoje.year
+        mes = hoje.month
+        ano = hoje.year
     else:
         if ano is None:
             ano = hoje.year

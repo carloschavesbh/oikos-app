@@ -1544,8 +1544,12 @@
         const inputData = document.getElementById('global-input-data');
         if (inputData && !inputData.value) inputData.value = dados.hoje;
 
+        const inputDataCartao = document.getElementById('global-cartao-data');
+        if (inputDataCartao && !inputDataCartao.value) inputDataCartao.value = dados.hoje;
+
         // Montagem das contas preservando emojis de cofrinhos e removendo qualquer resíduo de .svg
         popularSelectsContasGlobal(dados.contas);
+        popularSelectsAbaCartao(dados);
       }
 
       mudarAbaModalGlobal(tipo || 'despesa');
@@ -1553,14 +1557,19 @@
     }
 
     function fecharModalTransacaoGlobal() {
-      const val = document.getElementById('global-input-valor').value;
-      const desc = document.getElementById('global-input-descricao').value;
-      if ((val && val !== '0,00') || desc.trim()) {
+      const val = document.getElementById('global-input-valor')?.value;
+      const desc = document.getElementById('global-input-descricao')?.value;
+      const descCartao = document.getElementById('global-cartao-descricao')?.value;
+      const valSimpCartao = document.getElementById('global-cartao-valor-simples')?.value;
+      const valLiqCartao = document.getElementById('global-cartao-valor-liquido')?.value;
+
+      const temDadosPadrao = ((val && val !== '0,00') || (desc && desc.trim()));
+      const temDadosCartao = ((descCartao && descCartao.trim()) || (valSimpCartao && valSimpCartao !== '0,00') || (valLiqCartao && valLiqCartao !== '0,00'));
+
+      if (temDadosPadrao || temDadosCartao) {
         if (!confirm('Deseja fechar sem salvar? Os dados digitados serão perdidos.')) return;
       }
-      const modal = document.getElementById('modal-transacao-global');
-      if (modal) modal.classList.add('hidden');
-      document.getElementById('form-transacao-global').reset();
+      fecharModalSemConfirmacao();
     }
 
     function toggleSplitGlobalLancamento() {
@@ -1763,7 +1772,7 @@
       }
 
       // Abas visuais
-      const tabs = ['despesa', 'receita', 'transferencia', 'recorrencia', 'pagaleve'];
+      const tabs = ['despesa', 'receita', 'cartao', 'transferencia', 'recorrencia', 'pagaleve'];
       tabs.forEach(t => {
         const btn = document.getElementById(`tab-global-${t}`);
         if (btn) {
@@ -1779,6 +1788,7 @@
       const titulos = {
         'despesa': ['🔴', 'Nova Despesa'],
         'receita': ['🟢', 'Nova Receita'],
+        'cartao': ['💳', 'Nova Compra no Cartão'],
         'transferencia': ['🔄', 'Transferência entre Contas'],
         'recorrencia': ['🔁', 'Nova Despesa Recorrente'],
         'pagaleve': ['⚡', 'Nova Compra Paga Leve']
@@ -1788,17 +1798,31 @@
       document.getElementById('global-modal-titulo').textContent = info[1];
 
       // Blocos de campos
+      const blocoComum = document.getElementById('bloco-campos-comuns-global');
       const blocoPadrao = document.getElementById('bloco-campos-padrao');
+      const blocoCartao = document.getElementById('painel-modal-cartao');
       const blocoTransf = document.getElementById('bloco-campos-transferencia');
       const blocoRecorr = document.getElementById('bloco-campos-recorrencia');
       const blocoPL = document.getElementById('bloco-campos-pagaleve');
       const blocoStatus = document.getElementById('bloco-status-pagamento');
 
-      blocoPadrao.classList.add('hidden');
-      blocoTransf.classList.add('hidden');
-      blocoRecorr.classList.add('hidden');
-      blocoPL.classList.add('hidden');
-      blocoStatus.classList.add('hidden');
+      // Inputs comuns com required
+      const inpVal = document.getElementById('global-input-valor');
+      const inpData = document.getElementById('global-input-data');
+      const inpDesc = document.getElementById('global-input-descricao');
+
+      // Ocultar todos por padrão
+      if (blocoComum) blocoComum.classList.remove('hidden');
+      if (blocoPadrao) blocoPadrao.classList.add('hidden');
+      if (blocoCartao) blocoCartao.classList.add('hidden');
+      if (blocoTransf) blocoTransf.classList.add('hidden');
+      if (blocoRecorr) blocoRecorr.classList.add('hidden');
+      if (blocoPL) blocoPL.classList.add('hidden');
+      if (blocoStatus) blocoStatus.classList.add('hidden');
+
+      if (inpVal) inpVal.setAttribute('required', 'required');
+      if (inpData) inpData.setAttribute('required', 'required');
+      if (inpDesc) inpDesc.setAttribute('required', 'required');
 
       // Garante que o select de contas permaneça limpo e populado ao trocar de aba
       if (cacheOpcoesGlobal && cacheOpcoesGlobal.contas) {
@@ -1814,7 +1838,23 @@
         }
       }
 
-      if (tipo === 'transferencia') {
+      if (tipo === 'cartao') {
+        if (blocoComum) blocoComum.classList.add('hidden');
+        if (blocoCartao) blocoCartao.classList.remove('hidden');
+        if (inpVal) inpVal.removeAttribute('required');
+        if (inpData) inpData.removeAttribute('required');
+        if (inpDesc) inpDesc.removeAttribute('required');
+
+        if (cacheOpcoesGlobal) {
+          popularSelectsAbaCartao(cacheOpcoesGlobal);
+          const inpDataCartao = document.getElementById('global-cartao-data');
+          if (inpDataCartao && !inpDataCartao.value) {
+            inpDataCartao.value = cacheOpcoesGlobal.hoje || new Date().toISOString().substring(0, 10);
+          }
+        }
+        atualizarPreviaFaturaAbaCartao();
+        calcularValoresAbaCartao();
+      } else if (tipo === 'transferencia') {
         blocoTransf.classList.remove('hidden');
       } else if (tipo === 'recorrencia') {
         blocoPadrao.classList.remove('hidden');
@@ -1828,6 +1868,197 @@
         blocoPadrao.classList.remove('hidden');
         blocoStatus.classList.remove('hidden');
         verificarContaCartaoGlobal();
+      }
+    }
+
+    function popularSelectsAbaCartao(dados) {
+      if (!dados) return;
+      const selCartao = document.getElementById('global-cartao-id');
+      const selContaDest = document.getElementById('global-cartao-conta-destino');
+      const selCat = document.getElementById('global-cartao-categoria');
+
+      if (selCartao && dados.cartoes) {
+        selCartao.innerHTML = dados.cartoes.map((c, i) => {
+          return `<option value="${c.id}" data-fech="${c.dia_fechamento || 1}" data-venc="${c.dia_vencimento || 7}" data-titular="${c.titular || 'Carlos'}" ${i === 0 ? 'selected' : ''}>💳 ${c.nome} (•••• ${c.ultimos_digitos || '0000'})</option>`;
+        }).join('');
+      }
+
+      if (selContaDest && dados.contas) {
+        selContaDest.innerHTML = dados.contas.map((c, i) => {
+          const texto = formatarTextoOpcaoConta(c);
+          return `<option value="${c.id}" ${i === 0 ? 'selected' : ''}>${texto}</option>`;
+        }).join('');
+      }
+
+      if (selCat && dados.categorias_despesa) {
+        selCat.innerHTML = dados.categorias_despesa.map(cat => {
+          return `<option value="${cat}">${cat}</option>`;
+        }).join('');
+      }
+    }
+
+    function definirResponsavelCartaoAba(resp) {
+      const hidden = document.getElementById('global-cartao-responsavel');
+      if (hidden) hidden.value = resp;
+
+      const botoes = document.querySelectorAll('#grid-cartao-aba-responsavel button');
+      botoes.forEach(btn => {
+        if (btn.getAttribute('data-resp-cartao') === resp) {
+          btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-bold transition cursor-pointer bg-orange-500 text-white shadow-sm border border-orange-600';
+        } else {
+          btn.className = 'flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700';
+        }
+      });
+    }
+
+    function atualizarPreviaFaturaAbaCartao() {
+      const selCartao = document.getElementById('global-cartao-id');
+      const inputData = document.getElementById('global-cartao-data');
+      const opt = selCartao?.selectedOptions ? selCartao.selectedOptions[0] : null;
+
+      if (opt) {
+        const diaVenc = parseInt(opt.dataset.venc || '7', 10);
+        const diaFech = parseInt(opt.dataset.fech || '1', 10);
+        let dt = new Date();
+        if (inputData && inputData.value) {
+          const parts = inputData.value.split('-');
+          if (parts.length === 3) {
+            dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          }
+        }
+        const diaCompra = dt.getDate();
+        const mes = dt.getMonth();
+        const ano = dt.getFullYear();
+
+        let mesAtual = mes;
+        let anoAtual = ano;
+        if (diaCompra >= diaFech) {
+          mesAtual += 1;
+        }
+        const dtAtual = new Date(anoAtual, mesAtual, Math.min(diaVenc, 28));
+        const dtProx = new Date(anoAtual, mesAtual + 1, Math.min(diaVenc, 28));
+
+        const fmt = (d) => `${String(diaVenc).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+        const lblAtual = document.getElementById('global-cartao-fatura-atual-venc-aba');
+        const lblProx = document.getElementById('global-cartao-fatura-proxima-venc-aba');
+        if (lblAtual) lblAtual.textContent = `Venc: ${fmt(dtAtual)}`;
+        if (lblProx) lblProx.textContent = `Venc: ${fmt(dtProx)}`;
+      }
+    }
+
+    function alternarToggleJurosCartao() {
+      const toggle = document.getElementById('global-cartao-toggle-juros');
+      const blocoJuros = document.getElementById('bloco-cartao-campos-juros');
+      const blocoSimples = document.getElementById('bloco-cartao-valor-simples');
+      const inpSimples = document.getElementById('global-cartao-valor-simples');
+      const inpLiq = document.getElementById('global-cartao-valor-liquido');
+      const inpJuros = document.getElementById('global-cartao-juros');
+      const inpTotal = document.getElementById('global-cartao-total-fatura');
+
+      if (toggle && toggle.checked) {
+        if (blocoSimples) blocoSimples.classList.add('hidden');
+        if (blocoJuros) blocoJuros.classList.remove('hidden');
+        const vSimp = parseMoedaBR(inpSimples?.value || '0');
+        if (vSimp > 0 && parseMoedaBR(inpLiq?.value || '0') === 0) {
+          inpLiq.value = inpSimples.value;
+          if (parseMoedaBR(inpJuros?.value || '0') === 0) {
+            inpJuros.value = '0,00';
+          }
+          calcularValoresAbaCartao('liquido');
+        }
+      } else {
+        if (blocoJuros) blocoJuros.classList.add('hidden');
+        if (blocoSimples) blocoSimples.classList.remove('hidden');
+        const vTot = parseMoedaBR(inpTotal?.value || '0');
+        if (vTot > 0 && inpSimples) {
+          inpSimples.value = inpTotal.value;
+        }
+        calcularValoresAbaCartao('simples');
+      }
+    }
+
+    function alternarCreditoReceitaCartao() {
+      const chk = document.getElementById('global-cartao-creditar-receita');
+      const wrap = document.getElementById('wrap-cartao-conta-destino');
+      if (chk && wrap) {
+        if (chk.checked) wrap.classList.remove('hidden');
+        else wrap.classList.add('hidden');
+      }
+    }
+
+    function parseMoedaBR(str) {
+      if (!str) return 0;
+      if (typeof str === 'number') return str;
+      const limpo = String(str).replace(/[^\d,\.-]/g, '').replace(/\./g, '').replace(',', '.');
+      return parseFloat(limpo) || 0;
+    }
+
+    function formatarMoedaParaInput(num) {
+      if (isNaN(num)) return '0,00';
+      return Number(num).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calcularValoresAbaCartao(origem) {
+      const toggle = document.getElementById('global-cartao-toggle-juros');
+      const inpSimples = document.getElementById('global-cartao-valor-simples');
+      const inpLiq = document.getElementById('global-cartao-valor-liquido');
+      const inpJuros = document.getElementById('global-cartao-juros');
+      const inpTotal = document.getElementById('global-cartao-total-fatura');
+      const parcelas = parseInt(document.getElementById('global-cartao-parcelas')?.value || '1', 10);
+      const labelPrevia = document.getElementById('global-cartao-previa-parcelas-aba');
+
+      let vLiq = 0;
+      let vJuros = 0;
+      let vTotal = 0;
+
+      if (!toggle || !toggle.checked) {
+        vTotal = parseMoedaBR(inpSimples?.value || '0');
+        vLiq = vTotal;
+        vJuros = 0;
+      } else {
+        vLiq = parseMoedaBR(inpLiq?.value || '0');
+        vJuros = parseMoedaBR(inpJuros?.value || '0');
+        vTotal = parseMoedaBR(inpTotal?.value || '0');
+
+        if (origem === 'liquido') {
+          if (vJuros > 0) {
+            vTotal = Math.round((vLiq + vJuros) * 100) / 100;
+            inpTotal.value = formatarMoedaParaInput(vTotal);
+          } else if (vTotal > vLiq) {
+            vJuros = Math.round((vTotal - vLiq) * 100) / 100;
+            inpJuros.value = formatarMoedaParaInput(vJuros);
+          } else {
+            vTotal = vLiq;
+            inpTotal.value = formatarMoedaParaInput(vTotal);
+          }
+        } else if (origem === 'juros') {
+          vTotal = Math.round((vLiq + vJuros) * 100) / 100;
+          inpTotal.value = formatarMoedaParaInput(vTotal);
+        } else if (origem === 'total') {
+          if (vLiq > 0) {
+            vJuros = Math.max(0, Math.round((vTotal - vLiq) * 100) / 100);
+            inpJuros.value = formatarMoedaParaInput(vJuros);
+          } else if (vJuros > 0) {
+            vLiq = Math.max(0, Math.round((vTotal - vJuros) * 100) / 100);
+            inpLiq.value = formatarMoedaParaInput(vLiq);
+          } else {
+            vLiq = vTotal;
+            inpLiq.value = formatarMoedaParaInput(vLiq);
+          }
+        }
+      }
+
+      if (labelPrevia) {
+        const valParc = (vTotal / parcelas).toFixed(2);
+        const valParcFmt = parseFloat(valParc).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const valTotFmt = vTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        if (parcelas === 1) {
+          labelPrevia.textContent = `1x de ${valParcFmt} (À vista)`;
+        } else {
+          labelPrevia.textContent = `${parcelas}x de ${valParcFmt} (Total: ${valTotFmt})`;
+        }
       }
     }
 
@@ -2139,6 +2370,93 @@
           } else {
             showToast('Erro ao Salvar', json.erro || 'Falha ao salvar', true);
           }
+        } else if (tipo === 'cartao') {
+          const cartaoId = document.getElementById('global-cartao-id')?.value;
+          const descCartao = document.getElementById('global-cartao-descricao')?.value.trim();
+          const dataCartao = document.getElementById('global-cartao-data')?.value;
+          const catCartao = document.getElementById('global-cartao-categoria')?.value;
+          const subcatCartao = document.getElementById('global-cartao-subcategoria')?.value.trim();
+          const respCartao = document.getElementById('global-cartao-responsavel')?.value;
+          const parcCartao = parseInt(document.getElementById('global-cartao-parcelas')?.value || '1', 10);
+
+          if (!descCartao) {
+            showToast('Atenção', 'Informe a descrição da compra no cartão.', true);
+            btn.disabled = false;
+            btn.textContent = 'Salvar Transação';
+            return;
+          }
+
+          let faturaDestino = 'atual';
+          const rFaturas = document.getElementsByName('global_cartao_fatura_destino');
+          for (let r of rFaturas) {
+            if (r.checked) { faturaDestino = r.value; break; }
+          }
+
+          const toggleJuros = document.getElementById('global-cartao-toggle-juros')?.checked;
+          let valBase = 0;
+          let valJuros = 0;
+          let valTotalFatura = 0;
+          let creditarReceita = false;
+          let contaDestinoId = null;
+
+          if (!toggleJuros) {
+            valTotalFatura = parseMoedaBR(document.getElementById('global-cartao-valor-simples')?.value);
+            valBase = valTotalFatura;
+            valJuros = 0;
+          } else {
+            const vLiq = parseMoedaBR(document.getElementById('global-cartao-valor-liquido')?.value);
+            const vJur = parseMoedaBR(document.getElementById('global-cartao-juros')?.value);
+            const vTot = parseMoedaBR(document.getElementById('global-cartao-total-fatura')?.value);
+
+            valBase = vLiq > 0 ? vLiq : (vTot - vJur);
+            valJuros = vJur;
+            valTotalFatura = vTot > 0 ? vTot : (valBase + valJuros);
+
+            creditarReceita = document.getElementById('global-cartao-creditar-receita')?.checked;
+            if (creditarReceita) {
+              contaDestinoId = parseInt(document.getElementById('global-cartao-conta-destino')?.value, 10);
+            }
+          }
+
+          if (valTotalFatura <= 0) {
+            showToast('Atenção', 'Informe o valor da compra no cartão.', true);
+            btn.disabled = false;
+            btn.textContent = 'Salvar Transação';
+            return;
+          }
+
+          const payload = {
+            cartao_id: parseInt(cartaoId, 10),
+            descricao: descCartao,
+            valor: valBase,
+            juros: valJuros,
+            total_fatura: valTotalFatura,
+            data_compra: dataCartao,
+            categoria: catCartao,
+            subcategoria: subcatCartao,
+            responsavel: respCartao,
+            parcelas: parcCartao,
+            fatura_destino: faturaDestino,
+            creditar_receita: creditarReceita,
+            conta_destino_id: contaDestinoId,
+            descricao_receita: `Empréstimo Pix Cartão - ${descCartao}`,
+            categoria_receita: 'Empréstimo / Aporte'
+          };
+
+          const res = await fetch('/api/cartoes/compras', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if (json.sucesso) {
+            showToast('Compra no Cartão Registrada', json.mensagem);
+            fecharModalSemConfirmacao();
+            setTimeout(() => location.reload(), 1200);
+          } else {
+            showToast('Erro ao Salvar Compra', json.erro || 'Falha ao processar.', true);
+          }
+          return;
         } else if (tipo === 'pagaleve') {
           const titular = document.getElementById('global-select-pl-titular').value;
           const parcelas = document.getElementById('global-select-pl-parcelas').value;
@@ -2241,6 +2559,36 @@
       if (modal) modal.classList.add('hidden');
       document.getElementById('form-transacao-global').reset();
     }
+
+    function verificarAutoAberturaModal() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const modalAba = urlParams.get('modal_aba');
+      if (modalAba) {
+        setTimeout(async () => {
+          await abrirModalTransacaoGlobal(modalAba);
+          if (urlParams.get('simular_juros') === '1') {
+            const toggle = document.getElementById('global-cartao-toggle-juros');
+            if (toggle && !toggle.checked) {
+              toggle.checked = true;
+              alternarToggleJurosCartao();
+            }
+            const inpDesc = document.getElementById('global-cartao-descricao');
+            if (inpDesc) inpDesc.value = 'Empréstimo Pix Emergencial';
+            const inpLiq = document.getElementById('global-cartao-valor-liquido');
+            if (inpLiq) inpLiq.value = '100,00';
+            const inpJur = document.getElementById('global-cartao-juros');
+            if (inpJur) inpJur.value = '14,25';
+            calcularValoresAbaCartao('juros');
+          }
+        }, 100);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', verificarAutoAberturaModal);
+    } else {
+      verificarAutoAberturaModal();
+    }
   </script>
   <!-- ===================================================================== -->
   <!-- [ BOTÃO GLOBAL "+" FLUTUANTE & MENU DE TRANSAÇÕES ]                   -->
@@ -2276,6 +2624,16 @@
           <div class="text-left">
             <div class="font-bold">Nova Receita</div>
             <div class="text-[10px] text-slate-400 font-normal">Entradas externas</div>
+          </div>
+        </button>
+
+        <!-- 2.1 Compra no Cartão -->
+        <button type="button" onclick="abrirModalTransacaoGlobal('cartao')"
+                class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition cursor-pointer">
+          <span class="w-6 h-6 rounded-lg bg-orange-100 dark:bg-orange-900/50 flex items-center justify-center text-orange-600 dark:text-orange-400 text-sm">💳</span>
+          <div class="text-left">
+            <div class="font-bold">Compra no Cartão</div>
+            <div class="text-[10px] text-slate-400 font-normal">Faturas, parcelas e juros</div>
           </div>
         </button>
 
@@ -2414,6 +2772,10 @@
                   class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
             🟢 Receita
           </button>
+          <button type="button" onclick="mudarAbaModalGlobal('cartao')" id="tab-global-cartao"
+                  class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
+            💳 Cartão
+          </button>
           <button type="button" onclick="mudarAbaModalGlobal('transferencia')" id="tab-global-transferencia"
                   class="flex-1 py-1.5 px-2 rounded-lg text-center transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900">
             🔄 Transf.
@@ -2433,48 +2795,51 @@
       <form id="form-transacao-global" onsubmit="submeterTransacaoGlobal(event)" class="p-5 space-y-4">
         <input type="hidden" id="global-input-tipo" name="tipo" value="despesa">
 
-        <!-- ENTRADA RÁPIDA EM LINGUAGEM NATURAL VIA IA (GEMINI API) -->
-        <div id="container-ia-rapida-global" class="p-3 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-purple-500/10 border border-emerald-500/25 dark:border-emerald-500/35 rounded-2xl space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-              <span>✨</span> Lançamento Rápido com IA
-            </span>
-            <span id="ia-interpretar-status" class="text-[10px] text-slate-400 font-medium">Linguagem natural</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="relative flex-1">
-              <input type="text" id="ia-input-texto" placeholder="Digite ou cole: ex. 'Paguei 89 de luz hoje no Mercado Pago'"
-                     class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-                     onkeydown="if (event.key === 'Enter') { event.preventDefault(); interpretarTransacaoComIA(); }">
+        <!-- BLOCO DE ENTRADA PADRÃO COMPARTILHADO (Despesa, Receita, Transf., Recorr., Paga Leve) -->
+        <div id="bloco-campos-comuns-global" class="space-y-4">
+          <!-- ENTRADA RÁPIDA EM LINGUAGEM NATURAL VIA IA (GEMINI API) -->
+          <div id="container-ia-rapida-global" class="p-3 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-purple-500/10 border border-emerald-500/25 dark:border-emerald-500/35 rounded-2xl space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span>✨</span> Lançamento Rápido com IA
+              </span>
+              <span id="ia-interpretar-status" class="text-[10px] text-slate-400 font-medium">Linguagem natural</span>
             </div>
-            <button type="button" id="btn-interpretar-ia" onclick="interpretarTransacaoComIA()"
-                    class="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer">
-              <span id="ia-spinner" class="hidden animate-spin text-xs">🌀</span>
-              <span id="ia-btn-label">Interpretar</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1">
+                <input type="text" id="ia-input-texto" placeholder="Digite ou cole: ex. 'Paguei 89 de luz hoje no Mercado Pago'"
+                       class="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                       onkeydown="if (event.key === 'Enter') { event.preventDefault(); interpretarTransacaoComIA(); }">
+              </div>
+              <button type="button" id="btn-interpretar-ia" onclick="interpretarTransacaoComIA()"
+                      class="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer">
+                <span id="ia-spinner" class="hidden animate-spin text-xs">🌀</span>
+                <span id="ia-btn-label">Interpretar</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <!-- 1. Valor e Data -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor (R$)*</label>
-            <input type="text" id="global-input-valor" required placeholder="0,00"
-                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold text-base focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                   oninput="aplicarMascaraMoedaGlobal(this)">
+          <!-- 1. Valor e Data -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor (R$)*</label>
+              <input type="text" id="global-input-valor" required placeholder="0,00"
+                     class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold text-base focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                     oninput="aplicarMascaraMoedaGlobal(this)">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data*</label>
+              <input type="date" id="global-input-data" required onchange="if (typeof atualizarPreviaCartaoGlobal === 'function') atualizarPreviaCartaoGlobal();"
+                     class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data*</label>
-            <input type="date" id="global-input-data" required onchange="if (typeof atualizarPreviaCartaoGlobal === 'function') atualizarPreviaCartaoGlobal();"
-                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-          </div>
-        </div>
 
-        <!-- 2. Descrição -->
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição*</label>
-          <input type="text" id="global-input-descricao" required placeholder="Ex: Supermercado, Salário, Internet..."
-                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <!-- 2. Descrição -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição*</label>
+            <input type="text" id="global-input-descricao" required placeholder="Ex: Supermercado, Salário, Internet..."
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          </div>
         </div>
 
         <!-- 3. CAMPOS ESPECÍFICOS DE DESPESA / RECEITA -->
@@ -2613,6 +2978,187 @@
                   <span id="global-cartao-fatura-proxima-venc" class="text-[10px] text-slate-500 dark:text-slate-400 block">Próximo vencimento</span>
                 </div>
               </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===================================================================== -->
+        <!-- PAINEL DEDICADO: 💳 CARTÃO DE CRÉDITO (Aba Especialista)              -->
+        <!-- ===================================================================== -->
+        <div id="painel-modal-cartao" class="hidden space-y-3.5">
+          <!-- 1. Descrição da Compra -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Descrição da Compra *</label>
+            <input type="text" id="global-cartao-descricao" placeholder="Ex: Supermercado, Empréstimo..."
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+          </div>
+
+          <!-- 2. Linha 1: Cartão de Crédito e Fatura de Destino -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cartão de Crédito *</label>
+              <select id="global-cartao-id" onchange="atualizarPreviaFaturaAbaCartao()"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                <!-- Populado dinamicamente com os cartões ativos -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Fatura de Destino</label>
+              <div class="grid grid-cols-2 gap-2">
+                <label class="flex items-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10">
+                  <input type="radio" name="global_cartao_fatura_destino" value="atual" checked class="text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaFaturaAbaCartao()">
+                  <div class="leading-tight">
+                    <span class="font-bold text-slate-800 dark:text-slate-100 block text-[11px]">Fatura Atual</span>
+                    <span id="global-cartao-fatura-atual-venc-aba" class="text-[9px] text-slate-400 block">Vencimento</span>
+                  </div>
+                </label>
+                <label class="flex items-center gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer text-xs has-checked:border-orange-500 has-checked:bg-orange-500/10">
+                  <input type="radio" name="global_cartao_fatura_destino" value="proxima" class="text-orange-600 focus:ring-orange-500" onchange="atualizarPreviaFaturaAbaCartao()">
+                  <div class="leading-tight">
+                    <span class="font-bold text-slate-800 dark:text-slate-100 block text-[11px]">Próxima</span>
+                    <span id="global-cartao-fatura-proxima-venc-aba" class="text-[9px] text-slate-400 block">Próx. venc.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Linha 2: Data da Compra, Categoria e Subcategoria -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Data da Compra *</label>
+              <input type="date" id="global-cartao-data" onchange="atualizarPreviaFaturaAbaCartao()"
+                     class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria *</label>
+              <select id="global-cartao-categoria"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                <!-- Populado dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Subcategoria</label>
+              <input type="text" id="global-cartao-subcategoria" placeholder="Opcional"
+                     class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+            </div>
+          </div>
+
+          <!-- 4. Responsável pelo Gasto -->
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">Responsável pelo Gasto *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="grid-cartao-aba-responsavel">
+              <button type="button" onclick="definirResponsavelCartaoAba('Carlos')" data-resp-cartao="Carlos"
+                      class="flex items-center justify-center p-2 rounded-xl text-xs font-bold transition cursor-pointer bg-orange-500 text-white shadow-sm border border-orange-600">
+                Carlos
+              </button>
+              <button type="button" onclick="definirResponsavelCartaoAba('Fernanda')" data-resp-cartao="Fernanda"
+                      class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Fernanda
+              </button>
+              <button type="button" onclick="definirResponsavelCartaoAba('Pedro')" data-resp-cartao="Pedro"
+                      class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Pedro
+              </button>
+              <button type="button" onclick="definirResponsavelCartaoAba('Família')" data-resp-cartao="Família"
+                      class="flex items-center justify-center p-2 rounded-xl text-xs font-semibold transition cursor-pointer bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700">
+                Família
+              </button>
+            </div>
+            <input type="hidden" id="global-cartao-responsavel" value="Carlos">
+          </div>
+
+          <!-- 5. Linha 3: Parcelamento -->
+          <div class="p-3 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300">Condição de Pagamento</label>
+              <span id="global-cartao-previa-parcelas-aba" class="text-xs font-extrabold text-orange-600 dark:text-orange-400">
+                1x de R$ 0,00 (À vista)
+              </span>
+            </div>
+            <select id="global-cartao-parcelas" onchange="calcularValoresAbaCartao('parcelas')"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+              <option value="1">À vista (1x na fatura)</option>
+              <option value="2">Parcelado em 2x</option>
+              <option value="3">Parcelado em 3x</option>
+              <option value="4">Parcelado em 4x</option>
+              <option value="5">Parcelado em 5x</option>
+              <option value="6">Parcelado em 6x</option>
+              <option value="7">Parcelado em 7x</option>
+              <option value="8">Parcelado em 8x</option>
+              <option value="9">Parcelado em 9x</option>
+              <option value="10">Parcelado em 10x</option>
+              <option value="11">Parcelado em 11x</option>
+              <option value="12">Parcelado em 12x</option>
+              <option value="18">Parcelado em 18x</option>
+              <option value="24">Parcelado em 24x</option>
+            </select>
+          </div>
+
+          <!-- 6. Bloco de Valor Simples (quando sem juros) -->
+          <div id="bloco-cartao-valor-simples">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Valor da Compra (R$) *</label>
+            <input type="text" id="global-cartao-valor-simples" placeholder="0,00"
+                   oninput="aplicarMascaraMoedaGlobal(this); calcularValoresAbaCartao('simples');"
+                   class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-extrabold text-base focus:ring-2 focus:ring-orange-500 focus:outline-none">
+          </div>
+
+          <!-- 7. Bloco Destacado: Empréstimo no Cartão / Juros e Encargos -->
+          <div class="p-3.5 bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-rose-500/10 border border-orange-500/25 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" id="global-cartao-toggle-juros" onchange="alternarToggleJurosCartao()" class="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-slate-300">
+                <span class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-md bg-orange-500/20 text-orange-600 dark:text-orange-400 font-extrabold flex items-center justify-center text-[11px]">%</span>
+                  Possui Juros / Operação de Empréstimo
+                </span>
+              </label>
+              <span class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Cálculo bidirecional</span>
+            </div>
+
+            <!-- Campos Expansíveis de Juros e Crédito Casado -->
+            <div id="bloco-cartao-campos-juros" class="hidden space-y-3 pt-2.5 border-t border-orange-500/20">
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">Valor Líquido Recebido (R$)</label>
+                  <input type="text" id="global-cartao-valor-liquido" placeholder="0,00"
+                         oninput="aplicarMascaraMoedaGlobal(this); calcularValoresAbaCartao('liquido');"
+                         class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                  <span class="text-[10px] text-slate-400 block mt-0.5">Montante em conta</span>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-rose-600 dark:text-rose-400 mb-1">Juros / Encargos (R$)</label>
+                  <input type="text" id="global-cartao-juros" placeholder="0,00"
+                         oninput="aplicarMascaraMoedaGlobal(this); calcularValoresAbaCartao('juros');"
+                         class="w-full px-3 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 font-bold text-xs sm:text-sm focus:ring-2 focus:ring-rose-500 focus:outline-none">
+                  <span class="text-[10px] text-slate-400 block mt-0.5">Custo financeiro</span>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-orange-600 dark:text-orange-400 mb-1">Total na Fatura (R$)</label>
+                  <input type="text" id="global-cartao-total-fatura" placeholder="0,00"
+                         oninput="aplicarMascaraMoedaGlobal(this); calcularValoresAbaCartao('total');"
+                         class="w-full px-3 py-2 rounded-xl border border-orange-300 dark:border-orange-800 bg-white dark:bg-slate-800 text-orange-600 dark:text-orange-400 font-extrabold text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                  <span class="text-[10px] text-slate-400 block mt-0.5">Debitado na fatura</span>
+                </div>
+              </div>
+
+              <!-- Opção de creditar na conta bancária -->
+              <div class="p-3 bg-white/70 dark:bg-slate-900/70 border border-orange-500/20 rounded-xl space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" id="global-cartao-creditar-receita" onchange="alternarCreditoReceitaCartao()" checked
+                         class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300">
+                  <span class="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>📥</span> Creditar valor líquido em conta bancária como Entrada
+                  </span>
+                </label>
+                <div id="wrap-cartao-conta-destino" class="space-y-1">
+                  <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400">Conta Bancária de Destino</label>
+                  <select id="global-cartao-conta-destino"
+                          class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <!-- Populado dinamicamente com contas de saldo -->
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
         </div>
