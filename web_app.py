@@ -1088,22 +1088,6 @@ RECORRENCIAS_APROVADAS_CONFIG = [
         "valor": 24.90
     },
     {
-        "descricao": "WellHub Júnior",
-        "categoria": "Academia / Wellhub",
-        "subcategoria": "Atividades Físicas",
-        "conta": "Mercado Pago",
-        "dia": 13,
-        "valor": 119.99
-    },
-    {
-        "descricao": "WellHub Fernanda",
-        "categoria": "Academia / Wellhub",
-        "subcategoria": "Atividades Físicas",
-        "conta": "Mercado Pago",
-        "dia": 18,
-        "valor": 137.50
-    },
-    {
         "descricao": "Assinatura Audible",
         "categoria": "Educação",
         "subcategoria": "Cursos/Livros",
@@ -1114,10 +1098,37 @@ RECORRENCIAS_APROVADAS_CONFIG = [
 ]
 
 def materializar_recorrencias_aprovadas_mes(conn: sqlite3.Connection, ano: int, mes: int) -> int:
-    """Garante de forma 100% idempotente que contas recorrentes aprovadas existam no mês solicitado."""
+    """Garante de forma 100% idempotente que contas recorrentes aprovadas existam no mês solicitado, respeitando cancelamentos e exclusões."""
     cur = conn.cursor()
     prefixo_mes = f"{ano}-{mes:02d}-"
     inseridas = 0
+
+    # Garantir existência das tabelas de auditoria de cancelamento e exclusão
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS regras_recorrentes_canceladas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            descricao TEXT NOT NULL,
+            categoria TEXT,
+            valor REAL,
+            data_cancelamento TEXT NOT NULL,
+            motivo TEXT,
+            created_at TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS transacoes_excluidas_historico (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transacao_id INTEGER,
+            descricao TEXT NOT NULL,
+            data_transacao TEXT,
+            ano INTEGER,
+            mes INTEGER,
+            valor REAL,
+            categoria TEXT,
+            conta TEXT,
+            data_exclusao TEXT NOT NULL
+        )
+    """)
 
     cur.execute("SELECT id, nome FROM contas_config WHERE nome = 'Mercado Pago'")
     r_c = cur.fetchone()
@@ -1125,7 +1136,25 @@ def materializar_recorrencias_aprovadas_mes(conn: sqlite3.Connection, ano: int, 
 
     for rec in RECORRENCIAS_APROVADAS_CONFIG:
         desc = rec["descricao"]
-        # Checar se já existe transação com descrição similar no mês
+
+        # Se foi cancelada a regra recorrente, pula
+        cur.execute("""
+            SELECT COUNT(*) FROM regras_recorrentes_canceladas
+            WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
+        """, (desc,))
+        if cur.fetchone()[0] > 0:
+            continue
+
+        # Se o lançamento foi excluído deste ano/mês específico, pula
+        cur.execute("""
+            SELECT COUNT(*) FROM transacoes_excluidas_historico
+            WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
+              AND ano = ? AND mes = ?
+        """, (desc, ano, mes))
+        if cur.fetchone()[0] > 0:
+            continue
+
+        # Checar se já existe transação com descrição similar no mês (inclusive em faturas de cartão)
         cur.execute("""
             SELECT COUNT(*) FROM transacoes
             WHERE LOWER(TRIM(descricao)) = LOWER(TRIM(?))
@@ -7071,7 +7100,7 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
         cat = row["categoria"]
         val = float(row["valor"] or 0.0)
 
-        # Garantir tabela de registro de cancelamento de recorrências
+        # Garantir tabelas de registro de cancelamento e histórico de exclusão
         cur.execute("""
             CREATE TABLE IF NOT EXISTS regras_recorrentes_canceladas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -7083,6 +7112,45 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
                 created_at TEXT
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS transacoes_excluidas_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transacao_id INTEGER,
+                descricao TEXT NOT NULL,
+                data_transacao TEXT,
+                ano INTEGER,
+                mes INTEGER,
+                valor REAL,
+                categoria TEXT,
+                conta TEXT,
+                data_exclusao TEXT NOT NULL
+            )
+        """)
+
+        ano_t = int(str(dt)[:4]) if dt and len(str(dt)) >= 4 else 0
+        mes_t = int(str(dt)[5:7]) if dt and len(str(dt)) >= 7 else 0
+        conta_t = row["conta"] if "conta" in row.keys() else ""
+
+        def limpar_filhos_e_historico(tid: int, t_desc: str, t_dt: str, t_val: float, t_cat: str, t_conta: str):
+            # Deletar filhos com Foreign Key ANTES da transação pai
+            cur.execute("DELETE FROM pagamentos_despesas WHERE transacao_id = ?", (tid,))
+            cur.execute("DELETE FROM planejamento_metas WHERE transacao_alvo_id = ?", (tid,))
+            cur.execute("DELETE FROM planejamento_prioridades_atrasados WHERE transacao_id = ?", (tid,))
+            cur.execute("DELETE FROM veiculo_abastecimentos WHERE transacao_id = ?", (tid,))
+            cur.execute("DELETE FROM planejamento_despesas_eventuais WHERE transacao_id = ?", (tid,))
+            cur.execute("UPDATE transacoes SET renegociacao_origem_id = NULL WHERE renegociacao_origem_id = ?", (tid,))
+            
+            # Registrar em transacoes_excluidas_historico
+            a = int(str(t_dt)[:4]) if t_dt and len(str(t_dt)) >= 4 else 0
+            m = int(str(t_dt)[5:7]) if t_dt and len(str(t_dt)) >= 7 else 0
+            cur.execute("""
+                INSERT INTO transacoes_excluidas_historico 
+                (transacao_id, descricao, data_transacao, ano, mes, valor, categoria, conta, data_exclusao)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (tid, t_desc, t_dt, a, m, t_val, t_cat, t_conta))
+
+            # Deletar transação pai
+            cur.execute("DELETE FROM transacoes WHERE id = ?", (tid,))
 
         if escopo in ("recorrente", "este_e_proximos", "todos_proximos"):
             # 1. Registrar cancelamento da regra
@@ -7093,27 +7161,26 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
 
             # 2. Excluir esta ocorrência e quaisquer ocorrências futuras pendentes com mesma descrição
             cur.execute("""
-                SELECT id FROM transacoes
+                SELECT id, descricao, data, valor, categoria, conta FROM transacoes
                 WHERE id = ? 
                    OR (tipo = 'despesa' AND (pago = 0 OR pago IS NULL) 
                        AND LOWER(TRIM(descricao)) = LOWER(TRIM(?)) 
                        AND data >= ?)
             """, (transacao_id, desc, dt))
-            ids_excluir = [r[0] for r in cur.fetchall()]
+            linhas_excluir = cur.fetchall()
 
-            for tid in ids_excluir:
-                cur.execute("DELETE FROM transacoes WHERE id = ?", (tid,))
-                cur.execute("DELETE FROM planejamento_metas WHERE transacao_alvo_id = ?", (tid,))
-                cur.execute("DELETE FROM pagamentos_despesas WHERE transacao_id = ?", (tid,))
+            for r_exc in linhas_excluir:
+                limpar_filhos_e_historico(
+                    r_exc["id"], r_exc["descricao"], r_exc["data"],
+                    float(r_exc["valor"] or 0.0), r_exc["categoria"] or "", r_exc["conta"] or ""
+                )
 
             conn.commit()
-            qtd_removidas = len(ids_excluir)
+            qtd_removidas = len(linhas_excluir)
             msg = f"Regra de '{desc}' encerrada com sucesso! {qtd_removidas} ocorrência(s) removida(s) (este mês e futuras)."
         else:
             # Exclusão apenas deste lançamento pontual
-            cur.execute("DELETE FROM transacoes WHERE id = ?", (transacao_id,))
-            cur.execute("DELETE FROM planejamento_metas WHERE transacao_alvo_id = ?", (transacao_id,))
-            cur.execute("DELETE FROM pagamentos_despesas WHERE transacao_id = ?", (transacao_id,))
+            limpar_filhos_e_historico(transacao_id, desc, dt, val, cat, conta_t)
             conn.commit()
             msg = f"Lançamento '{desc}' ({formatar_moeda_br(val)}) excluído com sucesso do mês selecionado."
 
@@ -7121,8 +7188,9 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
         dados = coletar_dados_dashboard()
         return {
             "sucesso": True,
-            "mensagem": msg,
+            "id": transacao_id,
             "transacao_id": transacao_id,
+            "mensagem": msg,
             "escopo": escopo,
             "novos_totais": {
                 "despesa_mensal": formatar_moeda_br(dados["despesa_mensal"]),
