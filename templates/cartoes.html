@@ -308,7 +308,8 @@
             </thead>
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
               {% for item in crd.compras %}
-              <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition cursor-pointer"
+              <tr class="cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition"
+                  data-id="{{ item.id }}"
                   onclick="abrirEdicaoCompraCartao({{ item.id }})"
                   title="Clique para ver detalhes e editar esta compra">
                 <td class="py-2 px-3 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono text-[11px]">
@@ -355,8 +356,8 @@
                 <td class="py-2 px-2 text-center whitespace-nowrap">
                   <div class="relative dropdown-acoes-menu inline-block">
                     <button type="button" 
-                            onclick="event.stopPropagation(); toggleMenuAcoesCartao(event, 'menu-card-item-{{ item.id }}')"
-                            title="Mais opções"
+                            onclick="event.stopPropagation(); abrirEdicaoCompraCartao({{ item.id }})"
+                            title="Editar compra"
                             class="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center transition cursor-pointer text-xs font-bold leading-none">
                       ⋯
                     </button>
@@ -1202,6 +1203,11 @@
     return 'R$ ' + partes.join(',');
   }
 
+  function formatarMoedaBR(valorFloat) {
+    const cents = Math.round((parseFloat(valorFloat) || 0.0) * 100);
+    return formatarMoedaCentavos(cents);
+  }
+
   function parseMoedaBR(val) {
     if (!val && val !== 0) return 0.0;
     if (typeof val === 'number') return val;
@@ -1541,7 +1547,26 @@
 
   async function abrirEdicaoCompraCartao(id) {
     if (!id) return;
-    let item = COMPRAS_FATURA_MAP[String(id)] || COMPRAS_FATURA_MAP[Number(id)];
+    let item = null;
+
+    // 1. Tentar ler do mapa em memória
+    if (typeof COMPRAS_FATURA_MAP !== 'undefined') {
+      item = COMPRAS_FATURA_MAP[String(id)] || COMPRAS_FATURA_MAP[Number(id)];
+    }
+
+    // 2. Se não encontrar, buscar via API GET /api/cartoes/compras/{id}
+    if (!item) {
+      try {
+        const resp = await fetch(`/api/cartoes/compras/${id}`);
+        if (resp.ok) {
+          item = await resp.json();
+        }
+      } catch (e) {
+        console.warn('Erro ao buscar compra via /api/cartoes/compras:', e);
+      }
+    }
+
+    // 3. Fallback via /api/transacoes/{id}
     if (!item) {
       try {
         const resp = await fetch(`/api/transacoes/${id}`);
@@ -1549,81 +1574,123 @@
           item = await resp.json();
         }
       } catch (e) {
-        console.warn('Erro ao buscar compra via API:', e);
+        console.warn('Erro ao buscar transacao:', e);
       }
     }
+
+    // 4. Fallback via data-compra-json no TR
+    if (!item) {
+      const tr = document.querySelector(`tr[data-id="${id}"]`);
+      if (tr && tr.dataset.compraJson) {
+        try {
+          item = JSON.parse(tr.dataset.compraJson);
+        } catch (e) {}
+      }
+    }
+
     if (item) {
       abrirDrawerEditarCompraDoItem(item);
+    } else {
+      console.error(`Não foi possível carregar os dados da compra #${id}`);
     }
   }
+  // Expor explicitamente no escopo global window
+  window.abrirEdicaoCompraCartao = abrirEdicaoCompraCartao;
 
   function abrirDrawerEditarCompraDoItem(item) {
     if (!item) return;
     itemCompraAtivoDrawer = item;
 
-    document.querySelectorAll('.menu-dropdown-cartao').forEach(m => m.classList.add('hidden'));
-
-    document.getElementById('edit-compra-id').value = item.id;
-    document.getElementById('edit-compra-desc').value = item.descricao_limpa || item.descricao || '';
-    
-    // Define valores com máscara monetária formatada e total consolidado
-    let vTotal = parseFloat(item.valor || 0);
-    let vJuros = parseFloat(item.juros || 0);
-    let vBase = vTotal;
-
-    if (vJuros > 0 && vTotal > vJuros && Math.abs(vTotal - 570.0) > 0.01) {
-      vBase = Math.round((vTotal - vJuros) * 100) / 100;
-    } else if (vJuros > 0 && Math.abs(vTotal - 570.0) <= 0.01) {
-      vBase = 570.0;
-      vTotal = Math.round((vBase + vJuros) * 100) / 100;
-    } else {
-      vTotal = Math.round((vBase + vJuros) * 100) / 100;
-    }
-
-    setValorMoeda(document.getElementById('edit-compra-valor'), vBase);
-    setValorMoeda(document.getElementById('edit-compra-juros'), vJuros);
-    setValorMoeda(document.getElementById('edit-compra-total-fatura'), vTotal);
-    atualizarPreviaFaturaDrawer();
-
-    const chkRec = document.getElementById('edit-compra-creditar-receita');
-    if (chkRec) {
-      chkRec.checked = false;
-      aoAlternarCreditoReceitaDrawer();
-    }
-
-    document.getElementById('edit-compra-data-compra').value = (item.data_compra || item.data || '').substring(0, 10);
-    document.getElementById('edit-compra-data').value = (item.data_vencimento || item.data || '').substring(0, 10);
-
-    const selCat = document.getElementById('edit-compra-categoria');
-    if (selCat) {
-      selCat.value = item.categoria || '';
-    }
-    const selSub = document.getElementById('edit-compra-subcategoria');
-    preencherSelectSubcategorias(selSub, item.categoria || '', item.subcategoria || '');
-
-    definirEditResponsavel(item.titular || 'Carlos');
-
+    // 1. Imediatamente remover classes de ocultação e abrir gaveta lateral e backdrop de forma fluida
     const drawer = document.getElementById('drawer-editar-compra');
     const panel = document.getElementById('drawer-panel');
-    drawer.classList.remove('pointer-events-none', 'opacity-0');
-    drawer.classList.add('pointer-events-auto', 'opacity-100');
-    drawer.style.opacity = '1';
-    panel.classList.remove('translate-x-full');
-    panel.classList.add('translate-x-0');
-    panel.style.transform = 'translateX(0)';
+    if (drawer && panel) {
+      drawer.classList.remove('pointer-events-none', 'opacity-0', 'hidden');
+      drawer.classList.add('pointer-events-auto', 'opacity-100');
+      drawer.style.opacity = '1';
+      drawer.style.pointerEvents = 'auto';
+      drawer.style.display = 'block';
+
+      panel.classList.remove('translate-x-full', 'hidden');
+      panel.classList.add('translate-x-0');
+      panel.style.transform = 'translateX(0)';
+    }
+
+    // 2. Fechar menus dropdowns
+    document.querySelectorAll('.menu-dropdown-cartao').forEach(m => m.classList.add('hidden'));
+
+    try {
+      // 3. Preencher dados
+      const inputId = document.getElementById('edit-compra-id');
+      if (inputId) inputId.value = item.id;
+
+      const inputDesc = document.getElementById('edit-compra-desc');
+      if (inputDesc) inputDesc.value = item.descricao_limpa || item.descricao || '';
+      
+      // Define valores com máscara monetária formatada e total consolidado
+      let vTotal = parseFloat(item.total_fatura || item.valor_total || item.valor || 0);
+      let vJuros = parseFloat(item.juros || 0);
+      let vBase = parseFloat(item.valor_base || item.valor || 0);
+
+      if (vJuros > 0 && vTotal > vJuros && Math.abs(vTotal - 570.0) > 0.01) {
+        vBase = Math.round((vTotal - vJuros) * 100) / 100;
+      } else if (vJuros > 0 && Math.abs(vTotal - 570.0) <= 0.01) {
+        vBase = 570.0;
+        vTotal = Math.round((vBase + vJuros) * 100) / 100;
+      } else {
+        vTotal = Math.round((vBase + vJuros) * 100) / 100;
+      }
+
+      setValorMoeda(document.getElementById('edit-compra-valor'), vBase);
+      setValorMoeda(document.getElementById('edit-compra-juros'), vJuros);
+      setValorMoeda(document.getElementById('edit-compra-total-fatura'), vTotal);
+      atualizarPreviaFaturaDrawer();
+
+      const chkRec = document.getElementById('edit-compra-creditar-receita');
+      if (chkRec) {
+        chkRec.checked = false;
+        aoAlternarCreditoReceitaDrawer();
+      }
+
+      const inputDtCompra = document.getElementById('edit-compra-data-compra');
+      if (inputDtCompra) inputDtCompra.value = (item.data_compra || item.data || '').substring(0, 10);
+
+      const inputDtVenc = document.getElementById('edit-compra-data');
+      if (inputDtVenc) inputDtVenc.value = (item.data_vencimento || item.data || '').substring(0, 10);
+
+      const selCat = document.getElementById('edit-compra-categoria');
+      if (selCat) {
+        selCat.value = item.categoria || '';
+      }
+      const selSub = document.getElementById('edit-compra-subcategoria');
+      if (selSub) {
+        preencherSelectSubcategorias(selSub, item.categoria || '', item.subcategoria || '');
+      }
+
+      definirEditResponsavel(item.responsavel || item.titular || 'Carlos');
+    } catch (err) {
+      console.error('Erro ao preencher campos do Drawer:', err);
+    }
   }
 
   function fecharDrawerEditarCompra() {
     const drawer = document.getElementById('drawer-editar-compra');
     const panel = document.getElementById('drawer-panel');
-    panel.classList.remove('translate-x-0');
-    panel.classList.add('translate-x-full');
-    drawer.classList.remove('opacity-100');
-    drawer.classList.add('opacity-0');
-    setTimeout(() => {
-      drawer.classList.remove('pointer-events-auto');
-      drawer.classList.add('pointer-events-none');
-    }, 300);
+    if (panel) {
+      panel.classList.remove('translate-x-0');
+      panel.classList.add('translate-x-full');
+      panel.style.transform = 'translateX(100%)';
+    }
+    if (drawer) {
+      drawer.classList.remove('opacity-100');
+      drawer.classList.add('opacity-0');
+      drawer.style.opacity = '0';
+      setTimeout(() => {
+        drawer.classList.remove('pointer-events-auto');
+        drawer.classList.add('pointer-events-none');
+        drawer.style.pointerEvents = 'none';
+      }, 300);
+    }
   }
 
   function definirEditResponsavel(nome) {

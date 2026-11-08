@@ -3139,6 +3139,66 @@ async def api_desfazer_fatura_cartao(request: Request):
         conn.close()
 
 
+@app.get("/api/cartoes/compras/{compra_id}")
+@app.get("/api/transacoes/{compra_id}")
+async def api_cartoes_compra_obter(compra_id: int):
+    """Retorna os dados detalhados de uma compra para preencher o drawer de edição."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, descricao, valor, data, categoria, subcategoria,
+                   titular, conta, juros, grupo_parcelamento,
+                   numero_parcela, total_parcelas_compra, pago, ref_externa
+            FROM transacoes
+            WHERE id = ?
+        """, (compra_id,))
+        row = cur.fetchone()
+        if not row:
+            return JSONResponse(status_code=404, content={"sucesso": False, "erro": "Compra não encontrada."})
+
+        valor_total = float(row["valor"] or 0.0)
+        juros = float(row["juros"] or 0.0)
+        valor_base = round(valor_total - juros, 2) if (juros > 0 and valor_total > juros) else valor_total
+
+        ref_ext = str(row["ref_externa"] or "")
+        dt_venc = str(row["data"] or "")[:10]
+        dt_compra = dt_venc
+        if "data_compra:" in ref_ext:
+            try:
+                dt_compra = ref_ext.split("data_compra:")[1].strip().split()[0][:10]
+            except Exception:
+                dt_compra = dt_venc
+
+        data_item = {
+            "id": row["id"],
+            "descricao": row["descricao"],
+            "descricao_limpa": row["descricao"],
+            "valor": valor_base,
+            "valor_base": valor_base,
+            "juros": juros,
+            "total_fatura": round(valor_base + juros, 2),
+            "data": dt_venc,
+            "data_vencimento": dt_venc,
+            "data_compra": dt_compra,
+            "categoria": row["categoria"] or "",
+            "subcategoria": row["subcategoria"] or "",
+            "responsavel": row["titular"] or "Carlos",
+            "titular": row["titular"] or "Carlos",
+            "conta": row["conta"] or "",
+            "grupo_parcelamento": row["grupo_parcelamento"] or "",
+            "numero_parcela": row["numero_parcela"],
+            "total_parcelas_compra": row["total_parcelas_compra"],
+            "pago": row["pago"],
+            "sucesso": True
+        }
+        return JSONResponse(data_item)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})
+    finally:
+        conn.close()
+
+
 @app.post("/api/cartoes/compras/editar")
 @app.post("/api/cartoes/compras/{compra_id}/editar")
 async def api_cartoes_compra_editar(request: Request, compra_id: Optional[int] = None):
