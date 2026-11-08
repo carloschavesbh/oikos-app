@@ -7015,9 +7015,14 @@ async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None)
         conn.close()
 
 
+@app.delete("/api/transacoes/{transacao_id}")
+@app.delete("/api/lancamentos/{transacao_id}")
+@app.post("/api/lancamentos/{transacao_id}/excluir")
+@app.post("/api/transacoes/{transacao_id}/excluir")
+@app.post("/api/lancamentos/excluir")
 @app.post("/contas/excluir")
 @app.post("/api/contas/excluir")
-async def api_excluir_conta(request: Request):
+async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None):
     """
     Exclui ou cancela conta a pagar / despesa recorrente no banco financas_casa.db:
     - Escopo 'pontual': exclui apenas a ocorrência selecionada do mês.
@@ -7025,15 +7030,32 @@ async def api_excluir_conta(request: Request):
     """
     conn = conectar_db()
     try:
+        escopo = "pontual"
         content_type = request.headers.get("content-type", "")
-        if "application/json" in content_type:
-            payload = await request.json()
-            transacao_id = int(payload.get("transacao_id") or payload.get("id") or 0)
-            escopo = str(payload.get("escopo", "pontual")).strip().lower()
+
+        if not transacao_id:
+            if "application/json" in content_type:
+                try:
+                    payload = await request.json()
+                    transacao_id = int(payload.get("transacao_id") or payload.get("id") or 0)
+                    escopo = str(payload.get("escopo", "pontual")).strip().lower()
+                except Exception:
+                    pass
+            else:
+                try:
+                    form = await request.form()
+                    transacao_id = int(form.get("transacao_id") or form.get("id") or 0)
+                    escopo = str(form.get("escopo", "pontual")).strip().lower()
+                except Exception:
+                    pass
         else:
-            form = await request.form()
-            transacao_id = int(form.get("transacao_id") or form.get("id") or 0)
-            escopo = str(form.get("escopo", "pontual")).strip().lower()
+            if "application/json" in content_type:
+                try:
+                    payload = await request.json()
+                    if payload and "escopo" in payload:
+                        escopo = str(payload.get("escopo", "pontual")).strip().lower()
+                except Exception:
+                    pass
 
         if not transacao_id:
             raise HTTPException(status_code=400, detail="ID da transação não fornecido.")

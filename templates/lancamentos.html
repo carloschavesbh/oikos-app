@@ -276,8 +276,8 @@
   </div>
 
 <!-- TABELA / LISTA DE TRANSAÇÕES -->
-  <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-    <div class="overflow-x-auto">
+  <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-visible shadow-sm">
+    <div class="w-full overflow-x-auto">
       <table class="w-full text-left border-collapse" id="tabela-transacoes">
         <thead>
           <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
@@ -395,33 +395,14 @@
                   </span>
                 </button>
 
-                <!-- Menu de Ações Secundárias ⋯ -->
-                <div class="relative dropdown-acoes-menu inline-block">
-                  <button type="button" 
-                          onclick="toggleMenuAcoes(event, 'menu-lanc-{{ t.id }}')"
-                          title="Mais opções"
-                          aria-label="Mais opções para {{ t.descricao }}"
-                          aria-haspopup="true"
-                          class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
-                  </button>
-
-                  <div id="menu-lanc-{{ t.id }}" 
-                       class="menu-dropdown-conteudo hidden absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
-                    <button type="button"
-                            onclick="fecharTodosMenusAcoes(); abrirGavetaEditarLancamentoDireto({{ t.id }})"
-                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
-                      <span>Editar Lançamento</span>
-                    </button>
-                    <button type="button"
-                            onclick="fecharTodosMenusAcoes(); excluirLancamento({{ t.id }}, '{{ t.descricao | replace("'", "\\'") }}')"
-                            class="w-full flex items-center gap-2 px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border-t border-slate-100 dark:border-slate-800/80">
-                      <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-                      <span>Excluir Lançamento</span>
-                    </button>
-                  </div>
-                </div>
+                <!-- Botão ⋯ abre Gaveta Lateral (Drawer) -->
+                <button type="button" 
+                        onclick="event.stopPropagation(); abrirGavetaEditarLancamentoDireto({{ t.id }})"
+                        title="Ver detalhes e editar lançamento"
+                        aria-label="Ver detalhes e editar {{ t.descricao }}"
+                        class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                </button>
 
                 <!-- Botão oculto com atributos para abrir modal de edição -->
                 <button type="button"
@@ -861,60 +842,14 @@
                 </button>
                 {% endif %}
 
-                <!-- Menu de Ações Secundárias ⋯ -->
-                <div class="relative dropdown-acoes-menu inline-block">
-                  <button type="button" 
-                          onclick="toggleMenuAcoes(event, 'menu-lanc-{{ t.id }}')"
-                          title="Mais opções"
-                          aria-label="Mais opções para {{ t.descricao }}"
-                          aria-haspopup="true"
-                          class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
-                  </button>
-
-                  <div id="menu-lanc-{{ t.id }}" 
-                       class="menu-dropdown-conteudo hidden absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200 text-left">
-                    <button type="button"
-                            onclick="fecharTodosMenusAcoes(); abrirGavetaEditarLancamentoDireto({{ t.id }})"
-                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                      <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
-                      <span>Editar Lançamento</span>
-                    </button>
-
-                    {% if t.is_pagaleve %}
-                    <a href="{{ t.pagaleve_link }}"
-                       class="w-full flex items-center gap-2 px-3 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-                      <span>Abrir no Paga Leve</span>
-                    </a>
-                    {% endif %}
-
-                    <div id="item-menu-desfazer-container-{{ t.id }}">
-                      {% if t.pago == 1 %}
-                      <button type="button"
-                              onclick="fecharTodosMenusAcoes(); confirmarDesfazerPagamento({{ t.id }}, '{{ t.descricao | replace("'", "\'") }}', '{{ t.valor | moeda }}', '{{ t.tipo }}')"
-                              class="w-full flex items-center gap-2 px-3 py-2 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/></svg>
-                        <span>{% if t.tipo == 'receita' %}Desfazer Recebimento{% else %}Desfazer Pagamento{% endif %}</span>
-                      </button>
-                      {% elif t.tipo == 'despesa' %}
-                      <button type="button"
-                              onclick="fecharTodosMenusAcoes(); baixarConta({{ t.id }}, '{{ t.descricao | replace("'", "\'") }}')"
-                              class="w-full flex items-center gap-2 px-3 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="m4.5 12.75 6 6 9-13.5"/></svg>
-                        <span>Registrar Pagamento</span>
-                      </button>
-                      {% endif %}
-                    </div>
-
-                    <button type="button"
-                            onclick="fecharTodosMenusAcoes(); excluirLancamento({{ t.id }}, '{{ t.descricao | replace("'", "\'") }}')"
-                            class="w-full flex items-center gap-2 px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border-t border-slate-100 dark:border-slate-800/80">
-                      <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-                      <span>Excluir Lançamento</span>
-                    </button>
-                  </div>
-                </div>
+                <!-- Botão ⋯ abre Gaveta Lateral (Drawer) -->
+                <button type="button" 
+                        onclick="event.stopPropagation(); abrirGavetaEditarLancamentoDireto({{ t.id }})"
+                        title="Ver detalhes e editar lançamento"
+                        aria-label="Ver detalhes e editar {{ t.descricao }}"
+                        class="touch-target w-8 h-8 rounded-lg bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-200 border border-transparent hover:border-slate-200 dark:hover:border-slate-700/60 flex items-center justify-center transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-slate-400 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+                </button>
 
                 <!-- Botão oculto com atributos para abrir modal de edição -->
                 <button type="button"
@@ -2666,9 +2601,48 @@
   function excluirLancamentoDoDrawer() {
     if (!lancamentoAtivoDrawer || !lancamentoAtivoDrawer.id) return;
     const desc = document.getElementById('drawer-lanc-descricao').value || 'Lançamento';
+    const id = lancamentoAtivoDrawer.id;
     fecharDrawerEditarLancamento();
-    if (typeof excluirLancamento === 'function') {
-      excluirLancamento(lancamentoAtivoDrawer.id, desc);
+    excluirLancamento(id, desc);
+  }
+
+  async function excluirLancamento(id, descricao) {
+    if (!id) return;
+    const descNome = descricao || 'selecionado';
+    if (!confirm(`Tem certeza que deseja excluir o lançamento "${descNome}"?`)) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/transacoes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await resp.json();
+
+      if (resp.ok && (data.sucesso || data.status === 'sucesso')) {
+        if (typeof showToast === 'function') {
+          showToast('Lançamento Excluído', data.mensagem || `Lançamento "${descNome}" removido com sucesso.`);
+        }
+        
+        // Remove linha do DOM imediatamente com animação suave
+        const tr = document.getElementById(`linha-tr-${id}`) || document.querySelector(`tr[data-id="${id}"]`);
+        if (tr) {
+          tr.style.transition = 'all 0.3s ease';
+          tr.style.opacity = '0';
+          tr.style.transform = 'translateX(20px)';
+          setTimeout(() => tr.remove(), 300);
+        }
+
+        // Recarrega limpo após 350ms para sincronizar saldos e totais do mês
+        setTimeout(() => {
+          window.location.reload();
+        }, 350);
+      } else {
+        alert('Erro ao excluir lançamento: ' + (data.erro || data.detail || 'Não foi possível excluir o lançamento.'));
+      }
+    } catch (err) {
+      alert('Erro de conexão ao excluir lançamento: ' + err.message);
     }
   }
 
