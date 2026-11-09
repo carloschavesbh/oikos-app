@@ -6,7 +6,7 @@
 <div class="max-w-7xl mx-auto px-3 sm:px-6 space-y-5 pb-16">
 
     <!-- BARRA DE TOPO UNIFICADA & ERGONÔMICA (ORGANIZZE) -->
-  <div class="relative z-30 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-2.5 sm:p-3 shadow-xs">
+  <div class="relative z-30 bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl p-2.5 sm:p-3 shadow-sm">
     <div class="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
       
       <!-- Botão "+ Lançamento" -->
@@ -129,7 +129,7 @@
 <!-- CARDS DE SALDO E RESUMO OPERACIONAL (DESIGN SÓBRIO & EQUILIBRADO) -->
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 w-full">
     <!-- Card 1: Total Receitas -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs w-full flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl p-4 sm:p-5 shadow-sm w-full flex flex-col justify-between">
       <div>
         <div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> 
@@ -145,7 +145,7 @@
     </div>
 
     <!-- Card 2: Total Despesas -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs w-full flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl p-4 sm:p-5 shadow-sm w-full flex flex-col justify-between">
       <div>
         <div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span> 
@@ -161,7 +161,7 @@
     </div>
 
     <!-- Card 3: Balanço do Período -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs w-full flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl p-4 sm:p-5 shadow-sm w-full flex flex-col justify-between">
       <div>
         <div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full {% if saldo_periodo >= 0 %}bg-emerald-500{% else %}bg-rose-500{% endif %} shrink-0"></span> 
@@ -177,7 +177,7 @@
     </div>
 
     <!-- Card 4: Saldo Atual Disponível -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-2xs w-full flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl p-4 sm:p-5 shadow-sm w-full flex flex-col justify-between">
       <div>
         <div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between gap-1.5">
           <div class="flex items-center gap-1.5 min-w-0 truncate">
@@ -202,7 +202,7 @@
   </div>
 
     <!-- BARRA DE FILTROS EM PÍLULAS COMPACTAS (CHIPS - ORGANIZZE) -->
-  <div class="relative z-30 bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl p-2 flex items-center gap-2 flex-wrap">
+  <div class="relative z-30 bg-white/80 dark:bg-[#131b26]/70 border border-slate-100 dark:border-slate-800/40 rounded-2xl p-2 flex items-center gap-2 flex-wrap shadow-2xs">
     
     <!-- Chip 1: Origem / Conta / Cartão -->
     <div class="relative shrink-0">
@@ -294,11 +294,11 @@
   </div>
 
 <!-- TABELA / LISTA DE TRANSAÇÕES -->
-  <div class="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-visible shadow-sm">
+  <div class="bg-white dark:bg-[#131b26] border border-slate-100 dark:border-slate-800/40 rounded-2xl overflow-visible shadow-sm">
     <div class="w-full overflow-x-auto">
       <table class="w-full text-left border-collapse" id="tabela-transacoes">
         <thead>
-          <tr class="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+          <tr class="border-b border-slate-100 dark:border-slate-800/40 bg-slate-50/50 dark:bg-slate-900/30 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
             <th class="py-3 px-3 sm:px-4">Data</th>
             <th class="py-3 px-3 sm:px-4">Descrição</th>
             <th class="py-3 px-3 sm:px-4 hidden sm:table-cell">Categoria</th>
@@ -308,7 +308,7 @@
             <th class="py-3 px-3 sm:px-4 pr-6 sm:pr-8 text-right whitespace-nowrap w-32 min-w-[120px]">Ações</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/40 text-xs sm:text-sm">
           <!-- TRANSAÇÕES ATRASADAS DE MESES PASSADOS -->
           {% for t in transacoes_atrasadas %}
           <tr class="linha-transacao linha-transacao-passada cursor-pointer bg-amber-500/5 hover:bg-amber-500/15 transition group border-l-2 border-l-rose-500" onclick="aoClicarLinhaLancamento(event, {{ t.id }})" 
