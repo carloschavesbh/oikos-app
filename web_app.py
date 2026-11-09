@@ -1635,7 +1635,12 @@ async def pagina_lancamentos(
             "ref_externa": r["ref_externa"] if "ref_externa" in r.keys() else ""
         })
 
-    qtd_atrasadas = len(transacoes_atrasadas)
+    # Contagem estrita e dinâmica de despesas atrasadas reais no SQLite (vencimento < hoje e não pagas)
+    cur.execute("""
+        SELECT COUNT(*) FROM transacoes
+        WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
+    """, (hoje_str,))
+    qtd_atrasadas = int(cur.fetchone()[0] or 0)
 
     # Saldo consolidado das contas ativas (reaproveitando saldo_service)
     res_saldo = saldo_service.calcular_saldo_consolidado(conn)
@@ -2439,6 +2444,7 @@ async def api_toggle_status_lancamento(transacao_id: int):
     Alterna imediatamente o status de um lançamento entre Pendente e Pago (estilo Organizze):
     - Se estava Pago (pago=1): reverte para Pendente, estornando da conta se aplicável.
     - Se estava Pendente (pago=0): confirma como Pago, debitando da conta correspondente se afetar saldo.
+    Retorna imediatamente o novo saldo da conta bancária e o novo Saldo Atual Disponível consolidado.
     """
     conn = conectar_db()
     try:
@@ -2452,6 +2458,15 @@ async def api_toggle_status_lancamento(transacao_id: int):
         pago_atual = int(t.get("pago") or 0)
         descricao = t.get("descricao") or "Lançamento"
         hoje_str = date.today().strftime("%Y-%m-%d")
+        conta_id = t.get("conta_id")
+        conta_str = str(t.get("conta") or "").strip()
+
+        if not conta_id:
+            cur.execute("SELECT id FROM contas_config WHERE nome = ? LIMIT 1", (conta_str,))
+            row_c = cur.fetchone()
+            conta_id = int(row_c["id"]) if row_c else 1
+        else:
+            conta_id = int(conta_id)
         
         if pago_atual == 1:
             try:
@@ -2460,24 +2475,19 @@ async def api_toggle_status_lancamento(transacao_id: int):
                 pass
             cur.execute("""
                 UPDATE transacoes 
-                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL 
+                SET pago = 0, status_pagamento = 'pendente', data_liquidacao = NULL, valor_pago = NULL
                 WHERE id = ?
             """, (transacao_id,))
             conn.commit()
-            return JSONResponse({
-                "sucesso": True,
-                "novo_status": "pendente",
-                "pago": 0,
-                "id": transacao_id,
-                "mensagem": f"'{descricao}' marcado como Pendente."
-            })
+            msg = f"'{descricao}' marcado como Pendente."
+            novo_pago = 0
+            novo_status = "pendente"
         else:
             valor_total = float(t.get("valor") or 0.0)
-            conta_id = int(t.get("conta_id") or 1)
             afeta = int(t.get("afeta_saldo_bancario") if t.get("afeta_saldo_bancario") is not None else 1)
             
             # Não debita se for cartão de crédito avulso
-            eh_cartao = (t.get("tipo") == "cartao") or str(t.get("conta") or "").lower().startswith("cart")
+            eh_cartao = (t.get("tipo") == "cartao") or conta_str.lower().startswith("cart")
             if eh_cartao:
                 afeta = 0
 
@@ -2497,17 +2507,43 @@ async def api_toggle_status_lancamento(transacao_id: int):
                 
             cur.execute("""
                 UPDATE transacoes 
-                SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?, valor_pago = ?
+                SET pago = 1, status_pagamento = 'pago', data_liquidacao = ?, valor_pago = ?, conta_id = ?
                 WHERE id = ?
-            """, (hoje_str, valor_total, transacao_id))
+            """, (hoje_str, valor_total, conta_id, transacao_id))
             conn.commit()
-            return JSONResponse({
-                "sucesso": True,
-                "novo_status": "pago",
-                "pago": 1,
-                "id": transacao_id,
-                "mensagem": f"'{descricao}' confirmado como Pago!"
-            })
+            msg = f"'{descricao}' confirmado como Pago!"
+            novo_pago = 1
+            novo_status = "pago"
+
+        # Recalcular saldos atualizados imediatamente
+        res_saldo = saldo_service.calcular_saldo_consolidado(conn)
+        saldo_consolidado = float(res_saldo.get("saldo_consolidado", 0.0))
+
+        res_conta = saldo_service.calcular_saldo_conta(conn, conta_id)
+        saldo_conta = float(res_conta.get("saldo_atual", 0.0))
+        conta_nome = res_conta.get("conta_nome", conta_str or "Conta")
+
+        # Recalcular quantidade real e estrita de atrasadas
+        cur.execute("""
+            SELECT COUNT(*) FROM transacoes
+            WHERE tipo = 'despesa' AND (pago = 0 OR pago IS NULL) AND data < ?
+        """, (hoje_str,))
+        qtd_atrasadas_real = int(cur.fetchone()[0] or 0)
+
+        return JSONResponse({
+            "sucesso": True,
+            "pago": novo_pago,
+            "novo_status": novo_status,
+            "id": transacao_id,
+            "conta_id": conta_id,
+            "conta_nome": conta_nome,
+            "novo_saldo_conta": formatar_moeda_br(saldo_conta),
+            "novo_saldo_conta_valor": saldo_conta,
+            "saldo_atual_disponivel": formatar_moeda_br(saldo_consolidado),
+            "saldo_atual_disponivel_valor": saldo_consolidado,
+            "qtd_atrasadas": qtd_atrasadas_real,
+            "mensagem": msg
+        })
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"sucesso": False, "erro": str(e)})

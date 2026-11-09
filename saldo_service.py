@@ -465,15 +465,26 @@ def calcular_saldo_conta(
     
     conta_nome = conta_row[1]
 
-    # Busca o primeiro marco inicial da conta para obter o Saldo Inicial Base da implantação
+    # Busca o marco inicial ativo mais recente da conta para obter o Saldo Inicial Base da implantação
     cur.execute("""
         SELECT id, data, saldo_informado_centavos, motivo
         FROM ajustes_saldo
-        WHERE conta_id = ? AND tipo = 'marco_inicial'
-        ORDER BY data ASC, id ASC
+        WHERE conta_id = ? AND tipo = 'marco_inicial' AND status = 'ativo'
+        ORDER BY data DESC, id DESC
         LIMIT 1
     """, (conta_id,))
     marco_ini = cur.fetchone()
+
+    if not marco_ini:
+        # Fallback para qualquer marco inicial cadastrado caso não haja flag 'ativo'
+        cur.execute("""
+            SELECT id, data, saldo_informado_centavos, motivo
+            FROM ajustes_saldo
+            WHERE conta_id = ? AND tipo = 'marco_inicial'
+            ORDER BY data DESC, id DESC
+            LIMIT 1
+        """, (conta_id,))
+        marco_ini = cur.fetchone()
 
     if marco_ini:
         saldo_cents = marco_ini[2]
@@ -494,7 +505,7 @@ def calcular_saldo_conta(
     query = """
         SELECT id, data, COALESCE(valor_pago, valor) as valor, tipo, conta_id, conta_destino_id, afeta_saldo_bancario, conta
         FROM transacoes
-        WHERE pago = 1 
+        WHERE (pago = 1 OR status_pagamento = 'pago') 
           AND (afeta_saldo_bancario = 1 OR afeta_saldo_bancario IS NULL)
           AND (
               conta_id = ? 

@@ -169,7 +169,7 @@
             <span class="truncate">Saldo Atual Disponível</span>
           </div>
         </div>
-        <div class="text-xl md:text-2xl font-bold {% if saldo_atual_disponivel >= 0 %}text-slate-900 dark:text-white{% else %}text-rose-600 dark:text-rose-400{% endif %} truncate" title="Soma das contas ativas em caixa">
+        <div id="valor-saldo-atual-disponivel" class="text-xl md:text-2xl font-bold {% if saldo_atual_disponivel >= 0 %}text-slate-900 dark:text-white{% else %}text-rose-600 dark:text-rose-400{% endif %} truncate" title="Soma das contas ativas em caixa">
           {{ saldo_atual_disponivel | moeda }}
         </div>
       </div>
@@ -227,7 +227,7 @@
         <button type="button" onclick="aplicarFiltroTipoStatus('despesa', 'Despesas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-500">📉 Despesas</button>
         <button type="button" onclick="aplicarFiltroTipoStatus('pago', 'Pagas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 border-t border-slate-100 dark:border-slate-800">👍 Pagas / Confirmadas</button>
         <button type="button" onclick="aplicarFiltroTipoStatus('pendente', 'Pendentes')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">⏳ Pendentes</button>
-        <button type="button" onclick="aplicarFiltroTipoStatus('atrasadas', 'Atrasadas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-500">⚠️ Atrasadas ({% if qtd_atrasadas %}{{ qtd_atrasadas }}{% else %}0{% endif %})</button>
+        <button type="button" id="item-filtro-atrasadas" onclick="aplicarFiltroTipoStatus('atrasadas', 'Atrasadas')" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-amber-500">⚠️ Atrasadas (<span id="contador-atrasadas">{% if qtd_atrasadas %}{{ qtd_atrasadas }}{% else %}0{% endif %}</span>)</button>
       </div>
     </div>
 
@@ -287,7 +287,7 @@
             <th class="py-3 px-3 sm:px-4 hidden md:table-cell">Conta</th>
             <th class="py-3 px-3 sm:px-4 text-right">Valor</th>
             <th class="py-3 px-3 sm:px-4 text-center">Status</th>
-            <th class="py-3 px-3 sm:px-4 text-center">Ações</th>
+            <th class="py-3 px-3 sm:px-4 pr-6 sm:pr-8 text-right whitespace-nowrap w-32 min-w-[120px]">Ações</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm">
@@ -382,8 +382,8 @@
             </td>
 
             <!-- Ações Compactas -->
-            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
-              <div class="inline-flex items-center gap-1.5">
+            <td class="py-3 px-3 sm:px-4 pr-6 sm:pr-8 text-right whitespace-nowrap w-32 min-w-[120px]">
+              <div class="inline-flex items-center justify-end gap-1.5 sm:gap-2">
                                 <!-- Botão de Status Rápido: Joinha 👍 (Pago) vs 👎 (Pendente) -->
                 <button type="button"
                         onclick="aoClicarToggleStatus(event, {{ t.id }})"
@@ -538,8 +538,8 @@
             </td>
 
             <!-- Ações Compactas do Grupo -->
-            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
-              <div class="inline-flex items-center gap-1.5">
+            <td class="py-3 px-3 sm:px-4 pr-6 sm:pr-8 text-right whitespace-nowrap w-32 min-w-[120px]">
+              <div class="inline-flex items-center justify-end gap-1.5 sm:gap-2">
                 {% if t.valor_pendente > 0 %}
                 <!-- Pagar Grupo Inteiro -->
                 <button type="button"
@@ -828,8 +828,8 @@
             </td>
 
             <!-- Ações Compactas -->
-            <td class="py-3 px-3 sm:px-4 text-center whitespace-nowrap">
-              <div class="inline-flex items-center gap-1.5">
+            <td class="py-3 px-3 sm:px-4 pr-6 sm:pr-8 text-right whitespace-nowrap w-32 min-w-[120px]">
+              <div class="inline-flex items-center justify-end gap-1.5 sm:gap-2">
                 <!-- Ação Primária Compacta (Pagar, Receber ou Desfazer) -->
                 {% if t.pago == 1 %}
                 <button type="button"
@@ -2044,7 +2044,7 @@
       } else if (filtroTipoStatusAtual === 'pendente') {
         atendeTipoStatus = !pago;
       } else if (filtroTipoStatusAtual === 'atrasadas') {
-        atendeTipoStatus = ehAtrasada;
+        atendeTipoStatus = (ehAtrasada || ehMesPassado) && !pago;
       }
 
       // 5. Filtro de Categoria
@@ -2059,7 +2059,11 @@
         atendeResp = texto.includes(filtroResponsavelAtual.toLowerCase());
       }
 
-      const deveExibir = atendeBusca && atendeModo && atendeOrigem && atendeTipoStatus && atendeCategoria && atendeResp;
+      // Regra de Isolamento Estrito do Mês: lançamentos de meses anteriores SÓ aparecem se o filtro for explicitamente 'atrasadas'
+      let deveExibir = atendeBusca && atendeModo && atendeOrigem && atendeTipoStatus && atendeCategoria && atendeResp;
+      if (ehMesPassado && filtroTipoStatusAtual !== 'atrasadas') {
+        deveExibir = false;
+      }
 
       if (deveExibir) {
         linha.style.display = '';
@@ -2117,11 +2121,37 @@
           tr.setAttribute('data-pago', ehPago ? '1' : '0');
         }
 
+        // Atualiza imediatamente o card "Saldo Atual Disponível" no topo
+        if (data.saldo_atual_disponivel) {
+          const elSaldo = document.getElementById('valor-saldo-atual-disponivel');
+          if (elSaldo) {
+            elSaldo.textContent = data.saldo_atual_disponivel;
+            if (data.saldo_atual_disponivel_valor !== undefined && data.saldo_atual_disponivel_valor < 0) {
+              elSaldo.classList.remove('text-slate-900', 'dark:text-white');
+              elSaldo.classList.add('text-rose-600', 'dark:text-rose-400');
+            } else {
+              elSaldo.classList.remove('text-rose-600', 'dark:text-rose-400');
+              elSaldo.classList.add('text-slate-900', 'dark:text-white');
+            }
+          }
+        }
+
+        // Atualiza o contador de contas atrasadas dinamicamente
+        if (data.qtd_atrasadas !== undefined) {
+          const elQtdAtrasadas = document.getElementById('contador-atrasadas');
+          if (elQtdAtrasadas) {
+            elQtdAtrasadas.textContent = data.qtd_atrasadas;
+          }
+        }
+
         // Se a gaveta estiver aberta na mesma transação, atualiza os dados na gaveta também
         if (lancamentoAtivoDrawer && String(lancamentoAtivoDrawer.id) === String(transacaoId)) {
           lancamentoAtivoDrawer.pago = ehPago;
           atualizarCardsVisualizacaoDrawer(lancamentoAtivoDrawer);
         }
+
+        // Re-executa os filtros da tabela para atualizar a visibilidade caso filtros de Pagas/Pendentes/Atrasadas estejam ativos
+        filtrarTabela();
 
         if (typeof showToast === 'function') {
           showToast(ehPago ? 'Confirmado como Pago!' : 'Alterado para Pendente!', data.mensagem || '', false);
