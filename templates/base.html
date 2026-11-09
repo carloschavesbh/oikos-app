@@ -534,6 +534,9 @@
           <a href="/simulador" class="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
             <span>🎯</span> <span>Simulador de Cenários</span>
           </a>
+          <a href="/categorias" class="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition text-emerald-600 dark:text-emerald-400 font-bold">
+            <span>🏷️</span> <span>Gerenciar Categorias</span>
+          </a>
           <a href="/planejamento" class="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
             <span>🏷️</span> <span>Categorias & Planejamento</span>
           </a>
@@ -563,7 +566,7 @@
   <aside id="app-sidebar" aria-label="Navegação Operacional"
          class="fixed top-14 bottom-0 left-0 z-30 bg-white/95 dark:bg-slate-900/95 border-r border-slate-200 dark:border-slate-800/80 backdrop-blur-md flex flex-col justify-between select-none shadow-sm">
     
-    <!-- 4 ROTINAS DIÁRIAS PRINCIPAIS -->
+    <!-- 7 MÓDULOS OPERACIONAIS PRINCIPAIS -->
     <nav class="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto custom-scroll" aria-label="Rotinas Diárias">
       
       <!-- 1. VISÃO GERAL -->
@@ -599,9 +602,42 @@
         </div>
       </div>
 
-      <!-- 4. RELATÓRIOS -->
+      <!-- 4. PAGA LEVE -->
       <div class="sidebar-nav-item relative group">
-        <a href="/planejamento" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['relatorios', 'planejamento'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/pagaleve" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'pagaleve' %}bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
+          <span class="sidebar-text truncate">Paga Leve</span>
+        </a>
+        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
+          Paga Leve
+        </div>
+      </div>
+
+      <!-- 5. OIKOS DRIVE -->
+      <div class="sidebar-nav-item relative group">
+        <a href="/drive" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25V3.75m0 3.75h-7.5M3.75 14.25 5.25 9.75a1.5 1.5 0 0 1 1.423-1.023h7.577"/></svg>
+          <span class="sidebar-text truncate">Oikos Drive</span>
+        </a>
+        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
+          Oikos Drive
+        </div>
+      </div>
+
+      <!-- 6. PLANEJAMENTO -->
+      <div class="sidebar-nav-item relative group">
+        <a href="/planejamento" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'planejamento' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+          <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/></svg>
+          <span class="sidebar-text truncate">Planejamento</span>
+        </a>
+        <div class="sidebar-tooltip absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold shadow-xl border border-slate-700 whitespace-nowrap z-50 pointer-events-none">
+          Planejamento
+        </div>
+      </div>
+
+      <!-- 7. RELATÓRIOS -->
+      <div class="sidebar-nav-item relative group">
+        <a href="/relatorios" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'relatorios' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
           <span class="sidebar-text truncate">Relatórios</span>
         </a>
@@ -1462,6 +1498,46 @@
       return null;
     }
 
+    function aoMudarCategoriaGlobal(subcatSelecionada = '') {
+      const selCat = document.getElementById('global-select-categoria');
+      const selSub = document.getElementById('global-select-subcategoria');
+      if (!selCat || !selSub) return;
+      const cat = selCat.value;
+      const mapa = (cacheOpcoesGlobal && cacheOpcoesGlobal.mapa_subcategorias) ? cacheOpcoesGlobal.mapa_subcategorias : {};
+      const subs = mapa[cat] || [];
+
+      selSub.innerHTML = '<option value="">(Nenhuma / Geral)</option>';
+      subs.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        if (subcatSelecionada && s.toLowerCase() === subcatSelecionada.toLowerCase()) {
+          opt.selected = true;
+        }
+        selSub.appendChild(opt);
+      });
+    }
+
+    function aoMudarCategoriaCartaoGlobal(subcatSelecionada = '') {
+      const selCat = document.getElementById('global-cartao-categoria');
+      const selSub = document.getElementById('global-cartao-subcategoria');
+      if (!selCat || !selSub) return;
+      const cat = selCat.value;
+      const mapa = (cacheOpcoesGlobal && cacheOpcoesGlobal.mapa_subcategorias) ? cacheOpcoesGlobal.mapa_subcategorias : {};
+      const subs = mapa[cat] || [];
+
+      selSub.innerHTML = '<option value="">(Nenhuma / Geral)</option>';
+      subs.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s;
+        if (subcatSelecionada && s.toLowerCase() === subcatSelecionada.toLowerCase()) {
+          opt.selected = true;
+        }
+        selSub.appendChild(opt);
+      });
+    }
+
     function formatarTextoOpcaoConta(c) {
       if (!c) return '';
       // Limpa qualquer nome de arquivo de ícone (.svg/.png) que tenha vazado
@@ -1859,6 +1935,7 @@
         } else {
           selCat.innerHTML = cacheOpcoesGlobal.categorias_despesa.map(c => `<option value="${c}">${c}</option>`).join('');
         }
+        aoMudarCategoriaGlobal();
       }
 
       if (tipo === 'cartao') {
@@ -1917,6 +1994,7 @@
         selCat.innerHTML = dados.categorias_despesa.map(cat => {
           return `<option value="${cat}">${cat}</option>`;
         }).join('');
+        aoMudarCategoriaCartaoGlobal();
       }
     }
 
@@ -2503,6 +2581,7 @@
         } else {
           // Despesa ou Receita normal
           const cat = document.getElementById('global-select-categoria').value;
+          const subcat = document.getElementById('global-select-subcategoria')?.value || '';
           const conta = document.getElementById('global-select-conta').value;
           const pago = document.getElementById('global-check-pago').checked ? 1 : 0;
           const chkSplit = document.getElementById('global-check-split');
@@ -2513,6 +2592,7 @@
           fd.append('valor', valor);
           fd.append('descricao', desc);
           fd.append('categoria', cat);
+          fd.append('subcategoria', subcat);
           fd.append('pago', pago);
 
           if (tipo === 'despesa' && chkSplit && chkSplit.checked) {
@@ -2869,11 +2949,19 @@
         <div id="bloco-campos-padrao" class="space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria*</label>
-              <select id="global-select-categoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-                <!-- Populado dinamicamente -->
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria Principal*</label>
+              <select id="global-select-categoria" onchange="aoMudarCategoriaGlobal()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <!-- Populado dinamicamente com Categorias Pais -->
               </select>
             </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Subcategoria (Opcional)</label>
+              <select id="global-select-subcategoria" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                <option value="">(Nenhuma / Geral)</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 gap-3">
             <div id="global-wrap-conta-unica">
               <label id="global-label-conta" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Conta / Forma*</label>
               <select id="global-select-conta" onchange="verificarContaCartaoGlobal()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -3055,15 +3143,17 @@
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria *</label>
-              <select id="global-cartao-categoria"
+              <select id="global-cartao-categoria" onchange="aoMudarCategoriaCartaoGlobal()"
                       class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
                 <!-- Populado dinamicamente -->
               </select>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Subcategoria</label>
-              <input type="text" id="global-cartao-subcategoria" placeholder="Opcional"
-                     class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+              <select id="global-cartao-subcategoria"
+                      class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-orange-500 focus:outline-none">
+                <option value="">(Nenhuma / Geral)</option>
+              </select>
             </div>
           </div>
 

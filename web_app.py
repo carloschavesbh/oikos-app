@@ -9059,11 +9059,52 @@ async def api_opcoes_transacao_global():
                 "icone_fallback": "banco_default.svg"
             })
 
-        cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'despesa' AND categoria IS NOT NULL ORDER BY categoria ASC")
-        cats_desp = [r[0] for r in cur.fetchall() if r[0]]
+        # Buscar Categorias Principais de grupos_categoria e suas subcategorias
+        cur.execute("SELECT id, nome, icone, cor, tipo FROM grupos_categoria WHERE ativo = 1 ORDER BY tipo, ordem, nome")
+        rows_grupos = cur.fetchall()
 
-        cur.execute("SELECT DISTINCT categoria FROM transacoes WHERE tipo = 'receita' AND categoria IS NOT NULL ORDER BY categoria ASC")
-        cats_rec = [r[0] for r in cur.fetchall() if r[0]]
+        cur.execute("SELECT id, grupo_id, nome, icone FROM subcategorias WHERE ativo = 1 ORDER BY grupo_id, ordem, nome")
+        rows_subs = cur.fetchall()
+
+        subs_por_grupo = {}
+        for s in rows_subs:
+            gid = s["grupo_id"]
+            if gid not in subs_por_grupo:
+                subs_por_grupo[gid] = []
+            subs_por_grupo[gid].append({
+                "id": s["id"],
+                "nome": s["nome"],
+                "icone": s["icone"] or "•"
+            })
+
+        cats_desp = []
+        cats_rec = []
+        mapa_subcategorias = {}
+        hierarquia_completa = {"despesa": [], "receita": []}
+
+        for g in rows_grupos:
+            g_dict = dict(g)
+            g_nome = g_dict["nome"]
+            g_tipo = g_dict["tipo"]
+            g_subs = subs_por_grupo.get(g_dict["id"], [])
+            
+            g_item = {
+                "id": g_dict["id"],
+                "nome": g_nome,
+                "icone": g_dict.get("icone") or "📁",
+                "cor": g_dict.get("cor") or "#3b82f6",
+                "tipo": g_tipo,
+                "subcategorias": g_subs
+            }
+
+            mapa_subcategorias[g_nome] = [sub["nome"] for sub in g_subs]
+
+            if g_tipo == "despesa":
+                cats_desp.append(g_nome)
+                hierarquia_completa["despesa"].append(g_item)
+            else:
+                cats_rec.append(g_nome)
+                hierarquia_completa["receita"].append(g_item)
 
         cur.execute("""
             SELECT id, nome, bandeira, limite_total, dia_fechamento, dia_vencimento,
@@ -9082,6 +9123,8 @@ async def api_opcoes_transacao_global():
             "contas": contas,
             "categorias_despesa": cats_desp,
             "categorias_receita": cats_rec,
+            "mapa_subcategorias": mapa_subcategorias,
+            "categorias_hierarquia": hierarquia_completa,
             "cartoes": cartoes
         }
     finally:
@@ -9220,5 +9263,304 @@ async def api_conciliacao_visao_anual(ano: Optional[int] = Query(2026)):
         return dados
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        conn.close()
+
+
+# =========================================================================
+# ROTAS DE GESTÃO DE CATEGORIAS & SUBCATEGORIAS (ORGANIZZE / HIERÁRQUICO)
+# =========================================================================
+
+@app.get("/relatorios", response_class=HTMLResponse)
+async def rota_relatorios():
+    """Redireciona para o módulo de relatórios e planejamento operacional."""
+    return RedirectResponse(url="/planejamento", status_code=302)
+
+
+@app.get("/categorias", response_class=HTMLResponse)
+async def rota_gerenciar_categorias(request: Request):
+    """Página principal de gerenciamento de Categorias Principais e Subcategorias."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT g.id, g.nome, g.tipo, COALESCE(g.icone, '📁') as icone, COALESCE(g.cor, '#3b82f6') as cor, g.ordem, g.ativo,
+                   (SELECT COUNT(*) FROM transacoes t WHERE t.grupo_id = g.id OR t.categoria = g.nome) as total_transacoes
+            FROM grupos_categoria g
+            WHERE g.ativo = 1
+            ORDER BY g.tipo, g.ordem, g.nome
+        """)
+        grupos = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT s.id, s.grupo_id, s.nome, COALESCE(s.icone, '•') as icone, s.ordem, s.ativo,
+                   (SELECT COUNT(*) FROM transacoes t WHERE t.subcategoria_id = s.id OR t.subcategoria = s.nome) as total_transacoes
+            FROM subcategorias s
+            WHERE s.ativo = 1
+            ORDER BY s.grupo_id, s.ordem, s.nome
+        """)
+        subs = [dict(r) for r in cur.fetchall()]
+
+        subs_por_grupo = {}
+        for s in subs:
+            gid = s["grupo_id"]
+            if gid not in subs_por_grupo:
+                subs_por_grupo[gid] = []
+            subs_por_grupo[gid].append(s)
+
+        despesas = []
+        receitas = []
+        for g in grupos:
+            g["subcategorias"] = subs_por_grupo.get(g["id"], [])
+            g["total_subs"] = len(g["subcategorias"])
+            if g["tipo"] == "receita":
+                receitas.append(g)
+            else:
+                despesas.append(g)
+
+        return templates.TemplateResponse(
+            request=request,
+            name="categorias.html",
+            context={
+                "active_tab": "categorias",
+                "despesas": despesas,
+                "receitas": receitas,
+                "total_categorias_despesa": len(despesas),
+                "total_categorias_receita": len(receitas)
+            }
+        )
+    finally:
+        conn.close()
+
+
+@app.get("/api/categorias")
+async def api_listar_categorias():
+    """Retorna a hierarquia completa de categorias e subcategorias em JSON."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, tipo, icone, cor, ordem, ativo FROM grupos_categoria WHERE ativo = 1 ORDER BY tipo, ordem, nome")
+        grupos = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT id, grupo_id, nome, icone, ordem, ativo FROM subcategorias WHERE ativo = 1 ORDER BY grupo_id, ordem, nome")
+        subs = [dict(r) for r in cur.fetchall()]
+
+        subs_por_grupo = {}
+        for s in subs:
+            gid = s["grupo_id"]
+            if gid not in subs_por_grupo:
+                subs_por_grupo[gid] = []
+            subs_por_grupo[gid].append(s)
+
+        for g in grupos:
+            g["subcategorias"] = subs_por_grupo.get(g["id"], [])
+
+        return {"sucesso": True, "categorias": grupos}
+    finally:
+        conn.close()
+
+
+@app.post("/api/categorias")
+async def api_criar_categoria(payload: dict = Body(...)):
+    """Cria uma nova categoria pai."""
+    nome = (payload.get("nome") or "").strip()
+    tipo = payload.get("tipo") or "despesa"
+    icone = (payload.get("icone") or "📁").strip()
+    cor = (payload.get("cor") or "#3b82f6").strip()
+
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome da categoria é obrigatório.")
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM grupos_categoria WHERE LOWER(nome) = LOWER(?)", (nome,))
+        if cur.fetchone():
+            return {"sucesso": False, "mensagem": f"A categoria '{nome}' já existe."}
+
+        cur.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM grupos_categoria WHERE tipo = ?", (tipo,))
+        ordem = cur.fetchone()[0]
+
+        cur.execute("""
+            INSERT INTO grupos_categoria (nome, tipo, icone, cor, ordem, ativo)
+            VALUES (?, ?, ?, ?, ?, 1)
+        """, (nome, tipo, icone, cor, ordem))
+        conn.commit()
+        novo_id = cur.lastrowid
+        return {"sucesso": True, "id": novo_id, "mensagem": "Categoria criada com sucesso!"}
+    finally:
+        conn.close()
+
+
+@app.post("/api/categorias/{categoria_id}/editar")
+async def api_editar_categoria(categoria_id: int, payload: dict = Body(...)):
+    """Edita uma categoria pai existente."""
+    nome = (payload.get("nome") or "").strip()
+    icone = (payload.get("icone") or "📁").strip()
+    cor = (payload.get("cor") or "#3b82f6").strip()
+    tipo = payload.get("tipo")
+
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome da categoria é obrigatório.")
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM grupos_categoria WHERE id = ?", (categoria_id,))
+        cat_atual = cur.fetchone()
+        if not cat_atual:
+            raise HTTPException(status_code=404, detail="Categoria não encontrada.")
+
+        nome_antigo = cat_atual[0]
+
+        if tipo:
+            cur.execute("""
+                UPDATE grupos_categoria
+                SET nome = ?, icone = ?, cor = ?, tipo = ?
+                WHERE id = ?
+            """, (nome, icone, cor, tipo, categoria_id))
+        else:
+            cur.execute("""
+                UPDATE grupos_categoria
+                SET nome = ?, icone = ?, cor = ?
+                WHERE id = ?
+            """, (nome, icone, cor, categoria_id))
+
+        # Se o nome foi alterado, atualiza também em transações para consistência
+        if nome != nome_antigo:
+            cur.execute("UPDATE transacoes SET categoria = ? WHERE categoria = ? OR grupo_id = ?", (nome, nome_antigo, categoria_id))
+
+        conn.commit()
+        return {"sucesso": True, "mensagem": "Categoria atualizada com sucesso!"}
+    finally:
+        conn.close()
+
+
+@app.post("/api/categorias/{categoria_id}/excluir")
+async def api_excluir_categoria(categoria_id: int):
+    """Exclui uma categoria pai se não houver lançamentos vinculados."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM grupos_categoria WHERE id = ?", (categoria_id,))
+        cat_atual = cur.fetchone()
+        if not cat_atual:
+            raise HTTPException(status_code=404, detail="Categoria não encontrada.")
+
+        nome_cat = cat_atual[0]
+
+        cur.execute("SELECT COUNT(*) FROM transacoes WHERE grupo_id = ? OR categoria = ?", (categoria_id, nome_cat))
+        total_transacoes = cur.fetchone()[0]
+        if total_transacoes > 0:
+            return {
+                "sucesso": False,
+                "mensagem": f"A categoria '{nome_cat}' possui {total_transacoes} lançamento(s) vinculados e não pode ser excluída."
+            }
+
+        cur.execute("DELETE FROM subcategorias WHERE grupo_id = ?", (categoria_id,))
+        cur.execute("DELETE FROM grupos_categoria WHERE id = ?", (categoria_id,))
+        conn.commit()
+        return {"sucesso": True, "mensagem": "Categoria excluída com sucesso!"}
+    finally:
+        conn.close()
+
+
+@app.post("/api/subcategorias")
+async def api_criar_subcategoria(payload: dict = Body(...)):
+    """Cria uma nova subcategoria filha vinculada a um grupo."""
+    grupo_id = payload.get("grupo_id")
+    nome = (payload.get("nome") or "").strip()
+    icone = (payload.get("icone") or "•").strip()
+
+    if not grupo_id or not nome:
+        raise HTTPException(status_code=400, detail="grupo_id e nome da subcategoria são obrigatórios.")
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM subcategorias WHERE grupo_id = ? AND LOWER(nome) = LOWER(?)", (grupo_id, nome))
+        if cur.fetchone():
+            return {"sucesso": False, "mensagem": f"A subcategoria '{nome}' já existe nesta categoria."}
+
+        cur.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM subcategorias WHERE grupo_id = ?", (grupo_id,))
+        ordem = cur.fetchone()[0]
+
+        cur.execute("""
+            INSERT INTO subcategorias (grupo_id, nome, icone, ordem, ativo)
+            VALUES (?, ?, ?, ?, 1)
+        """, (grupo_id, nome, icone, ordem))
+        conn.commit()
+        novo_id = cur.lastrowid
+        return {"sucesso": True, "id": novo_id, "mensagem": "Subcategoria criada com sucesso!"}
+    finally:
+        conn.close()
+
+
+@app.post("/api/subcategorias/{subcategoria_id}/editar")
+async def api_editar_subcategoria(subcategoria_id: int, payload: dict = Body(...)):
+    """Edita uma subcategoria existente."""
+    nome = (payload.get("nome") or "").strip()
+    icone = (payload.get("icone") or "•").strip()
+    grupo_id = payload.get("grupo_id")
+
+    if not nome:
+        raise HTTPException(status_code=400, detail="Nome da subcategoria é obrigatório.")
+
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM subcategorias WHERE id = ?", (subcategoria_id,))
+        sub_atual = cur.fetchone()
+        if not sub_atual:
+            raise HTTPException(status_code=404, detail="Subcategoria não encontrada.")
+
+        nome_antigo = sub_atual[0]
+
+        if grupo_id:
+            cur.execute("""
+                UPDATE subcategorias
+                SET nome = ?, icone = ?, grupo_id = ?
+                WHERE id = ?
+            """, (nome, icone, grupo_id, subcategoria_id))
+        else:
+            cur.execute("""
+                UPDATE subcategorias
+                SET nome = ?, icone = ?
+                WHERE id = ?
+            """, (nome, icone, subcategoria_id))
+
+        if nome != nome_antigo:
+            cur.execute("UPDATE transacoes SET subcategoria = ? WHERE subcategoria = ? OR subcategoria_id = ?", (nome, nome_antigo, subcategoria_id))
+
+        conn.commit()
+        return {"sucesso": True, "mensagem": "Subcategoria atualizada com sucesso!"}
+    finally:
+        conn.close()
+
+
+@app.post("/api/subcategorias/{subcategoria_id}/excluir")
+async def api_excluir_subcategoria(subcategoria_id: int):
+    """Exclui uma subcategoria se não houver lançamentos vinculados."""
+    conn = conectar_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT nome FROM subcategorias WHERE id = ?", (subcategoria_id,))
+        sub_atual = cur.fetchone()
+        if not sub_atual:
+            raise HTTPException(status_code=404, detail="Subcategoria não encontrada.")
+
+        nome_sub = sub_atual[0]
+
+        cur.execute("SELECT COUNT(*) FROM transacoes WHERE subcategoria_id = ? OR subcategoria = ?", (subcategoria_id, nome_sub))
+        total_transacoes = cur.fetchone()[0]
+        if total_transacoes > 0:
+            return {
+                "sucesso": False,
+                "mensagem": f"A subcategoria '{nome_sub}' possui {total_transacoes} lançamento(s) vinculados e não pode ser excluída."
+            }
+
+        cur.execute("DELETE FROM subcategorias WHERE id = ?", (subcategoria_id,))
+        conn.commit()
+        return {"sucesso": True, "mensagem": "Subcategoria excluída com sucesso!"}
     finally:
         conn.close()

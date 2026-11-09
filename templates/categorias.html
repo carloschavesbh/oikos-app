@@ -1,0 +1,594 @@
+{% extends "base.html" %}
+
+{% block title %}Oikos | Gerenciar Categorias{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-2 sm:px-4 space-y-5 pb-16">
+
+  <!-- CABEÇALHO DA PÁGINA -->
+  <div class="flex items-center justify-between flex-wrap gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🏷️</span>
+        <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white">Categorias & Subcategorias</h1>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        Estruture suas despesas e receitas em categorias principais e subcategorias específicas.
+      </p>
+    </div>
+
+    <!-- Botão "+ Nova Categoria" -->
+    <button type="button" onclick="abrirModalNovaCategoria()"
+            class="h-9 px-4 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white flex items-center gap-1.5 shadow-sm transition cursor-pointer">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+      <span>Nova Categoria</span>
+    </button>
+  </div>
+
+  <!-- NAVEGAÇÃO DE ABAS: DESPESAS VS RECEITAS -->
+  <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+    <div class="inline-flex items-center p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl text-xs font-bold gap-1">
+      <button type="button" onclick="alternarAbaCategorias('despesa')" id="tab-cat-despesa"
+              class="px-4 py-2 rounded-lg transition cursor-pointer bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-2xs font-extrabold flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+        <span>Despesas ({{ total_categorias_despesa }})</span>
+      </button>
+      <button type="button" onclick="alternarAbaCategorias('receita')" id="tab-cat-receita"
+              class="px-4 py-2 rounded-lg transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Receitas ({{ total_categorias_receita }})</span>
+      </button>
+    </div>
+
+    <div class="text-xs text-slate-400 font-medium hidden sm:block">
+      Inspirado no padrão Organizze & Cerbasi
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- PAINEL 1: CATEGORIAS DE DESPESA -->
+  <!-- =================================================================== -->
+  <div id="painel-categorias-despesa" class="space-y-3.5">
+    {% for cat in despesas %}
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden transition-all" id="card-categoria-{{ cat.id }}">
+      
+      <!-- Linha da Categoria Pai -->
+      <div class="p-3.5 sm:p-4 flex items-center justify-between gap-3 bg-slate-50/40 dark:bg-slate-800/30">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-white font-bold shrink-0 shadow-xs" style="background-color: {{ cat.cor }};">
+            {{ cat.icone }}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white truncate">{{ cat.nome }}</h3>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                {{ cat.total_subs }} subcat.
+              </span>
+              {% if cat.total_transacoes > 0 %}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {{ cat.total_transacoes }} lançamentos
+              </span>
+              {% endif %}
+            </div>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+              Categoria Principal de Despesa
+            </p>
+          </div>
+        </div>
+
+        <!-- Ações da Categoria Pai -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="abrirModalNovaSubcategoria({{ cat.id }}, '{{ cat.nome }}')" 
+                  title="Adicionar subcategoria nesta categoria"
+                  class="h-8 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition flex items-center gap-1 cursor-pointer">
+            <span>+</span> <span>Subcategoria</span>
+          </button>
+          
+          <button type="button" onclick="abrirModalEditarCategoria({{ cat.id }}, '{{ cat.nome }}', '{{ cat.icone }}', '{{ cat.cor }}', '{{ cat.tipo }}')"
+                  title="Editar categoria"
+                  class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/></svg>
+          </button>
+
+          <button type="button" onclick="confirmarExclusaoCategoria({{ cat.id }}, '{{ cat.nome }}', {{ cat.total_transacoes }})"
+                  title="Excluir categoria"
+                  class="w-8 h-8 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Subcategorias Filhas Indentadas -->
+      <div class="px-3 sm:px-5 py-2.5 space-y-1.5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/60">
+        {% if cat.subcategorias %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 pb-1">
+          {% for sub in cat.subcategorias %}
+          <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 text-xs hover:border-slate-300 dark:hover:border-slate-600 transition group" id="subcat-item-{{ sub.id }}">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-sm shrink-0">{{ sub.icone }}</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ sub.nome }}</span>
+              {% if sub.total_transacoes > 0 %}
+              <span class="text-[9px] font-bold text-slate-400">({{ sub.total_transacoes }})</span>
+              {% endif %}
+            </div>
+            
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0 ml-1">
+              <button type="button" onclick="abrirModalEditarSubcategoria({{ sub.id }}, '{{ sub.nome }}', '{{ sub.icone }}', {{ cat.id }})" 
+                      title="Editar subcategoria"
+                      class="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/></svg>
+              </button>
+              <button type="button" onclick="confirmarExclusaoSubcategoria({{ sub.id }}, '{{ sub.nome }}', {{ sub.total_transacoes }})" 
+                      title="Excluir subcategoria"
+                      class="p-1 rounded text-slate-400 hover:text-rose-500 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="py-2.5 text-center text-xs text-slate-400 font-medium italic">
+          Nenhuma subcategoria cadastrada ainda. Clique em "+ Subcategoria" para adicionar.
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- PAINEL 2: CATEGORIAS DE RECEITA -->
+  <!-- =================================================================== -->
+  <div id="painel-categorias-receita" class="hidden space-y-3.5">
+    {% for cat in receitas %}
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden transition-all" id="card-categoria-{{ cat.id }}">
+      
+      <!-- Linha da Categoria Pai -->
+      <div class="p-3.5 sm:p-4 flex items-center justify-between gap-3 bg-slate-50/40 dark:bg-slate-800/30">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-white font-bold shrink-0 shadow-xs" style="background-color: {{ cat.cor }};">
+            {{ cat.icone }}
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-extrabold text-slate-900 dark:text-white truncate">{{ cat.nome }}</h3>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                {{ cat.total_subs }} subcat.
+              </span>
+              {% if cat.total_transacoes > 0 %}
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {{ cat.total_transacoes }} lançamentos
+              </span>
+              {% endif %}
+            </div>
+            <p class="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+              Categoria Principal de Receita
+            </p>
+          </div>
+        </div>
+
+        <!-- Ações da Categoria Pai -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="abrirModalNovaSubcategoria({{ cat.id }}, '{{ cat.nome }}')" 
+                  title="Adicionar subcategoria nesta categoria"
+                  class="h-8 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold transition flex items-center gap-1 cursor-pointer">
+            <span>+</span> <span>Subcategoria</span>
+          </button>
+          
+          <button type="button" onclick="abrirModalEditarCategoria({{ cat.id }}, '{{ cat.nome }}', '{{ cat.icone }}', '{{ cat.cor }}', '{{ cat.tipo }}')"
+                  title="Editar categoria"
+                  class="w-8 h-8 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/></svg>
+          </button>
+
+          <button type="button" onclick="confirmarExclusaoCategoria({{ cat.id }}, '{{ cat.nome }}', {{ cat.total_transacoes }})"
+                  title="Excluir categoria"
+                  class="w-8 h-8 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Subcategorias Filhas Indentadas -->
+      <div class="px-3 sm:px-5 py-2.5 space-y-1.5 border-t border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/60">
+        {% if cat.subcategorias %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1 pb-1">
+          {% for sub in cat.subcategorias %}
+          <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 text-xs hover:border-slate-300 dark:hover:border-slate-600 transition group" id="subcat-item-{{ sub.id }}">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-sm shrink-0">{{ sub.icone }}</span>
+              <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">{{ sub.nome }}</span>
+              {% if sub.total_transacoes > 0 %}
+              <span class="text-[9px] font-bold text-slate-400">({{ sub.total_transacoes }})</span>
+              {% endif %}
+            </div>
+            
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0 ml-1">
+              <button type="button" onclick="abrirModalEditarSubcategoria({{ sub.id }}, '{{ sub.nome }}', '{{ sub.icone }}', {{ cat.id }})" 
+                      title="Editar subcategoria"
+                      class="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125"/></svg>
+              </button>
+              <button type="button" onclick="confirmarExclusaoSubcategoria({{ sub.id }}, '{{ sub.nome }}', {{ sub.total_transacoes }})" 
+                      title="Excluir subcategoria"
+                      class="p-1 rounded text-slate-400 hover:text-rose-500 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="py-2.5 text-center text-xs text-slate-400 font-medium italic">
+          Nenhuma subcategoria cadastrada ainda. Clique em "+ Subcategoria" para adicionar.
+        </div>
+        {% endif %}
+      </div>
+
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL DE CRIAR / EDITAR CATEGORIA PAI -->
+<!-- ===================================================================== -->
+<div id="modal-categoria-pai" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden transition-all my-8 p-5 sm:p-6 space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div class="flex items-center gap-2">
+        <span id="modal-cat-icone-header" class="text-xl">📁</span>
+        <h3 id="modal-cat-titulo" class="font-extrabold text-base text-slate-900 dark:text-white">Nova Categoria</h3>
+      </div>
+      <button type="button" onclick="fecharModalCategoriaPai()" class="p-1 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer">
+        ✕
+      </button>
+    </div>
+
+    <form id="form-categoria-pai" onsubmit="salvarCategoriaPai(event)" class="space-y-4">
+      <input type="hidden" id="modal-cat-id" value="">
+
+      <!-- Tipo (Despesa / Receita) -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Tipo de Categoria*</label>
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs font-bold">
+          <label class="flex items-center justify-center gap-2 py-2 rounded-lg cursor-pointer transition has-checked:bg-white has-checked:dark:bg-slate-700 has-checked:text-rose-600 has-checked:dark:text-rose-400 has-checked:shadow-2xs">
+            <input type="radio" name="tipo_categoria" id="modal-cat-tipo-despesa" value="despesa" class="sr-only" checked>
+            <span>🔴 Despesa</span>
+          </label>
+          <label class="flex items-center justify-center gap-2 py-2 rounded-lg cursor-pointer transition has-checked:bg-white has-checked:dark:bg-slate-700 has-checked:text-emerald-600 has-checked:dark:text-emerald-400 has-checked:shadow-2xs">
+            <input type="radio" name="tipo_categoria" id="modal-cat-tipo-receita" value="receita" class="sr-only">
+            <span>🟢 Receita</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Nome -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nome da Categoria*</label>
+        <input type="text" id="modal-cat-nome" required placeholder="Ex: Assinaturas & Streaming"
+               class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+      </div>
+
+      <!-- Ícone (Emoji) -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Ícone (Emoji)</label>
+        <div class="flex items-center gap-2">
+          <input type="text" id="modal-cat-icone" maxlength="4" value="📁"
+                 class="w-14 text-center px-2 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-lg font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button type="button" onclick="setEmojiCat('🏠')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">🏠</button>
+            <button type="button" onclick="setEmojiCat('🍽️')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">🍽️</button>
+            <button type="button" onclick="setEmojiCat('❤️')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">❤️</button>
+            <button type="button" onclick="setEmojiCat('🎓')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">🎓</button>
+            <button type="button" onclick="setEmojiCat('🏦')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">🏦</button>
+            <button type="button" onclick="setEmojiCat('🚗')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">🚗</button>
+            <button type="button" onclick="setEmojiCat('💼')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">💼</button>
+            <button type="button" onclick="setEmojiCat('📈')" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:scale-110 text-sm transition">📈</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cor de Identificação -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cor de Destaque</label>
+        <div class="flex items-center gap-2">
+          <input type="color" id="modal-cat-cor" value="#3b82f6"
+                 class="w-10 h-10 p-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button type="button" onclick="setCorCat('#3b82f6')" class="w-6 h-6 rounded-full bg-blue-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#10b981')" class="w-6 h-6 rounded-full bg-emerald-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#f59e0b')" class="w-6 h-6 rounded-full bg-amber-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#ef4444')" class="w-6 h-6 rounded-full bg-rose-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#8b5cf6')" class="w-6 h-6 rounded-full bg-purple-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#ec4899')" class="w-6 h-6 rounded-full bg-pink-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#06b6d4')" class="w-6 h-6 rounded-full bg-cyan-500 hover:scale-110 transition"></button>
+            <button type="button" onclick="setCorCat('#64748b')" class="w-6 h-6 rounded-full bg-slate-500 hover:scale-110 transition"></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+        <button type="button" onclick="fecharModalCategoriaPai()"
+                class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-md transition cursor-pointer">
+          Salvar Categoria
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================================================================== -->
+<!-- MODAL DE CRIAR / EDITAR SUBCATEGORIA FILHA -->
+<!-- ===================================================================== -->
+<div id="modal-subcategoria-filha" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden transition-all my-8 p-5 sm:p-6 space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🏷️</span>
+        <h3 id="modal-subcat-titulo" class="font-extrabold text-base text-slate-900 dark:text-white">Nova Subcategoria</h3>
+      </div>
+      <button type="button" onclick="fecharModalSubcategoriaFilha()" class="p-1 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer">
+        ✕
+      </button>
+    </div>
+
+    <form id="form-subcategoria-filha" onsubmit="salvarSubcategoriaFilha(event)" class="space-y-4">
+      <input type="hidden" id="modal-subcat-id" value="">
+
+      <!-- Categoria Pai -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Categoria Principal (Pai)*</label>
+        <select id="modal-subcat-grupo-id" required
+                class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <optgroup label="Despesas">
+            {% for cat in despesas %}
+            <option value="{{ cat.id }}">{{ cat.icone }} {{ cat.nome }}</option>
+            {% endfor %}
+          </optgroup>
+          <optgroup label="Receitas">
+            {% for cat in receitas %}
+            <option value="{{ cat.id }}">{{ cat.icone }} {{ cat.nome }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Nome da Subcategoria -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nome da Subcategoria*</label>
+        <input type="text" id="modal-subcat-nome" required placeholder="Ex: Farmácia & Medicamentos"
+               class="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+      </div>
+
+      <!-- Ícone -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Ícone</label>
+        <div class="flex items-center gap-2">
+          <input type="text" id="modal-subcat-icone" maxlength="4" value="•"
+                 class="w-14 text-center px-2 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-lg font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='•'" class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs">Ponto •</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='🛒'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">🛒</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='⚡'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">⚡</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='💧'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">💧</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='📱'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">📱</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='💊'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">💊</button>
+            <button type="button" onclick="document.getElementById('modal-subcat-icone').value='⛽'" class="w-7 h-7 rounded bg-slate-100 dark:bg-slate-800 text-sm">⛽</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+        <button type="button" onclick="fecharModalSubcategoriaFilha()"
+                class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs shadow-md transition cursor-pointer">
+          Salvar Subcategoria
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let abaAtivaCategorias = 'despesa';
+
+  function alternarAbaCategorias(aba) {
+    abaAtivaCategorias = aba;
+    const tabDesp = document.getElementById('tab-cat-despesa');
+    const tabRec = document.getElementById('tab-cat-receita');
+    const painelDesp = document.getElementById('painel-categorias-despesa');
+    const painelRec = document.getElementById('painel-categorias-receita');
+
+    if (aba === 'despesa') {
+      tabDesp.className = 'px-4 py-2 rounded-lg transition cursor-pointer bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-2xs font-extrabold flex items-center gap-2';
+      tabRec.className = 'px-4 py-2 rounded-lg transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2';
+      painelDesp.classList.remove('hidden');
+      painelRec.classList.add('hidden');
+    } else {
+      tabRec.className = 'px-4 py-2 rounded-lg transition cursor-pointer bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-2xs font-extrabold flex items-center gap-2';
+      tabDesp.className = 'px-4 py-2 rounded-lg transition cursor-pointer text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-2';
+      painelRec.classList.remove('hidden');
+      painelDesp.classList.add('hidden');
+    }
+  }
+
+  // --- MODAL CATEGORIA PAI ---
+  function abrirModalNovaCategoria() {
+    document.getElementById('modal-cat-id').value = '';
+    document.getElementById('modal-cat-nome').value = '';
+    document.getElementById('modal-cat-icone').value = '📁';
+    document.getElementById('modal-cat-cor').value = '#3b82f6';
+    document.getElementById('modal-cat-titulo').textContent = 'Nova Categoria';
+    if (abaAtivaCategorias === 'receita') {
+      document.getElementById('modal-cat-tipo-receita').checked = true;
+    } else {
+      document.getElementById('modal-cat-tipo-despesa').checked = true;
+    }
+    document.getElementById('modal-categoria-pai').classList.remove('hidden');
+  }
+
+  function abrirModalEditarCategoria(id, nome, icone, cor, tipo) {
+    document.getElementById('modal-cat-id').value = id;
+    document.getElementById('modal-cat-nome').value = nome;
+    document.getElementById('modal-cat-icone').value = icone || '📁';
+    document.getElementById('modal-cat-cor').value = cor || '#3b82f6';
+    document.getElementById('modal-cat-titulo').textContent = 'Editar Categoria';
+    if (tipo === 'receita') {
+      document.getElementById('modal-cat-tipo-receita').checked = true;
+    } else {
+      document.getElementById('modal-cat-tipo-despesa').checked = true;
+    }
+    document.getElementById('modal-categoria-pai').classList.remove('hidden');
+  }
+
+  function fecharModalCategoriaPai() {
+    document.getElementById('modal-categoria-pai').classList.add('hidden');
+  }
+
+  function setEmojiCat(emoji) {
+    document.getElementById('modal-cat-icone').value = emoji;
+  }
+
+  function setCorCat(hex) {
+    document.getElementById('modal-cat-cor').value = hex;
+  }
+
+  async function salvarCategoriaPai(e) {
+    e.preventDefault();
+    const id = document.getElementById('modal-cat-id').value;
+    const nome = document.getElementById('modal-cat-nome').value.trim();
+    const icone = document.getElementById('modal-cat-icone').value.trim() || '📁';
+    const cor = document.getElementById('modal-cat-cor').value;
+    const tipo = document.querySelector('input[name="tipo_categoria"]:checked')?.value || 'despesa';
+
+    if (!nome) return alert('Informe o nome da categoria.');
+
+    const url = id ? `/api/categorias/${id}/editar` : '/api/categorias';
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, icone, cor, tipo })
+      });
+      const data = await resp.json();
+      if (data.sucesso) {
+        window.location.reload();
+      } else {
+        alert(data.mensagem || 'Erro ao salvar categoria.');
+      }
+    } catch (err) {
+      alert('Erro de conexão ao salvar categoria: ' + err);
+    }
+  }
+
+  async function confirmarExclusaoCategoria(id, nome, totalTransacoes) {
+    if (totalTransacoes > 0) {
+      alert(`A categoria "${nome}" possui ${totalTransacoes} lançamento(s) vinculados.\n\nPor integridade contábil, categorias em uso não podem ser excluídas.`);
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir a categoria "${nome}"? Esta ação removerá também as subcategorias associadas.`)) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/categorias/${id}/excluir`, { method: 'POST' });
+      const data = await resp.json();
+      if (data.sucesso) {
+        window.location.reload();
+      } else {
+        alert(data.mensagem || 'Erro ao excluir categoria.');
+      }
+    } catch (err) {
+      alert('Erro ao excluir categoria: ' + err);
+    }
+  }
+
+  // --- MODAL SUBCATEGORIA FILHA ---
+  function abrirModalNovaSubcategoria(grupoId, grupoNome) {
+    document.getElementById('modal-subcat-id').value = '';
+    document.getElementById('modal-subcat-nome').value = '';
+    document.getElementById('modal-subcat-icone').value = '•';
+    document.getElementById('modal-subcat-grupo-id').value = grupoId;
+    document.getElementById('modal-subcat-titulo').textContent = `Nova Subcategoria em "${grupoNome}"`;
+    document.getElementById('modal-subcategoria-filha').classList.remove('hidden');
+  }
+
+  function abrirModalEditarSubcategoria(id, nome, icone, grupoId) {
+    document.getElementById('modal-subcat-id').value = id;
+    document.getElementById('modal-subcat-nome').value = nome;
+    document.getElementById('modal-subcat-icone').value = icone || '•';
+    document.getElementById('modal-subcat-grupo-id').value = grupoId;
+    document.getElementById('modal-subcat-titulo').textContent = 'Editar Subcategoria';
+    document.getElementById('modal-subcategoria-filha').classList.remove('hidden');
+  }
+
+  function fecharModalSubcategoriaFilha() {
+    document.getElementById('modal-subcategoria-filha').classList.add('hidden');
+  }
+
+  async function salvarSubcategoriaFilha(e) {
+    e.preventDefault();
+    const id = document.getElementById('modal-subcat-id').value;
+    const grupoId = document.getElementById('modal-subcat-grupo-id').value;
+    const nome = document.getElementById('modal-subcat-nome').value.trim();
+    const icone = document.getElementById('modal-subcat-icone').value.trim() || '•';
+
+    if (!nome) return alert('Informe o nome da subcategoria.');
+
+    const url = id ? `/api/subcategorias/${id}/editar` : '/api/subcategorias';
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grupo_id: parseInt(grupoId, 10), nome, icone })
+      });
+      const data = await resp.json();
+      if (data.sucesso) {
+        window.location.reload();
+      } else {
+        alert(data.mensagem || 'Erro ao salvar subcategoria.');
+      }
+    } catch (err) {
+      alert('Erro de conexão ao salvar subcategoria: ' + err);
+    }
+  }
+
+  async function confirmarExclusaoSubcategoria(id, nome, totalTransacoes) {
+    if (totalTransacoes > 0) {
+      alert(`A subcategoria "${nome}" possui ${totalTransacoes} lançamento(s) vinculados.\n\nPor integridade contábil, subcategorias em uso não podem ser excluídas.`);
+      return;
+    }
+
+    if (!confirm(`Deseja realmente excluir a subcategoria "${nome}"?`)) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/subcategorias/${id}/excluir`, { method: 'POST' });
+      const data = await resp.json();
+      if (data.sucesso) {
+        window.location.reload();
+      } else {
+        alert(data.mensagem || 'Erro ao excluir subcategoria.');
+      }
+    } catch (err) {
+      alert('Erro ao excluir subcategoria: ' + err);
+    }
+  }
+</script>
+{% endblock %}
