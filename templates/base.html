@@ -91,10 +91,37 @@
       min-width: 44px;
     }
 
-    /* MODO NOTURNO (PADRÃO) */
-    html.dark body {
-      background-color: #090d16;
+    /* MODO NOTURNO (PADRÃO - SEAMLESS CANVAS MINHAS ECONOMIAS) */
+    html.dark body,
+    html.dark #main-wrapper {
+      background-color: #0b0f17 !important;
       color: #f8fafc;
+    }
+
+    /* Seamless Canvas - Header e Sidebar fluídos com fundo único */
+    html.dark #app-header {
+      background-color: #0b0f17 !important;
+      border-bottom: 2px solid rgba(16, 185, 129, 0.8) !important; /* Linha de destaque verde esmeralda */
+      box-shadow: none !important;
+    }
+
+    html.dark #app-sidebar {
+      background-color: #0b0f17 !important;
+      border-right: 1px solid rgba(15, 23, 42, 0.6) !important; /* Quase imperceptível */
+      box-shadow: none !important;
+    }
+
+    /* Cartões foscos elevados (Seamless Elevation #131b26) */
+    html.dark .bg-slate-900,
+    html.dark .bg-slate-900\/95,
+    html.dark .bg-slate-900\/90,
+    html.dark .bg-slate-900\/80,
+    html.dark .bg-slate-900\/70,
+    html.dark .bg-slate-900\/60,
+    html.dark .bg-slate-900\/50,
+    html.dark .bg-slate-900\/40 {
+      background-color: #131b26 !important;
+      border-color: rgba(51, 65, 85, 0.35) !important;
     }
 
     /* MODO CLARO (LIGHT MODE) */
@@ -464,13 +491,13 @@
   <!-- [ BARRA SUPERIOR (HEADER) FIXA OFICIAL OIKOS (MINHAS ECONOMIAS STYLE) ] -->
   <!-- ===================================================================== -->
   <header id="app-header" aria-label="Cabeçalho Principal"
-          class="fixed top-0 left-0 right-0 z-40 h-14 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shadow-2xs transition-colors">
+          class="fixed top-0 left-0 right-0 z-40 h-14 bg-white/95 dark:bg-[#0b0f17] border-b-2 border-slate-200 dark:border-emerald-500/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between shadow-none transition-colors">
     
     <!-- LADO ESQUERDO: HAMBÚRGUER MOBILE + LOGO SÓBRIO + ATALHO "+ LANÇAMENTO" -->
     <div class="flex items-center gap-3">
       <!-- Botão Hambúrguer Mobile (< 768px) -->
       <button type="button" onclick="toggleMobileDrawer(true)" aria-label="Abrir menu"
-              class="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+              class="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 transition cursor-pointer">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
         </svg>
@@ -478,7 +505,7 @@
 
       <!-- Logo "OIKOS" sóbrio e minimalista -->
       <a href="/" class="flex items-center gap-2 hover:opacity-90 transition select-none" title="Oikos • Início">
-        <img src="/static/app-icon.png" alt="Oikos" class="h-7 w-7 object-contain rounded-md bg-white p-0.5 shadow-2xs border border-slate-200 dark:border-slate-700">
+        <img src="/static/app-icon.png" alt="Oikos" class="h-7 w-7 object-contain rounded-md bg-white p-0.5 shadow-2xs border border-slate-200 dark:border-slate-700/60">
         <span class="font-extrabold text-sm sm:text-base tracking-widest text-slate-900 dark:text-slate-100 uppercase">OIKOS</span>
         <span class="hidden sm:inline-block px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
           {{ OIKOS_EDICAO_NOME | default("Pessoal") }}
@@ -487,7 +514,7 @@
 
       <!-- Botão Atalho Rápido "+ Lançamento" compacto e elegante -->
       <button type="button" onclick="alternarMenuGlobalTransacoes(event)"
-              class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-md shadow-xs transition flex items-center gap-1.5 cursor-pointer ml-2 sm:ml-4 active:scale-95">
+              class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer ml-2 sm:ml-4 active:scale-95">
         <svg class="w-3.5 h-3.5 font-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
         <span class="hidden sm:inline">+ Lançamento</span>
         <span class="sm:hidden">+</span>
@@ -496,15 +523,15 @@
 
     <!-- LADO DIREITO: TEMA, TELA CHEIA E AVATAR/PERFIL DROPDOWN -->
     <div class="flex items-center gap-2 sm:gap-2.5">
-      <!-- Alternador Tema Dark/Light discreto -->
+      <!-- Alternador Tema Dark/Light discreto com transparência sutil -->
       <button id="header-theme-toggle" onclick="toggleTheme()" type="button" title="Alternar Modo Claro / Noturno"
-              class="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer">
+              class="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 border border-transparent dark:border-slate-800/50 transition cursor-pointer">
         <span id="header-theme-icon" class="text-sm">🌙</span>
       </button>
 
       <!-- Botão Tela Cheia -->
       <button onclick="alternarTelaCheia()" type="button" title="Alternar Tela Cheia"
-              class="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer hidden sm:flex items-center justify-center">
+              class="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 border border-transparent dark:border-slate-800/50 transition cursor-pointer hidden sm:flex items-center justify-center">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
         </svg>
@@ -513,11 +540,11 @@
       <!-- Avatar/Perfil Circular com Menu Dropdown -->
       <div class="relative">
         <button type="button" onclick="toggleDropdownHeaderPerfil(event)" id="btn-header-perfil"
-                class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 hover:border-emerald-500/50 flex items-center justify-center text-xs font-bold transition shadow-xs cursor-pointer">
+                class="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-800 text-emerald-400 border border-slate-700/60 hover:border-emerald-500/50 flex items-center justify-center text-xs font-bold transition shadow-xs cursor-pointer">
           <span>CC</span>
         </button>
 
-        <div id="header-perfil-dropdown" class="hidden absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl py-2 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200">
+        <div id="header-perfil-dropdown" class="hidden absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white dark:bg-[#131b26] border border-slate-200 dark:border-slate-800/60 shadow-2xl py-2 z-50 text-xs font-semibold text-slate-700 dark:text-slate-200">
           <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800/80 mb-1">
             <p class="font-bold text-slate-900 dark:text-white">Carlos Chaves</p>
             <p class="text-[10px] text-slate-400 font-normal">Edição Pessoal</p>
@@ -538,7 +565,7 @@
             <span>🏷️</span> <span>Gerenciar Categorias</span>
           </a>
           <a href="/planejamento" class="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
-            <span>🏷️</span> <span>Categorias & Planejamento</span>
+            <span>📊</span> <span>Planejamento & Metas</span>
           </a>
           <div class="border-t border-slate-100 dark:border-slate-800/80 my-1"></div>
           <a href="/motorista" class="flex items-center gap-2.5 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition">
@@ -564,14 +591,14 @@
   <!-- [ SIDEBAR OPERACIONAL ENXUTA COM PINO (DESKTOP md: >= 768px) ]        -->
   <!-- ===================================================================== -->
   <aside id="app-sidebar" aria-label="Navegação Operacional"
-         class="fixed top-14 bottom-0 left-0 z-30 bg-white/95 dark:bg-slate-900/95 border-r border-slate-200 dark:border-slate-800/80 backdrop-blur-md flex flex-col justify-between select-none shadow-sm">
+         class="fixed top-14 bottom-0 left-0 z-30 bg-white/95 dark:bg-[#0b0f17] border-r border-slate-200 dark:border-slate-900/60 flex flex-col justify-between select-none shadow-none">
     
     <!-- 7 MÓDULOS OPERACIONAIS PRINCIPAIS -->
-    <nav class="flex-1 py-4 px-2 space-y-1.5 overflow-y-auto custom-scroll" aria-label="Rotinas Diárias">
+    <nav class="flex-1 py-4 px-2 space-y-1 overflow-y-auto custom-scroll" aria-label="Rotinas Diárias">
       
       <!-- 1. VISÃO GERAL -->
       <div class="sidebar-nav-item relative group">
-        <a href="/" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'visao_geral' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'visao_geral' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"/></svg>
           <span class="sidebar-text truncate">Visão Geral</span>
         </a>
@@ -582,7 +609,7 @@
 
       <!-- 2. LANÇAMENTOS -->
       <div class="sidebar-nav-item relative group">
-        <a href="/lancamentos" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'lancamentos' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/lancamentos" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'lancamentos' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
           <span class="sidebar-text truncate">Lançamentos</span>
         </a>
@@ -593,7 +620,7 @@
 
       <!-- 3. MEUS CARTÕES -->
       <div class="sidebar-nav-item relative group">
-        <a href="/cartoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'cartoes' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/cartoes" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'cartoes' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-6.75 4.5h18a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-18A2.25 2.25 0 0 0 0 6.75v10.5A2.25 2.25 0 0 0 2.25 19.5Z"/></svg>
           <span class="sidebar-text truncate">Meus Cartões</span>
         </a>
@@ -604,7 +631,7 @@
 
       <!-- 4. PAGA LEVE -->
       <div class="sidebar-nav-item relative group">
-        <a href="/pagaleve" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'pagaleve' %}bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/pagaleve" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'pagaleve' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/></svg>
           <span class="sidebar-text truncate">Paga Leve</span>
         </a>
@@ -615,7 +642,7 @@
 
       <!-- 5. OIKOS DRIVE -->
       <div class="sidebar-nav-item relative group">
-        <a href="/drive" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/drive" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab in ['motorista', 'drive'] %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.25V3.75m0 3.75h-7.5M3.75 14.25 5.25 9.75a1.5 1.5 0 0 1 1.423-1.023h7.577"/></svg>
           <span class="sidebar-text truncate">Oikos Drive</span>
         </a>
@@ -626,7 +653,7 @@
 
       <!-- 6. PLANEJAMENTO -->
       <div class="sidebar-nav-item relative group">
-        <a href="/planejamento" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'planejamento' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/planejamento" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'planejamento' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.042 21.672 13.684 16.6m0 0-2.51 2.225.569-9.47 5.227 7.917-3.286-.672ZM12 2.25V4.5m5.834.166-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243-1.59-1.59"/></svg>
           <span class="sidebar-text truncate">Planejamento</span>
         </a>
@@ -637,7 +664,7 @@
 
       <!-- 7. RELATÓRIOS -->
       <div class="sidebar-nav-item relative group">
-        <a href="/relatorios" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition {% if active_tab == 'relatorios' %}bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-2xs font-bold{% else %}text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60{% endif %}">
+        <a href="/relatorios" class="touch-target flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition {% if active_tab == 'relatorios' %}bg-emerald-950/40 text-emerald-400 font-medium border border-emerald-500/20{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/40{% endif %}">
           <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
           <span class="sidebar-text truncate">Relatórios</span>
         </a>
@@ -649,10 +676,10 @@
     </nav>
 
     <!-- RODAPÉ DA SIDEBAR: PINO PARA FIXAR / RECOLHER -->
-    <div class="p-2 border-t border-slate-200/80 dark:border-slate-800/80">
+    <div class="p-2 border-t border-slate-200/80 dark:border-slate-900/60">
       <div class="sidebar-nav-item relative group">
         <button id="sidebar-pin-btn" onclick="togglePinSidebar()" type="button"
-                class="w-full touch-target flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition cursor-pointer">
+                class="w-full touch-target flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/40 transition cursor-pointer">
           <span class="w-5 h-5 flex items-center justify-center text-sm shrink-0">
             📌
           </span>
