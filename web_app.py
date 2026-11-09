@@ -1384,7 +1384,7 @@ async def pagina_lancamentos(
             "motivo_ajuste": r["motivo_ajuste"] or "",
             "eh_passada": False,
             "is_atrasada": is_atrasada,
-            "economia_badge": abast_map.get(r["id"], ""),
+            "economia_badge": "",
             "ref_externa": r["ref_externa"] if "ref_externa" in r.keys() else ""
         }
 
@@ -6291,37 +6291,37 @@ async def api_drive_abastecimento_editar(request: Request, abastecimento_id: int
             if r_t:
                 trans_id = r_t[0]
 
-        desc_trans_1 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}" + (f" (1/2 via {conta_nome})" if eh_split else "")
+        desc_trans_1 = f"Abastecimento - {comb_nome}" + (f" (1/2 via {conta_nome})" if eh_split else "")
         val_tr_1 = val_pago_1 if eh_split else val_pago
 
         if trans_id:
             cur.execute("""
                 UPDATE transacoes
-                SET data = ?, descricao = ?, valor = ?, conta = ?, conta_id = ?,
-                    desconto = ?, motivo_ajuste = ?, status_rateio = ?
+                SET data = ?, descricao = ?, valor = ?, categoria = 'Veículo (Trabalho)', subcategoria = 'Combustível',
+                    conta = ?, conta_id = ?, desconto = ?, motivo_ajuste = ?, status_rateio = ?
                 WHERE id = ?
             """, (data_raw, desc_trans_1, val_tr_1, conta_nome, conta_id, desc_val, motivo_desc, ('split_1' if eh_split else None), trans_id))
         else:
             cur.execute("""
-                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
-                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?, ?)
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Veículo (Trabalho)', 'Combustível', ?, ?, 1, 1, ?, ?, ?)
             """, (data_raw, desc_trans_1, val_tr_1, conta_nome, conta_id, desc_val, motivo_desc, ('split_1' if eh_split else None)))
             trans_id = cur.lastrowid
 
         # Sincronização da Transação 2
         if eh_split:
-            desc_trans_2 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (2/2 via {c2_nome})"
+            desc_trans_2 = f"Abastecimento - {comb_nome} (2/2 via {c2_nome})"
             if trans_2_id:
                 cur.execute("""
                     UPDATE transacoes
-                    SET data = ?, descricao = ?, valor = ?, conta = ?, conta_id = ?,
-                        desconto = 0, motivo_ajuste = ?, status_rateio = 'split_2'
+                    SET data = ?, descricao = ?, valor = ?, categoria = 'Veículo (Trabalho)', subcategoria = 'Combustível',
+                        conta = ?, conta_id = ?, desconto = 0, motivo_ajuste = ?, status_rateio = 'split_2'
                     WHERE id = ?
                 """, (data_raw, desc_trans_2, val_pago_2, c2_nome, c2_id, motivo_desc, trans_2_id))
             else:
                 cur.execute("""
-                    INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
-                    VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, 0, ?, 'split_2')
+                    INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                    VALUES (?, ?, ?, 'despesa', 'Veículo (Trabalho)', 'Combustível', ?, ?, 1, 1, 0, ?, 'split_2')
                 """, (data_raw, desc_trans_2, val_pago_2, c2_nome, c2_id, motivo_desc))
                 trans_2_id = cur.lastrowid
         else:
@@ -6575,17 +6575,17 @@ async def api_motorista_abastecer(
             cid_2, cnome_2 = resolver_conta_bancaria(conn, conta_2 or "Dinheiro / Carteira")
 
             # 1. Registrar 2 movimentações de saída vinculadas
-            desc_trans_1 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (1/2 via {cnome_1})"
+            desc_trans_1 = f"Abastecimento - {comb_nome} (1/2 via {cnome_1})"
             cur.execute("""
-                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
-                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?, 'split_1')
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Veículo (Trabalho)', 'Combustível', ?, ?, 1, 1, ?, ?, 'split_1')
             """, (data_iso, desc_trans_1, v1, cnome_1, cid_1, desc_val, motivo_desc))
             trans_id = cur.lastrowid
 
-            desc_trans_2 = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome} (2/2 via {cnome_2})"
+            desc_trans_2 = f"Abastecimento - {comb_nome} (2/2 via {cnome_2})"
             cur.execute("""
-                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
-                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, 0, ?, 'split_2')
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste, status_rateio)
+                VALUES (?, ?, ?, 'despesa', 'Veículo (Trabalho)', 'Combustível', ?, ?, 1, 1, 0, ?, 'split_2')
             """, (data_iso, desc_trans_2, v2, cnome_2, cid_2, motivo_desc))
             trans_2_id = cur.lastrowid
 
@@ -6602,10 +6602,10 @@ async def api_motorista_abastecer(
                   posto_nome, obs_txt, trans_id, app_nome, cnome_2, cid_2, v1, v2, trans_2_id))
         else:
             cid_1, cnome_1 = resolver_conta_bancaria(conn, conta_nome)
-            desc_trans = f"Abastecimento {comb_nome} ({lits:.2f}L) - {posto_nome}"
+            desc_trans = f"Abastecimento - {comb_nome}"
             cur.execute("""
-                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste)
-                VALUES (?, ?, ?, 'despesa', 'Combustível (Trabalho)', ?, ?, 1, 1, ?, ?)
+                INSERT INTO transacoes (data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id, pago, afeta_saldo_bancario, desconto, motivo_ajuste)
+                VALUES (?, ?, ?, 'despesa', 'Veículo (Trabalho)', 'Combustível', ?, ?, 1, 1, ?, ?)
             """, (data_iso, desc_trans, val_pago, cnome_1, cid_1, desc_val, motivo_desc))
             trans_id = cur.lastrowid
 

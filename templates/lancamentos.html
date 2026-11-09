@@ -362,7 +362,7 @@
                     +{{ t.juros | moeda }} Juros
                   </span>
                   {% endif %}
-                  {% if t.desconto > 0 %}
+                  {% if t.desconto > 0 and 'abastec' not in t.descricao.lower() and 'combust' not in t.categoria.lower() %}
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Desconto: {{ t.desconto | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
                     -{{ t.desconto | moeda }} Desc.
                   </span>
@@ -376,6 +376,8 @@
               <div class="font-medium">{{ t.categoria }}</div>
               {% if t.subcategoria %}
               <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ {{ t.subcategoria }}</div>
+              {% elif 'combust' in t.categoria.lower() or 'abastec' in t.descricao.lower() or 'veículo' in t.categoria.lower() or 'veiculo' in t.categoria.lower() %}
+              <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ Combustível</div>
               {% endif %}
             </td>
 
@@ -760,7 +762,11 @@
                 <div>
                   <div class="flex flex-wrap items-center gap-1.5">
                     <p class="font-semibold text-slate-900 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-white transition leading-tight">
-                      {{ t.descricao }}
+                      {% if 'abastecimento' in t.descricao.lower() and '(' in t.descricao and 'L)' in t.descricao %}
+                        {% if 'etanol' in t.descricao.lower() %}Abastecimento - Etanol{% elif 'gasolina' in t.descricao.lower() %}Abastecimento - Gasolina{% else %}Abastecimento{% endif %}
+                      {% else %}
+                        {{ t.descricao }}
+                      {% endif %}
                     </p>
                     {% if t.is_pagaleve %}
                     <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20 shrink-0" title="Paga Leve • Parcela {{ t.numero_parcela }}/{{ t.total_parcelas_compra }} • {{ t.titular }}">
@@ -776,12 +782,7 @@
                     <img src="/static/img/bancos/{{ t.conta | icone_banco }}" onerror="this.onerror=null; this.src='/static/img/bancos/carteira.svg';" class="w-3.5 h-3.5 rounded-xs inline-block object-contain" alt="">
                     <span>{{ t.conta }}</span>
                   </p>
-                  {% if t.economia_badge %}
-                  <span class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <svg class="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 6h.008v.008H6V6Z"/></svg>
-                    <span>{{ t.economia_badge }}</span>
-                  </span>
-                  {% endif %}
+
                   {% if t.grupo_parcelamento and not t.is_pagaleve %}
                     {% if 'fixa' in t.grupo_parcelamento or 'recorren' in t.grupo_parcelamento %}
                     <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
@@ -798,7 +799,7 @@
                     +{{ t.juros | moeda }} Juros
                   </span>
                   {% endif %}
-                  {% if t.desconto > 0 %}
+                  {% if t.desconto > 0 and 'abastec' not in t.descricao.lower() and 'combust' not in t.categoria.lower() %}
                   <span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Desconto: {{ t.desconto | moeda }}{% if t.motivo_ajuste %} • {{ t.motivo_ajuste }}{% endif %}">
                     -{{ t.desconto | moeda }} Desc.
                   </span>
@@ -812,6 +813,8 @@
               <div class="font-medium">{{ t.categoria }}</div>
               {% if t.subcategoria %}
               <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ {{ t.subcategoria }}</div>
+              {% elif 'combust' in t.categoria.lower() or 'abastec' in t.descricao.lower() or 'veículo' in t.categoria.lower() or 'veiculo' in t.categoria.lower() %}
+              <div class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold">↳ Combustível</div>
               {% endif %}
             </td>
 
