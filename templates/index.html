@@ -8,12 +8,12 @@
   <!-- ===================================================================== -->
   <!-- [ TOPO COMPACTO: TÍTULO, DATA E AÇÕES RÁPIDAS ]                      -->
   <!-- ===================================================================== -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200/60 dark:border-[#262626]/60">
     <div class="flex items-center gap-2.5 flex-wrap">
       <h1 class="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
         <span>Visão Geral</span>
       </h1>
-      <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700/60 shadow-xs">
+      <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-[#212121] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-[#262626] shadow-xs">
         {{ d.hoje_formatado }} • {{ d.dia_semana }}
       </span>
       {% if d.tot_atrasadas > 0 %}
@@ -26,11 +26,11 @@
     <!-- Ações Rápidas do Topo (Sem duplicação do botão 'Nova Transação') -->
     <div class="flex items-center gap-2">
       <a href="/lancamentos"
-         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5">
+         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#262626] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#262626] transition flex items-center gap-1.5">
         <span>Extrato Completo →</span>
       </a>
       <a href="/contas"
-         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5">
+         class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#262626] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#262626] transition flex items-center gap-1.5">
         <span>Contas →</span>
       </a>
     </div>
@@ -44,7 +44,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 1: SALDO EM CAIXA COM SPARKLINE/CURVA DE EVOLUÇÃO           -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <div class="flex items-center gap-1.5">
@@ -71,7 +71,7 @@
       </div>
 
       <!-- Sparkline / Gráfico de Evolução (Histórico 7d Realizado + Projeção 7d Determinística) -->
-      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80">
         <div class="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 font-semibold mb-1">
           <span>Evolução do Saldo (15 dias)</span>
           <span class="flex items-center gap-2">
@@ -144,7 +144,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 2: ENTRADAS DO MÊS COM COMPOSIÇÃO SOB DEMANDA                -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <div class="flex items-center gap-1.5">
@@ -171,7 +171,7 @@
       </div>
 
       <!-- Discriminação de Origem (Trabalho vs Empréstimos/Outras) -->
-      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
           <span class="text-slate-600 dark:text-slate-300 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Trabalho / Operação:
@@ -191,7 +191,7 @@
         </div>
 
         {% if d.receita_prevista > 0 %}
-        <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
+        <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-dashed border-slate-100 dark:border-[#262626]">
           <span>Previsto a receber no mês:</span>
           <span class="font-bold text-sky-600 dark:text-sky-400">{{ d.receita_prevista | moeda }}</span>
         </div>
@@ -212,7 +212,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 3: DESPESAS DO MÊS (BAIXO E COMPACTO)                       -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <div class="flex items-center gap-1.5">
@@ -239,7 +239,7 @@
       </div>
 
       <!-- Linhas menores: Pagas e A Pagar com barra de cobertura -->
-      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
           <span class="text-slate-600 dark:text-slate-300 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Pagas no mês:
@@ -259,7 +259,7 @@
         </div>
 
         <!-- Barra de Progresso de Execução -->
-        <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-1">
+        <div class="w-full bg-slate-100 dark:bg-[#212121] rounded-full h-1.5 overflow-hidden mt-1">
           {% set pct_pago = ((d.despesas_pagas / d.despesa_mensal) * 100) if d.despesa_mensal > 0 else 0 %}
           <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: {{ pct_pago | round(1) }}%"></div>
         </div>
@@ -276,7 +276,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 4: MEU PATRIMÔNIO (SÍNTESE COMPACTA)                         -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-1.5">
           <div class="flex items-center gap-1.5">
@@ -298,7 +298,7 @@
       </div>
 
       <!-- Ativos e Passivos estruturais sem texto de implementação -->
-      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
+      <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80 space-y-1.5">
         <div class="flex items-center justify-between text-xs">
           <span class="text-slate-600 dark:text-slate-300">Ativos Totais (Bens + Saldos):</span>
           <span class="font-bold text-emerald-600 dark:text-emerald-400">
@@ -325,7 +325,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 5: GASTOS POR CATEGORIA (ROSCA SVG INTERATIVA)               -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-1.5">
@@ -334,7 +334,7 @@
           </div>
 
           <!-- Seletor Pagas / Todas -->
-          <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-[10px] font-bold">
+          <div class="flex items-center bg-slate-100 dark:bg-[#212121] p-0.5 rounded-lg text-[10px] font-bold">
             <button type="button" onclick="alternarRoscaCategorias('pagas')" id="btn-rosca-pagas"
                     class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs cursor-pointer">
               Pagas
@@ -420,7 +420,7 @@
           {% endif %}
         </div>
 
-        <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+        <div class="pt-2 border-t border-slate-100 dark:border-[#262626]/80 flex items-center justify-between text-[11px]">
           <span class="text-slate-500 dark:text-slate-400">Total: <span id="label-total-rosca" class="font-bold text-slate-800 dark:text-slate-200">{{ d.gastos_categoria.pagas.total | moeda }}</span></span>
           <a href="/planejamento" class="text-sky-600 dark:text-sky-400 font-bold hover:underline">
             Categorias →
@@ -432,7 +432,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 6: MINHAS CONTAS (SALDOS LIVRES DISPONÍVEIS) - INDEPENDENTE  -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-1.5">
@@ -447,7 +447,7 @@
         <!-- Lista de Saldos Livres (Mercado Pago, Carteira, 99Pay) -->
         <div class="space-y-2 mt-2">
           <!-- Mercado Pago -->
-          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-[#212121]">
             <div class="flex items-center gap-2 truncate">
               <span class="text-sm">🌐</span>
               <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">Mercado Pago</span>
@@ -456,7 +456,7 @@
           </div>
 
           <!-- Carteira / Dinheiro -->
-          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-[#212121]">
             <div class="flex items-center gap-2 truncate">
               <span class="text-sm">💵</span>
               <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">Carteira (Dinheiro)</span>
@@ -465,7 +465,7 @@
           </div>
 
           <!-- 99Pay -->
-          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <div class="flex items-center justify-between text-xs p-1.5 rounded-xl bg-slate-50 dark:bg-[#212121]">
             <div class="flex items-center gap-2 truncate">
               <span class="text-sm">🚕</span>
               <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">99Pay (Ganhos 99)</span>
@@ -475,7 +475,7 @@
         </div>
       </div>
 
-      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+      <div class="pt-2 border-t border-slate-100 dark:border-[#262626]/80 flex items-center justify-between text-[11px]">
         <span class="text-slate-500 dark:text-slate-400">Total em Contas:</span>
         <span class="font-extrabold text-emerald-600 dark:text-emerald-400">{{ d.saldo_caixa | moeda }}</span>
       </div>
@@ -484,7 +484,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 7: CARTÕES DE CRÉDITO (OBRIGAÇÕES & LIMITE) - INDEPENDENTE   -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-1.5">
@@ -505,7 +505,7 @@
             <span class="text-[10px] text-slate-500 dark:text-slate-400">Venc. dia {{ d.cartao.dia_vencimento }}</span>
           </div>
 
-          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1.5">
+          <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-[#212121] border border-slate-100 dark:border-[#262626] space-y-1.5">
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-600 dark:text-slate-300">Gastos no Mês:</span>
               <span class="font-bold text-rose-600 dark:text-rose-400">
@@ -513,7 +513,7 @@
               </span>
             </div>
 
-            <div class="flex items-center justify-between text-xs pt-1 border-t border-dashed border-slate-200 dark:border-slate-700/60">
+            <div class="flex items-center justify-between text-xs pt-1 border-t border-dashed border-slate-200 dark:border-[#262626]">
               <span class="text-slate-600 dark:text-slate-300">Limite Disponível:</span>
               <span class="font-extrabold text-emerald-600 dark:text-emerald-400">
                 {{ d.cartao.limite_disponivel | moeda }}
@@ -526,7 +526,7 @@
         {% endif %}
       </div>
 
-      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+      <div class="pt-2 border-t border-slate-100 dark:border-[#262626]/80 flex items-center justify-between text-[11px]">
         <span class="text-slate-500 dark:text-slate-400">Limite Total: {{ d.cartao.limite_total | moeda if d.cartao else '0,00' }}</span>
         <a href="/cartoes" class="font-bold text-sky-600 dark:text-sky-400 hover:underline">
           Detalhes →
@@ -537,7 +537,7 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 8: PAGA LEVE (RESUMO PRÓPRIO E ACESSO DIRETO) - INDEPENDENTE  -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
         <div class="flex items-center justify-between gap-2 mb-2">
           <div class="flex items-center gap-1.5">
@@ -550,7 +550,7 @@
         </div>
 
         <div class="space-y-2 mt-2">
-          <div class="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 space-y-1.5">
+          <div class="p-2.5 rounded-xl bg-purple-50/60 dark:bg-[#212121] border border-purple-100 dark:border-[#262626] space-y-1.5">
             <div class="flex items-center justify-between text-xs">
               <span class="text-slate-700 dark:text-slate-300 font-medium">Parcelas deste Mês:</span>
               <span class="font-extrabold text-purple-600 dark:text-purple-400">
@@ -570,7 +570,7 @@
         </div>
       </div>
 
-      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+      <div class="pt-2 border-t border-slate-100 dark:border-[#262626]/80 flex items-center justify-between text-[11px]">
         <span class="text-slate-500 dark:text-slate-400">Ref. Limite: {{ d.pagaleve_resumo.limite_carlos | moeda }}</span>
         <a href="/pagaleve" class="font-bold text-purple-600 dark:text-purple-400 hover:underline">
           Ver Compras →
@@ -581,9 +581,9 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 9: FOCO DO DIA & METAS (OIKOS DRIVE + MISSÃO)                -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs flex flex-col justify-between">
       <div>
-        <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+        <div class="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100 dark:border-[#262626]/80">
           <div class="flex items-center gap-1.5">
             <span class="text-base">🎯</span>
             <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Foco do Dia</h3>
@@ -609,7 +609,7 @@
             </span>
           </div>
 
-          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div class="w-full bg-slate-100 dark:bg-[#212121] rounded-full h-1.5 overflow-hidden">
             <div class="bg-amber-500 h-1.5 rounded-full" style="width: {{ [d.pct_meta_hoje, 100] | min }}%"></div>
           </div>
 
@@ -621,21 +621,21 @@
 
         <!-- Missão Ativa da Semana -->
         {% if d.missao and d.missao.tem_missao %}
-        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80">
           <div class="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
             <span class="flex items-center gap-1">
               <span>🎯</span> {{ d.missao.nome }}
             </span>
             <span class="text-emerald-600 dark:text-emerald-400">{{ d.missao.valor_acumulado | moeda }}</span>
           </div>
-          <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div class="w-full bg-slate-100 dark:bg-[#212121] rounded-full h-1.5 overflow-hidden">
             <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ d.missao.percentual | default(0) }}%"></div>
           </div>
         </div>
         {% endif %}
       </div>
 
-      <div class="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+      <div class="pt-2 border-t border-slate-100 dark:border-[#262626]/80 flex items-center justify-between text-[11px]">
         <a href="/missoes" class="font-bold text-sky-600 dark:text-sky-400 hover:underline">
           Missões & Metas →
         </a>
@@ -648,8 +648,8 @@
     <!-- ----------------------------------------------------------------- -->
     <!-- CARD 10: CONTAS IMEDIATAS (HOJE + ATRASADAS COM AÇÕES COMPACTAS)  -->
     <!-- ----------------------------------------------------------------- -->
-    <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
-      <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+    <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs">
+      <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-[#262626]/80">
         <div class="flex items-center gap-2">
           <span class="text-base">⏰</span>
           <h3 class="font-extrabold text-sm text-slate-900 dark:text-white">Contas Imediatas</h3>
@@ -672,7 +672,7 @@
         {% set todas_imediatas = d.atrasadas + d.vence_hoje %}
         {% if todas_imediatas %}
           {% for item in todas_imediatas[:6] %}
-          <div id="linha-conta-index-{{ item.id }}" class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <div id="linha-conta-index-{{ item.id }}" class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-[#212121] hover:bg-slate-100 dark:hover:bg-[#262626] transition">
 
             <!-- Descrição e Vencimento -->
             <div class="flex items-center gap-2.5 truncate">
@@ -716,7 +716,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 6.75a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.25a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm0 5.25a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"></path>
                   </svg>
                 </button>
-                <div id="dropdown-index-{{ item.id }}" class="hidden absolute right-0 top-8 z-30 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-1 text-xs">
+                <div id="dropdown-index-{{ item.id }}" class="hidden absolute right-0 top-8 z-30 w-44 bg-white dark:bg-[#212121] border border-slate-200 dark:border-[#262626] rounded-xl shadow-xl p-1 text-xs">
                   <a href="/lancamentos?id={{ item.id }}" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
                     <span>✏️</span> Ver em Lançamentos
                   </a>
@@ -743,7 +743,7 @@
     <!-- CARD 11: CALENDÁRIO ANUAL & RESERVAS (RECOLHÍVEL, COMPACTO)       -->
     <!-- ----------------------------------------------------------------- -->
     {% if d.resumo_despesas_anuais %}
-    <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+    <div class="col-span-1 md:col-span-2 lg:col-span-3 bg-white dark:bg-[#171717] border border-slate-200/80 dark:border-[#262626] rounded-2xl p-4 shadow-xs">
       <div class="flex items-center justify-between cursor-pointer select-none" onclick="alternarSecaoAnual()">
         <div class="flex items-center gap-2">
           <span class="text-base">📅</span>
@@ -757,10 +757,10 @@
         </div>
       </div>
 
-      <div id="corpo-secao-anual" class="hidden mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+      <div id="corpo-secao-anual" class="hidden mt-3 pt-3 border-t border-slate-100 dark:border-[#262626]/80">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {% for despesa in d.resumo_despesas_anuais.proximas %}
-          <div class="p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 text-xs">
+          <div class="p-2.5 rounded-xl border border-slate-100 dark:border-[#262626] bg-slate-50 dark:bg-[#212121] text-xs">
             <div class="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200 mb-1">
               <span class="truncate">{{ despesa.nome }}</span>
               <span>{{ despesa.valor_previsto | moeda }}</span>
@@ -785,8 +785,8 @@
 <!-- [ MODAL 2: INFORMAÇÕES DO SALDO E METODOLOGIA ]                      -->
 <!-- ===================================================================== -->
 <div id="modal-info-saldo" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
-    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+  <div class="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#262626]">
       <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
         <span>🏦</span> Metodologia do Saldo em Caixa
       </h3>
@@ -806,7 +806,7 @@
       </p>
     </div>
     <div class="pt-2 text-right">
-      <button onclick="fecharModalInfoSaldo()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
+      <button onclick="fecharModalInfoSaldo()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#212121] text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
     </div>
   </div>
 </div>
@@ -815,8 +815,8 @@
 <!-- [ MODAL 3: INFORMAÇÕES DE PATRIMÔNIO ]                                -->
 <!-- ===================================================================== -->
 <div id="modal-info-patrimonio" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
-    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+  <div class="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#262626]">
       <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
         <span>💎</span> Estrutura do Patrimônio Líquido
       </h3>
@@ -835,7 +835,7 @@
       </p>
     </div>
     <div class="pt-2 text-right">
-      <button onclick="fecharModalInfoPatrimonio()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
+      <button onclick="fecharModalInfoPatrimonio()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#212121] text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
     </div>
   </div>
 </div>
@@ -844,8 +844,8 @@
 <!-- [ MODAL 4: INFORMAÇÕES DE DESPESAS ]                                  -->
 <!-- ===================================================================== -->
 <div id="modal-info-despesas" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
-    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+  <div class="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-3xl w-full max-w-md p-5 shadow-2xl space-y-3">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#262626]">
       <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
         <span>🔴</span> Critério de Despesas do Mês
       </h3>
@@ -860,7 +860,7 @@
       </p>
     </div>
     <div class="pt-2 text-right">
-      <button onclick="fecharModalInfoDespesas()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
+      <button onclick="fecharModalInfoDespesas()" class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-[#212121] text-slate-700 dark:text-slate-200 text-xs font-bold">Entendido</button>
     </div>
   </div>
 </div>
@@ -869,8 +869,8 @@
 <!-- [ MODAL 5: COMPOSIÇÃO DE ENTRADAS & PRODUÇÃO 99 ]                    -->
 <!-- ===================================================================== -->
 <div id="modal-composicao-entradas" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg p-5 shadow-2xl space-y-4">
-    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+  <div class="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-3xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+    <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-[#262626]">
       <div>
         <h3 class="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
           <span>🟢</span> Composição das Entradas do Mês
@@ -882,7 +882,7 @@
 
     <div class="space-y-3">
       <!-- Bloco 1: Receitas Financeiras Reais -->
-      <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2">
+      <div class="p-3 rounded-2xl bg-slate-50 dark:bg-[#212121] border border-slate-100 dark:border-[#262626] space-y-2">
         <div class="flex items-center justify-between font-bold text-xs text-slate-800 dark:text-slate-200">
           <span>Entradas em Conta Recebidas:</span>
           <span class="text-emerald-600 dark:text-emerald-400 font-extrabold">{{ d.detalhes_entradas.total_recebido | moeda }}</span>
@@ -917,7 +917,7 @@
         <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Lançamentos de Entrada no Mês:</h4>
         <div class="max-h-40 overflow-y-auto space-y-1.5 custom-scroll pr-1">
           {% for r in d.detalhes_entradas.itens %}
-          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs">
+          <div class="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-[#212121] text-xs">
             <div>
               <span class="font-bold text-slate-800 dark:text-slate-200 block">{{ r.descricao }}</span>
               <span class="text-[10px] text-slate-500 dark:text-slate-400">{{ r.categoria }} • {{ r.data }}</span>
