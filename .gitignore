@@ -13,9 +13,16 @@ ENV/
 *.db-journal
 *.db-wal
 *.db-shm
+financas.db
 financas_remodelacao*.db
+financas_casa_backup*.db
 temp_*.db
 *.db.bak
+*.sqlite
+*.sqlite3
+
+# Binários e instaladores
+*.exe
 
 # Documentos e extratos confidenciais
 *.pdf

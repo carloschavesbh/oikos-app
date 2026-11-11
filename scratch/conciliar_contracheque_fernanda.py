@@ -170,3 +170,4 @@ print(f"  * SALDO CONSOLIDADO LIVRE: R$ {float(saldo_depois.get('saldo_consolida
 
 conn.close()
 print("\n>>> CONCILIAÇÃO FINALIZADA COM SUCESSO! <<<")
+
