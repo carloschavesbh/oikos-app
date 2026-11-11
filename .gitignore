@@ -16,6 +16,7 @@ ENV/
 financas.db
 financas_remodelacao*.db
 financas_casa_backup*.db
+backups_sync/
 temp_*.db
 *.db.bak
 *.sqlite
