@@ -622,7 +622,7 @@
       </a>
 
       <!-- Botão Atalho Rápido "+ Lançamento" compacto e elegante -->
-      <button type="button" onclick="alternarMenuGlobalTransacoes(event)"
+      <button type="button" onclick="abrirModalTransacaoGlobal('despesa')" id="btn-header-novo-lancamento"
               class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer ml-2 sm:ml-4 active:scale-95">
         <svg class="w-3.5 h-3.5 font-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>
         <span class="hidden sm:inline">+ Lançamento</span>
@@ -828,7 +828,7 @@
 
       <!-- LADO DIREITO: TEMA, AÇÃO GLOBAL "+" & ATUALIZAR -->
       <div class="flex items-center gap-1.5">
-        <button type="button" onclick="alternarMenuGlobalTransacoes(event)" aria-label="Nova transação ou ação rápida"
+        <button type="button" onclick="abrirModalTransacaoGlobal('despesa')" id="btn-mobile-novo-lancamento" aria-label="Nova transação ou ação rápida"
                 class="touch-target p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-sm shadow-emerald-600/30 transition flex items-center justify-center cursor-pointer" title="Nova Transação">
           <svg class="w-4 h-4 font-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
@@ -1774,7 +1774,11 @@
       const modal = document.getElementById('modal-transacao-global');
       if (!modal) return;
 
-      // Popula selects com opções reais
+      // Abre visualmente o modal de imediato para feedback instantâneo ao usuário
+      mudarAbaModalGlobal(tipo || 'despesa');
+      modal.classList.remove('hidden');
+
+      // Popula selects com opções reais da API
       const dados = await carregarOpcoesTransacaoGlobal();
       if (dados) {
         // Data padrão
@@ -1784,13 +1788,22 @@
         const inputDataCartao = document.getElementById('global-cartao-data');
         if (inputDataCartao && !inputDataCartao.value) inputDataCartao.value = dados.hoje;
 
-        // Montagem das contas preservando emojis de cofrinhos e removendo qualquer resíduo de .svg
+        // Montagem das contas e cartões
         popularSelectsContasGlobal(dados.contas);
         popularSelectsAbaCartao(dados);
+
+        // Atualiza selects de categorias na aba ativa
+        mudarAbaModalGlobal(abaAtualGlobal || tipo || 'despesa');
       }
 
-      mudarAbaModalGlobal(tipo || 'despesa');
-      modal.classList.remove('hidden');
+      // Foco automático no campo de valor
+      setTimeout(() => {
+        const inpVal = document.getElementById('global-input-valor') || document.getElementById('global-cartao-valor-simples');
+        if (inpVal && inpVal.offsetParent !== null) {
+          inpVal.focus();
+          if (inpVal.select) inpVal.select();
+        }
+      }, 80);
     }
 
     function fecharModalTransacaoGlobal() {

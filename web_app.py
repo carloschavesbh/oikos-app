@@ -4140,6 +4140,8 @@ async def api_excluir_cartao(request: Request, cartao_id: Optional[int] = None):
 # =============================================================================
 
 @app.get("/pagaleve", response_class=HTMLResponse)
+@app.get("/paga-leve", response_class=HTMLResponse)
+@app.get("/paga_leve", response_class=HTMLResponse)
 async def pagina_pagaleve(request: Request):
     conn = conectar_db()
     cur = conn.cursor()
@@ -5219,10 +5221,8 @@ def calcular_metricas_drive_consolidado(conn, turnos=None, ano=None, mes=None):
     mes_nome = MESES_PT[mes]
 
     cur = conn.cursor()
-    cur.execute("SELECT date(?, 'weekday 0', '-6 days'), date(?, 'weekday 0')", (hoje_str, hoje_str))
-    row_sem = cur.fetchone()
-    inicio_semana = row_sem[0] if row_sem else (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
-    fim_semana = row_sem[1] if row_sem else (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
+    inicio_semana = (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
+    fim_semana = (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
 
     dia_ref = min(hoje.day if eh_mes_atual else ultimo_dia, ultimo_dia)
     data_ref_drive = date(ano, mes, dia_ref)
@@ -5532,11 +5532,9 @@ async def pagina_motorista(
 
     cur = conn.cursor()
 
-    # Início e fim da semana estritamente de SEGUNDA a DOMINGO usando lógica padrão ISO SQLite
-    cur.execute("SELECT date(?, 'weekday 0', '-6 days'), date(?, 'weekday 0')", (hoje_str, hoje_str))
-    row_sem = cur.fetchone()
-    inicio_semana = row_sem[0] if row_sem else (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
-    fim_semana = row_sem[1] if row_sem else (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
+    # Início e fim da semana estritamente de SEGUNDA a DOMINGO calculado de forma agnóstica via Python
+    inicio_semana = (hoje - timedelta(days=hoje.weekday())).strftime("%Y-%m-%d")
+    fim_semana = (hoje + timedelta(days=6 - hoje.weekday())).strftime("%Y-%m-%d")
 
     # Produção 99 consolidada oficial respeitando o mês de referência consultado
     dia_ref = min(hoje.day if eh_mes_atual else ultimo_dia, ultimo_dia)
