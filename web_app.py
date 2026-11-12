@@ -56,6 +56,7 @@ def obter_gemini_client():
 import patrimonio_service
 import objetivos_service
 import planejamento_anual_service
+import database
 
 def obter_caminho_banco() -> str:
     """Resolve o caminho do banco de dados SQLite com seguranca e robustez.
@@ -240,11 +241,10 @@ def garantir_esquema_banco(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def conectar_db() -> sqlite3.Connection:
-    """Abre conexao com o banco de dados oficial com suporte a Row factory e garantia de esquema."""
+def conectar_db(pooled: bool = True):
+    """Abre conexão oficial com suporte transparente a PostgreSQL (Neon) ou SQLite."""
     global _schema_garantido
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = database.conectar_db_hibrido(pooled=pooled, db_path_sqlite=DB_PATH)
     if not _schema_garantido:
         try:
             garantir_esquema_banco(conn)
@@ -553,19 +553,45 @@ def calcular_curva_saldo_dashboard(conn: sqlite3.Connection, hoje: date) -> Dict
     res_hoje = saldo_service.calcular_saldo_consolidado(conn, data_referencia=hoje_str)
     saldo_hoje = float(res_hoje.get("saldo_consolidado", 0.0))
     
+    cur = conn.cursor()
+    dt_inicio_hist = hoje - timedelta(days=7)
+    cur.execute("""
+        SELECT data, tipo, valor FROM transacoes
+        WHERE data > ? AND data <= ? AND pago = 1
+        ORDER BY data DESC
+    """, (dt_inicio_hist.strftime("%Y-%m-%d"), hoje_str))
+    movs_passadas = cur.fetchall()
+
+    movs_por_data = {}
+    for m in movs_passadas:
+        d = str(m[0])[:10]
+        val = float(m[2] or 0.0)
+        tp = m[1]
+        if d not in movs_por_data:
+            movs_por_data[d] = 0.0
+        if tp == "receita":
+            movs_por_data[d] += val
+        elif tp == "despesa":
+            movs_por_data[d] -= val
+
+    saldos_retro = {hoje_str: saldo_hoje}
+    s_corrente = saldo_hoje
+    for i in range(1, 8):
+        d_ant = (hoje - timedelta(days=i)).strftime("%Y-%m-%d")
+        d_depois = (hoje - timedelta(days=i - 1)).strftime("%Y-%m-%d")
+        fluxo = movs_por_data.get(d_depois, 0.0)
+        s_corrente = s_corrente - fluxo
+        saldos_retro[d_ant] = round(s_corrente, 2)
+
     pontos = []
     # 7 dias de histórico
     for i in range(7, 0, -1):
         dt = hoje - timedelta(days=i)
         dt_s = dt.strftime("%Y-%m-%d")
-        try:
-            s = float(saldo_service.calcular_saldo_consolidado(conn, data_referencia=dt_s).get("saldo_consolidado", 0.0))
-        except Exception:
-            s = saldo_hoje
         pontos.append({
             "data": dt.strftime("%d/%m"),
             "data_completa": dt_s,
-            "saldo": s,
+            "saldo": saldos_retro.get(dt_s, saldo_hoje),
             "tipo": "realizado"
         })
     

@@ -1,3 +1,7 @@
+# Variáveis de ambiente e segredos
+.env
+.env.*
+
 # Materiais externos e de referência confidencial
 /Organizze/
 
