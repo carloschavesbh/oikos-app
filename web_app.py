@@ -91,8 +91,9 @@ app = FastAPI(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Garante que nenhum erro interno derrube o FastAPI ou cause tela branca sem tratamento."""
-    import traceback
-    traceback.print_exc()
+    import traceback, sys
+    print(f"[ERRO GLOBAL 500] Rota: {request.method} {request.url.path}", file=sys.stderr, flush=True)
+    print(traceback.format_exc(), file=sys.stderr, flush=True)
     accept = request.headers.get("accept", "")
     if "application/json" in accept or request.url.path.startswith("/api/"):
         return JSONResponse(status_code=500, content={"sucesso": False, "erro": "Erro interno no servidor."})
@@ -241,17 +242,46 @@ def garantir_esquema_banco(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+_ESQUEMA_VERIFICADO = False
+
+
+def garantir_indices_banco(conn) -> None:
+    """Cria índices essenciais para acelerar consultas de dashboard, filtros e contas."""
+    cur = conn.cursor()
+    indices = [
+        "CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes (data)",
+        "CREATE INDEX IF NOT EXISTS idx_transacoes_conta ON transacoes (conta)",
+        "CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes (categoria)",
+        "CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes (pago)",
+    ]
+    for sql_idx in indices:
+        try:
+            cur.execute(sql_idx)
+        except Exception as e:
+            print(f"Aviso ao criar índice: {e}")
+    conn.commit()
+
+
+@app.on_event("startup")
+def inicializar_banco_no_startup():
+    """Executa verificação de esquema e índices apenas uma vez na inicialização do servidor."""
+    global _ESQUEMA_VERIFICADO
+    if _ESQUEMA_VERIFICADO:
+        return
+    try:
+        conn = database.conectar_db_hibrido(pooled=False, db_path_sqlite=DB_PATH)
+        garantir_esquema_banco(conn)
+        garantir_indices_banco(conn)
+        conn.close()
+        _ESQUEMA_VERIFICADO = True
+        print("Esquema e índices verificados com sucesso no startup.", flush=True)
+    except Exception as e:
+        print(f"Aviso ao inicializar esquema no startup: {e}", flush=True)
+
+
 def conectar_db(pooled: bool = True):
     """Abre conexão oficial com suporte transparente a PostgreSQL (Neon) ou SQLite."""
-    global _schema_garantido
-    conn = database.conectar_db_hibrido(pooled=pooled, db_path_sqlite=DB_PATH)
-    if not _schema_garantido:
-        try:
-            garantir_esquema_banco(conn)
-            _schema_garantido = True
-        except Exception as e:
-            print(f"Aviso ao inicializar esquema do banco: {e}")
-    return conn
+    return database.conectar_db_hibrido(pooled=pooled, db_path_sqlite=DB_PATH)
 
 
 def formatar_moeda_br(valor: Any) -> str:

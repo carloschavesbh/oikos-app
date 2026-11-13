@@ -149,11 +149,23 @@ def converter_sql_sqlite_para_postgres(query: str, has_params: bool = False) -> 
 
 
 class PostgresCursorWrapper:
-    """Cursor que encapsula psycopg2.extensions.cursor com suporte a sqlite3.Row e lastrowid."""
-    def __init__(self, raw_cursor: Any, connection: Any):
+    """Cursor que encapsula psycopg2.extensions.cursor com suporte a sqlite3.Row, lastrowid e retry em queda de SSL."""
+    def __init__(self, raw_cursor: Any, connection: Any, wrapper: Any = None):
         self._cursor = raw_cursor
         self._connection = connection
+        self._wrapper = wrapper
         self.lastrowid: Optional[int] = None
+
+    def _executar_com_retry(self, fn_exec):
+        import psycopg2
+        try:
+            return fn_exec()
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as err:
+            if self._wrapper is not None and self._wrapper._reconectar():
+                self._connection = self._wrapper._conn
+                self._cursor = self._connection.cursor()
+                return fn_exec()
+            raise err
 
     def execute(self, query: str, params: Any = None) -> "PostgresCursorWrapper":
         has_params = (params is not None and len(params) > 0) if isinstance(params, (tuple, list, dict)) else (params is not None)
@@ -167,16 +179,17 @@ class PostgresCursorWrapper:
             # Tenta executar com RETURNING id para preencher lastrowid automaticamente
             sql_with_returning = pg_sql.rstrip().rstrip(';') + " RETURNING id"
             try:
-                # Salva um savepoint para recuperar caso a tabela não tenha coluna id
-                self._cursor.execute("SAVEPOINT lastrowid_sp;")
-                if params is not None:
-                    self._cursor.execute(sql_with_returning, params)
-                else:
-                    self._cursor.execute(sql_with_returning)
-                row = self._cursor.fetchone()
-                if row:
-                    self.lastrowid = row[0]
-                self._cursor.execute("RELEASE SAVEPOINT lastrowid_sp;")
+                def _run_insert():
+                    self._cursor.execute("SAVEPOINT lastrowid_sp;")
+                    if params is not None:
+                        self._cursor.execute(sql_with_returning, params)
+                    else:
+                        self._cursor.execute(sql_with_returning)
+                    row = self._cursor.fetchone()
+                    if row:
+                        self.lastrowid = row[0]
+                    self._cursor.execute("RELEASE SAVEPOINT lastrowid_sp;")
+                self._executar_com_retry(_run_insert)
                 return self
             except Exception:
                 # Se falhar (ex: tabela sem coluna id), faz rollback até o savepoint e roda normal
@@ -186,15 +199,18 @@ class PostgresCursorWrapper:
                 except Exception:
                     pass
 
-        if params is not None:
-            self._cursor.execute(pg_sql, params)
-        else:
-            self._cursor.execute(pg_sql)
+        def _run_normal():
+            if params is not None:
+                self._cursor.execute(pg_sql, params)
+            else:
+                self._cursor.execute(pg_sql)
+
+        self._executar_com_retry(_run_normal)
         return self
 
     def executemany(self, query: str, seq_of_params: Any) -> "PostgresCursorWrapper":
         pg_sql = converter_sql_sqlite_para_postgres(query, has_params=True)
-        self._cursor.executemany(pg_sql, seq_of_params)
+        self._executar_com_retry(lambda: self._cursor.executemany(pg_sql, seq_of_params))
         return self
 
     def fetchone(self) -> Optional[CompatRow]:
@@ -246,6 +262,13 @@ import threading
 
 _pg_pool = None
 _pg_pool_lock = threading.Lock()
+_PG_KEEPALIVE_KWARGS = {
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+}
+
 
 def _obter_pool_postgresql(url: str):
     global _pg_pool
@@ -253,25 +276,54 @@ def _obter_pool_postgresql(url: str):
         with _pg_pool_lock:
             if _pg_pool is None:
                 import psycopg2.pool
-                _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=2, maxconn=20, dsn=url)
+                _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=2,
+                    maxconn=20,
+                    dsn=url,
+                    **_PG_KEEPALIVE_KWARGS
+                )
     return _pg_pool
 
 
 class PostgresConnectionWrapper:
     """Wrapper de conexão psycopg2 compatível com a interface do sqlite3.Connection."""
-    def __init__(self, raw_conn: Any, pool: Any = None):
+    def __init__(self, raw_conn: Any, pool: Any = None, dsn_url: Optional[str] = None):
         self._conn = raw_conn
         self._pool = pool
+        self._dsn_url = dsn_url
         self._closed = False
         self.row_factory = None  # Apenas para compatibilidade de atribuição
-        # Define autocommit para emular o comportamento do SQLite e evitar que transações falhadas bloqueiem conexões
         try:
             self._conn.autocommit = True
         except Exception:
             pass
 
+    def _reconectar(self) -> bool:
+        """Descarta conexão morta e abre uma nova conexão limpa."""
+        import psycopg2
+        url = self._dsn_url or DATABASE_URL_POOLED or DATABASE_URL
+        if not url:
+            return False
+        if self._pool is not None:
+            try:
+                self._pool.putconn(self._conn, close=True)
+            except Exception:
+                pass
+        else:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+        try:
+            self._conn = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+            self._conn.autocommit = True
+            self._pool = None  # Nova conexão direta fora do pool antigo
+            return True
+        except Exception:
+            return False
+
     def cursor(self) -> PostgresCursorWrapper:
-        return PostgresCursorWrapper(self._conn.cursor(), self._conn)
+        return PostgresCursorWrapper(self._conn.cursor(), self._conn, wrapper=self)
 
     def execute(self, query: str, params: Any = None) -> PostgresCursorWrapper:
         cur = self.cursor()
@@ -284,7 +336,6 @@ class PostgresConnectionWrapper:
         return cur
 
     def commit(self):
-        # Se autocommit=True, commit explícito não é estritamente necessário mas mantido para compatibilidade
         try:
             if not self._conn.autocommit:
                 self._conn.commit()
@@ -304,7 +355,10 @@ class PostgresConnectionWrapper:
         self._closed = True
         if self._pool is not None:
             try:
-                self._pool.putconn(self._conn)
+                if self._conn.closed:
+                    self._pool.putconn(self._conn, close=True)
+                else:
+                    self._pool.putconn(self._conn)
             except Exception:
                 try:
                     self._pool.putconn(self._conn, close=True)
@@ -327,7 +381,7 @@ class PostgresConnectionWrapper:
 
 
 def conectar_db_hibrido(pooled: bool = True, db_path_sqlite: Optional[str] = None) -> Any:
-    """Retorna uma conexão ativa (PostgreSQL se configurado, ou SQLite como fallback)."""
+    """Retorna uma conexão ativa (PostgreSQL com keepalive/ping, ou SQLite como fallback)."""
     if DB_ENGINE == "postgresql":
         import psycopg2
         url = DATABASE_URL_POOLED if pooled else DATABASE_URL
@@ -335,11 +389,23 @@ def conectar_db_hibrido(pooled: bool = True, db_path_sqlite: Optional[str] = Non
             try:
                 pool = _obter_pool_postgresql(url)
                 raw = pool.getconn()
-                return PostgresConnectionWrapper(raw, pool=pool)
+                try:
+                    if raw.closed:
+                        raise psycopg2.InterfaceError("Conexão do pool estava fechada")
+                    with raw.cursor() as cur_ping:
+                        cur_ping.execute("SELECT 1")
+                    return PostgresConnectionWrapper(raw, pool=pool, dsn_url=url)
+                except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                    try:
+                        pool.putconn(raw, close=True)
+                    except Exception:
+                        pass
+                    raw_nova = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+                    return PostgresConnectionWrapper(raw_nova, pool=None, dsn_url=url)
             except Exception:
                 pass
-        raw = psycopg2.connect(url)
-        return PostgresConnectionWrapper(raw)
+        raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+        return PostgresConnectionWrapper(raw, pool=None, dsn_url=url)
     else:
         import sqlite3
         path = db_path_sqlite or "financas_casa.db"
