@@ -5933,7 +5933,7 @@ async def api_salvar_turno(
                 if h_ini_str and h_fim_str:
                     cur.execute("SELECT SUM(duracao_minutos) FROM turnos_pausas WHERE turno_id = ?", (target_id,))
                     row_sum = cur.fetchone()
-                    tot_p_min = row_sum[0] if (row_sum and row_sum[0]) else 0
+                    tot_p_min = int(row_sum[0]) if (row_sum and row_sum[0] is not None) else 0
                     diff_m_liq = max(0, diff_m - tot_p_min)
                     h_val = round(diff_m_liq / 60.0, 2)
 
