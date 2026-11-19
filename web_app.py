@@ -9626,14 +9626,54 @@ async def api_excluir_subcategoria(subcategoria_id: int):
 async def api_sincronizar_mercadopago(request: Request):
     """Sincroniza movimentações da conta Mercado Pago (Fernanda) via API oficial."""
     data_inicio = "2026-11-19"
+    data_fim = None
     try:
         body = await request.json()
-        if isinstance(body, dict) and body.get("data_inicio"):
-            data_inicio = str(body["data_inicio"]).strip()[:10]
+        if isinstance(body, dict):
+            if body.get("data_inicio"):
+                data_inicio = str(body["data_inicio"]).strip()[:10]
+            if body.get("data_fim"):
+                data_fim = str(body["data_fim"]).strip()[:10]
     except Exception:
         pass
     from services.mercadopago_service import sincronizar_mercadopago
-    resultado = sincronizar_mercadopago(data_inicio=data_inicio)
+    resultado = sincronizar_mercadopago(data_inicio=data_inicio, data_fim=data_fim)
     if resultado.get("status") == "erro":
         return JSONResponse(status_code=500, content=resultado)
     return resultado
+
+
+@app.post("/api/sincronizar/mercadopago/preview")
+async def api_sincronizar_mercadopago_preview(request: Request):
+    """Pré-visualiza e cruza movimentações do Mercado Pago com transações manuais existentes."""
+    hoje_str = date.today().strftime("%Y-%m-%d")
+    data_inicio = hoje_str
+    data_fim = hoje_str
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            if body.get("data_inicio"):
+                data_inicio = str(body["data_inicio"]).strip()[:10]
+            if body.get("data_fim"):
+                data_fim = str(body["data_fim"]).strip()[:10]
+    except Exception:
+        pass
+    from services.mercadopago_service import simular_conciliacao_mp
+    resultado = simular_conciliacao_mp(data_inicio=data_inicio, data_fim=data_fim)
+    if resultado.get("status") == "erro":
+        return JSONResponse(status_code=500, content=resultado)
+    return resultado
+
+
+@app.post("/api/sincronizar/mercadopago/confirmar")
+async def api_sincronizar_mercadopago_confirmar(request: Request):
+    """Efetiva a importação ou vinculação de itens selecionados no modal de conciliação MP."""
+    try:
+        body = await request.json()
+        itens = body.get("itens") if isinstance(body, dict) else []
+    except Exception:
+        itens = []
+    if not isinstance(itens, list):
+        return JSONResponse(status_code=400, content={"status": "erro", "erro": "Lista de itens inválida."})
+    from services.mercadopago_service import confirmar_conciliacao_mp
+    return confirmar_conciliacao_mp(itens)

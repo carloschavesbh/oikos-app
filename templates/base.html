@@ -3627,49 +3627,201 @@
     </div>
   </div>
 
+  <!-- ===================================================================== -->
+  <!-- MODAL DE SINCRONIZAÇÃO E CONCILIAÇÃO INTELIGENTE MERCADO PAGO         -->
+  <!-- ===================================================================== -->
+  <div id="modal-sincronizar-mp" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white dark:bg-[#171717] border border-slate-200 dark:border-[#262626] rounded-3xl w-full max-w-2xl p-5 sm:p-6 shadow-2xl space-y-4 my-6">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#262626] pb-3">
+        <div>
+          <h3 class="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+            <span>🔄</span> Sincronizar Mercado Pago (Fernanda)
+          </h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Escolha o período e revise antes de importar para a conta Mercado Pago.</p>
+        </div>
+        <button type="button" onclick="fecharModalSincronizarMP()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer">✕</button>
+      </div>
+
+      <!-- Atalhos rápidos e datas -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" onclick="definirPeriodoMP('hoje')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#212121] hover:bg-sky-500/20 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2e2e2e] cursor-pointer">Hoje</button>
+          <button type="button" onclick="definirPeriodoMP('7d')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#212121] hover:bg-sky-500/20 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2e2e2e] cursor-pointer">Últimos 7 dias</button>
+          <button type="button" onclick="definirPeriodoMP('mes')" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-[#212121] hover:bg-sky-500/20 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-[#2e2e2e] cursor-pointer">Este mês</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">De</label>
+            <input type="date" id="mp-sync-inicio" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#212121] text-slate-900 dark:text-white text-xs font-semibold">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1">Até</label>
+            <input type="date" id="mp-sync-fim" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 dark:border-[#2e2e2e] bg-white dark:bg-[#212121] text-slate-900 dark:text-white text-xs font-semibold">
+          </div>
+          <button type="button" id="btn-mp-buscar" onclick="buscarPreviewMP()"
+                  class="h-9 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>🔍</span> <span>Buscar Movimentações</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Pré-visualização -->
+      <div id="mp-preview-container" class="hidden space-y-2">
+        <div id="mp-preview-resumo" class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"></div>
+        <div id="mp-preview-lista" class="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-[#262626] border border-slate-200 dark:border-[#262626] rounded-2xl"></div>
+      </div>
+
+      <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-[#262626]">
+        <button type="button" onclick="fecharModalSincronizarMP()" class="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-[#2e2e2e] text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#212121] cursor-pointer">Cancelar</button>
+        <button type="button" id="btn-mp-confirmar" onclick="confirmarImportacaoMP()" disabled
+                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-extrabold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer">
+          <span>✅</span> <span>Confirmar Importação</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
-  async function sincronizarMercadoPagoGlobal(btnEl) {
-    if (btnEl) btnEl.disabled = true;
-    const htmlOrig = btnEl ? btnEl.innerHTML : '';
-    if (btnEl) {
-      btnEl.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>Sincronizando...</span>';
+  let mpPreviewItens = [];
+
+  function _fmtDataISO(d) {
+    return d.toISOString().slice(0, 10);
+  }
+
+  function definirPeriodoMP(tipo) {
+    const hoje = new Date();
+    let ini = new Date(hoje);
+    if (tipo === '7d') {
+      ini.setDate(hoje.getDate() - 6);
+    } else if (tipo === 'mes') {
+      ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     }
+    document.getElementById('mp-sync-inicio').value = _fmtDataISO(ini);
+    document.getElementById('mp-sync-fim').value = _fmtDataISO(hoje);
+  }
+
+  function sincronizarMercadoPagoGlobal() {
+    definirPeriodoMP('hoje');
+    document.getElementById('mp-preview-container').classList.add('hidden');
+    document.getElementById('mp-preview-lista').innerHTML = '';
+    document.getElementById('btn-mp-confirmar').disabled = true;
+    mpPreviewItens = [];
+    document.getElementById('modal-sincronizar-mp').classList.remove('hidden');
+  }
+
+  function fecharModalSincronizarMP() {
+    document.getElementById('modal-sincronizar-mp').classList.add('hidden');
+  }
+
+  async function buscarPreviewMP() {
+    const btn = document.getElementById('btn-mp-buscar');
+    const inicio = document.getElementById('mp-sync-inicio').value;
+    const fim = document.getElementById('mp-sync-fim').value;
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> <span>Buscando...</span>';
     try {
-      const resp = await fetch('/api/sincronizar/mercadopago', {
+      const resp = await fetch('/api/sincronizar/mercadopago/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ data_inicio: inicio, data_fim: fim })
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.status !== 'ok') {
+        alert(data.erro || 'Erro ao buscar movimentações.');
+        return;
+      }
+      mpPreviewItens = data.itens || [];
+      const lista = document.getElementById('mp-preview-lista');
+      const resumo = document.getElementById('mp-preview-resumo');
+      document.getElementById('mp-preview-container').classList.remove('hidden');
+
+      if (mpPreviewItens.length === 0) {
+        resumo.textContent = `Nenhuma movimentação encontrada no período (${data.ignorados_cofrinho} cofrinho(s) ignorado(s)).`;
+        lista.innerHTML = '<div class="p-4 text-center text-xs text-slate-400">Sem registros para importar.</div>';
+        document.getElementById('btn-mp-confirmar').disabled = true;
+        return;
+      }
+
+      const novos = mpPreviewItens.filter(i => i.status_conciliacao === 'novo').length;
+      const dups = mpPreviewItens.filter(i => i.status_conciliacao === 'possivel_duplicado_manual').length;
+      resumo.textContent = `${mpPreviewItens.length} encontrado(s): ${novos} novo(s), ${dups} possível(is) duplicado(s) manual(is) (${data.ignorados_cofrinho} cofrinho ignorado(s)).`;
+
+      lista.innerHTML = mpPreviewItens.map((it, idx) => {
+        const ehSync = it.status_conciliacao === 'ja_sincronizado';
+        const ehDup = it.status_conciliacao === 'possivel_duplicado_manual';
+        const checked = it.status_conciliacao === 'novo' ? 'checked' : '';
+        const disabled = ehSync ? 'disabled' : '';
+        const corVal = it.tipo === 'receita' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        const sinal = it.tipo === 'receita' ? '+' : '-';
+
+        let badge = '<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">Novo</span>';
+        if (ehSync) badge = '<span class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 text-[10px] font-bold">Já sincronizado</span>';
+        if (ehDup) badge = `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold">⚠️ Possível duplicado: ${it.manual_descricao}</span>`;
+
+        return `
+          <label class="flex items-start gap-3 p-3 hover:bg-slate-50 dark:hover:bg-[#1f1f1f] cursor-pointer ${ehSync ? 'opacity-50' : ''}">
+            <input type="checkbox" class="mp-item-chk mt-1 w-4 h-4 rounded text-emerald-600" data-idx="${idx}" ${checked} ${disabled}>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold text-slate-900 dark:text-white truncate">${it.descricao}</span>
+                <span class="text-xs font-extrabold ${corVal} shrink-0">${sinal} R$ ${Number(it.valor).toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div class="flex items-center gap-2 mt-1 flex-wrap">
+                <span class="text-[10px] text-slate-400 font-mono">${it.data}</span>
+                ${badge}
+              </div>
+            </div>
+          </label>`;
+      }).join('');
+
+      document.getElementById('btn-mp-confirmar').disabled = false;
+    } catch (e) {
+      alert('Erro de conexão: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔍</span> <span>Buscar Movimentações</span>';
+    }
+  }
+
+  async function confirmarImportacaoMP() {
+    const chks = document.querySelectorAll('.mp-item-chk:checked');
+    const selecionados = [];
+    chks.forEach(c => {
+      const it = mpPreviewItens[parseInt(c.dataset.idx, 10)];
+      if (!it) return;
+      const acao = it.status_conciliacao === 'possivel_duplicado_manual' ? 'vincular' : 'importar';
+      selecionados.push({ ...it, acao });
+    });
+
+    if (selecionados.length === 0) {
+      alert('Selecione ao menos um item para confirmar.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-mp-confirmar');
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> <span>Salvando...</span>';
+    try {
+      const resp = await fetch('/api/sincronizar/mercadopago/confirmar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itens: selecionados })
       });
       const data = await resp.json();
       if (resp.ok && data.status === 'ok') {
-        const msg = `${data.importados} novo(s) lançamento(s) importado(s). (${data.ignorados_duplicados} duplicado(s), ${data.ignorados_cofrinho} cofrinho ignorado(s))`;
+        fecharModalSincronizarMP();
         if (typeof showToast === 'function') {
-          showToast('Sincronização MP Concluída', msg);
-        } else {
-          alert('Sincronização MP: ' + msg);
+          showToast('Conciliação MP Concluída', `${data.importados} importado(s), ${data.vinculados} vinculado(s).`);
         }
-        if (data.importados > 0) {
-          setTimeout(() => window.location.reload(), 1000);
-        }
+        setTimeout(() => window.location.reload(), 800);
       } else {
-        const errMsg = data.erro || 'Falha ao sincronizar Mercado Pago.';
-        if (typeof showToast === 'function') {
-          showToast('Erro na Sincronização MP', errMsg, true);
-        } else {
-          alert(errMsg);
-        }
+        alert(data.erro || 'Falha ao confirmar importação.');
       }
     } catch (e) {
-      if (typeof showToast === 'function') {
-        showToast('Erro de Conexão', e.message, true);
-      } else {
-        alert('Erro: ' + e.message);
-      }
+      alert('Erro: ' + e.message);
     } finally {
-      if (btnEl) {
-        btnEl.disabled = false;
-        btnEl.innerHTML = htmlOrig;
-      }
+      btn.disabled = false;
+      btn.innerHTML = '<span>✅</span> <span>Confirmar Importação</span>';
     }
   }
 
