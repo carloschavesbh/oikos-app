@@ -3803,22 +3803,29 @@
 
       const novos = mpPreviewItens.filter(i => i.status_conciliacao === 'novo').length;
       const dups = mpPreviewItens.filter(i => i.status_conciliacao === 'possivel_duplicado_manual').length;
-      resumo.textContent = `${mpPreviewItens.length} encontrado(s): ${novos} novo(s), ${dups} possível(is) duplicado(s) manual(is) (${data.ignorados_cofrinho} cofrinho ignorado(s)).`;
+      const transfs = mpPreviewItens.filter(i => i.status_conciliacao === 'transferencia_interna').length;
+      resumo.textContent = `${mpPreviewItens.length} encontrado(s): ${novos} novo(s), ${dups} possível(is) duplicado(s), ${transfs} transferência(s) interna(s) ignorada(s).`;
 
       lista.innerHTML = mpPreviewItens.map((it, idx) => {
         const ehSync = it.status_conciliacao === 'ja_sincronizado';
         const ehDup = it.status_conciliacao === 'possivel_duplicado_manual';
+        const ehTransf = it.status_conciliacao === 'transferencia_interna';
         const checked = it.status_conciliacao === 'novo' ? 'checked' : '';
-        const disabled = ehSync ? 'disabled' : '';
-        const corVal = it.tipo === 'receita' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
-        const sinal = it.tipo === 'receita' ? '+' : '-';
+        const disabled = (ehSync || ehTransf) ? 'disabled' : '';
+        const corVal = ehTransf ? 'text-slate-400' : (it.tipo === 'receita' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+        const sinal = ehTransf ? '⇄' : (it.tipo === 'receita' ? '+' : '-');
+        const badgeTipo = ehTransf
+          ? '<span class="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[10px] font-bold">Transferência Interna (Ignorada)</span>'
+          : (it.tipo === 'receita'
+              ? '<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">Receita</span>'
+              : '<span class="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold">Despesa</span>');
 
-        let badge = '<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">Novo</span>';
+        let badge = '';
         if (ehSync) badge = '<span class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 text-[10px] font-bold">Já sincronizado</span>';
         if (ehDup) badge = `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-bold">⚠️ Possível duplicado: ${it.manual_descricao}</span>`;
 
         return `
-          <label class="flex items-start gap-3 p-3 hover:bg-slate-50 dark:hover:bg-[#1f1f1f] cursor-pointer ${ehSync ? 'opacity-50' : ''}">
+          <label class="flex items-start gap-3 p-3 hover:bg-slate-50 dark:hover:bg-[#1f1f1f] cursor-pointer ${(ehSync || ehTransf) ? 'opacity-50' : ''}">
             <input type="checkbox" class="mp-item-chk mt-1 w-4 h-4 rounded text-emerald-600" data-idx="${idx}" ${checked} ${disabled}>
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
@@ -3827,6 +3834,7 @@
               </div>
               <div class="flex items-center gap-2 mt-1 flex-wrap">
                 <span class="text-[10px] text-slate-400 font-mono">${it.data}</span>
+                ${badgeTipo}
                 ${badge}
               </div>
             </div>

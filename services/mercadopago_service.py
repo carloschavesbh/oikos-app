@@ -13,6 +13,38 @@ MP_USER_ID_FERNANDA = "2489313"
 CONTA_MP_ID = 1
 CONTA_MP_NOME = "Mercado Pago"
 
+PALAVRAS_TRANSFERENCIA_INTERNA = (
+    "carlos alberto",
+    "chaves transportes",
+    "99pay",
+    "99 tecnologia",
+    "cofrinho",
+    "reserva",
+)
+
+
+def _eh_transferencia_interna(item: Dict[str, Any], descricao: str) -> bool:
+    """Identifica transferências internas entre contas próprias (Carlos/Fernanda/99Pay/Cofrinhos)."""
+    if (item.get("operation_type") or "") == "partition_transfer":
+        return True
+
+    poi = item.get("point_of_interaction") or {}
+    tx_data = poi.get("transaction_data") or {}
+    bank_info = tx_data.get("bank_info") or {}
+    payer_info = bank_info.get("payer") or {}
+    collector_info = bank_info.get("collector") or {}
+    payer = item.get("payer") or {}
+
+    textos = [
+        descricao,
+        item.get("description") or "",
+        payer_info.get("long_name") or "",
+        collector_info.get("account_holder_name") or "",
+        f"{payer.get('first_name') or ''} {payer.get('last_name') or ''}",
+    ]
+    blob = " ".join(str(t).lower() for t in textos if t)
+    return any(kw in blob for kw in PALAVRAS_TRANSFERENCIA_INTERNA)
+
 
 def obter_saldo_real_mp() -> Any:
     """Consulta o saldo disponível na API do Mercado Pago. Retorna None se 403/404 ou indisponível."""
@@ -177,7 +209,12 @@ def simular_conciliacao_mp(data_inicio: str, data_fim: str) -> Dict[str, Any]:
         descricao = _extrair_descricao_limpa(item, eh_entrada)
         id_ext = f"mp_{item['id']}"
 
-        if id_ext in ids_existentes:
+        if _eh_transferencia_interna(item, descricao):
+            tipo = "transferencia"
+            status_conc = "transferencia_interna"
+            manual_id = None
+            manual_desc = None
+        elif id_ext in ids_existentes:
             status_conc = "ja_sincronizado"
             manual_id = None
             manual_desc = None
@@ -257,6 +294,10 @@ def confirmar_conciliacao_mp(itens: List[Dict[str, Any]]) -> Dict[str, Any]:
             acao = it.get("acao")
             id_ext = str(it.get("id_externo") or "").strip()
             if not id_ext:
+                continue
+
+            if it.get("tipo") == "transferencia" or it.get("status_conciliacao") == "transferencia_interna":
+                ignorados += 1
                 continue
 
             if acao == "vincular" and it.get("manual_id"):
