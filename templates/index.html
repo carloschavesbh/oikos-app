@@ -25,6 +25,11 @@
 
     <!-- Ações Rápidas do Topo (Sem duplicação do botão 'Nova Transação') -->
     <div class="flex items-center gap-2">
+      <button type="button" onclick="sincronizarMercadoPagoGlobal(this)" title="Sincronizar movimentações do Mercado Pago (Fernanda)"
+              class="touch-target px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-xs font-bold text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span>Sincronizar MP</span>
+      </button>
       <a href="/lancamentos"
          class="touch-target px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#262626] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#262626] transition flex items-center gap-1.5">
         <span>Extrato Completo →</span>

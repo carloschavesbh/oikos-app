@@ -187,6 +187,7 @@ def garantir_esquema_banco(conn: sqlite3.Connection) -> None:
         ("motivo_ajuste", "TEXT"),
         ("status_pagamento", "TEXT DEFAULT 'pendente'"),
         ("status_conciliacao_fatura", "TEXT DEFAULT 'normal'"),
+        ("id_externo", "TEXT"),
     ]
     for col_name, col_type in novas_cols_trans:
         if col_name not in cols_trans:
@@ -253,6 +254,7 @@ def garantir_indices_banco(conn) -> None:
         "CREATE INDEX IF NOT EXISTS idx_transacoes_conta ON transacoes (conta)",
         "CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes (categoria)",
         "CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes (pago)",
+        "CREATE INDEX IF NOT EXISTS idx_transacoes_id_externo ON transacoes (id_externo)",
     ]
     for sql_idx in indices:
         try:
@@ -9618,3 +9620,20 @@ async def api_excluir_subcategoria(subcategoria_id: int):
         return {"sucesso": True, "mensagem": "Subcategoria excluída com sucesso!"}
     finally:
         conn.close()
+
+
+@app.post("/api/sincronizar/mercadopago")
+async def api_sincronizar_mercadopago(request: Request):
+    """Sincroniza movimentações da conta Mercado Pago (Fernanda) via API oficial."""
+    data_inicio = "2026-11-19"
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and body.get("data_inicio"):
+            data_inicio = str(body["data_inicio"]).strip()[:10]
+    except Exception:
+        pass
+    from services.mercadopago_service import sincronizar_mercadopago
+    resultado = sincronizar_mercadopago(data_inicio=data_inicio)
+    if resultado.get("status") == "erro":
+        return JSONResponse(status_code=500, content=resultado)
+    return resultado

@@ -3628,6 +3628,51 @@
   </div>
 
   <script>
+  async function sincronizarMercadoPagoGlobal(btnEl) {
+    if (btnEl) btnEl.disabled = true;
+    const htmlOrig = btnEl ? btnEl.innerHTML : '';
+    if (btnEl) {
+      btnEl.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg><span>Sincronizando...</span>';
+    }
+    try {
+      const resp = await fetch('/api/sincronizar/mercadopago', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await resp.json();
+      if (resp.ok && data.status === 'ok') {
+        const msg = `${data.importados} novo(s) lançamento(s) importado(s). (${data.ignorados_duplicados} duplicado(s), ${data.ignorados_cofrinho} cofrinho ignorado(s))`;
+        if (typeof showToast === 'function') {
+          showToast('Sincronização MP Concluída', msg);
+        } else {
+          alert('Sincronização MP: ' + msg);
+        }
+        if (data.importados > 0) {
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      } else {
+        const errMsg = data.erro || 'Falha ao sincronizar Mercado Pago.';
+        if (typeof showToast === 'function') {
+          showToast('Erro na Sincronização MP', errMsg, true);
+        } else {
+          alert(errMsg);
+        }
+      }
+    } catch (e) {
+      if (typeof showToast === 'function') {
+        showToast('Erro de Conexão', e.message, true);
+      } else {
+        alert('Erro: ' + e.message);
+      }
+    } finally {
+      if (btnEl) {
+        btnEl.disabled = false;
+        btnEl.innerHTML = htmlOrig;
+      }
+    }
+  }
+
   window.addEventListener('load', () => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('demo_modal') === '1') {
