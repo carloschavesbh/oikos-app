@@ -982,7 +982,36 @@
   <script>
     // Registro do Service Worker para PWA
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      async function ajustarSaldoParaMP() {
+    const inp = document.getElementById('mp-saldo-real-input');
+    const valStr = (inp ? inp.value : '').trim();
+    if (!valStr) {
+      alert('Informe o saldo real exibido no aplicativo do Mercado Pago.');
+      return;
+    }
+    try {
+      const resp = await fetch('/api/sincronizar/mercadopago/ajustar-saldo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saldo_real: valStr })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.status === 'ok') {
+        const elSaldo = document.getElementById('mp-saldo-oikos');
+        if (elSaldo) elSaldo.textContent = `R$ ${Number(data.saldo_ajustado).toFixed(2).replace('.', ',')}`;
+        if (typeof showToast === 'function') {
+          showToast('Saldo Ajustado', `Saldo do Mercado Pago no Oikos alinhado para R$ ${Number(data.saldo_ajustado).toFixed(2).replace('.', ',')}.`);
+        }
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        alert(data.erro || 'Falha ao ajustar saldo.');
+      }
+    } catch (e) {
+      alert('Erro: ' + e.message);
+    }
+  }
+
+  window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then(reg => console.log('PWA Service Worker ativo no escopo:', reg.scope))
           .catch(err => console.error('Falha ao registrar PWA Service Worker:', err));
@@ -3666,9 +3695,28 @@
       </div>
 
       <!-- Lista de Pré-visualização -->
-      <div id="mp-preview-container" class="hidden space-y-2">
+      <div id="mp-preview-container" class="hidden space-y-3">
+        <!-- Painel de Conciliação de Saldo Real MP vs Oikos -->
+        <div class="p-3 rounded-2xl bg-slate-50 dark:bg-[#212121] border border-slate-200 dark:border-[#2e2e2e] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-4">
+            <div>
+              <span class="block text-[10px] font-bold uppercase text-slate-400">Saldo no Oikos</span>
+              <span id="mp-saldo-oikos" class="text-sm font-black text-slate-900 dark:text-white">R$ 0,00</span>
+            </div>
+            <div>
+              <label for="mp-saldo-real-input" class="block text-[10px] font-bold uppercase text-sky-600 dark:text-sky-400">Saldo Real no MP (App)</label>
+              <input type="text" id="mp-saldo-real-input" placeholder="Ex: 1500,00"
+                     class="w-32 px-2.5 py-1 rounded-lg border border-slate-300 dark:border-[#333] bg-white dark:bg-[#171717] text-xs font-bold text-slate-900 dark:text-white">
+            </div>
+          </div>
+          <button type="button" onclick="ajustarSaldoParaMP()"
+                  class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[11px] font-extrabold transition cursor-pointer shrink-0">
+            ⚖️ Ajustar Saldo para Bater com MP
+          </button>
+        </div>
+
         <div id="mp-preview-resumo" class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"></div>
-        <div id="mp-preview-lista" class="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-[#262626] border border-slate-200 dark:border-[#262626] rounded-2xl"></div>
+        <div id="mp-preview-lista" class="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-[#262626] border border-slate-200 dark:border-[#262626] rounded-2xl"></div>
       </div>
 
       <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-[#262626]">
@@ -3734,6 +3782,17 @@
       const lista = document.getElementById('mp-preview-lista');
       const resumo = document.getElementById('mp-preview-resumo');
       document.getElementById('mp-preview-container').classList.remove('hidden');
+
+      const elSaldoOikos = document.getElementById('mp-saldo-oikos');
+      const inpSaldoReal = document.getElementById('mp-saldo-real-input');
+      if (elSaldoOikos && data.saldo_oikos !== undefined) {
+        elSaldoOikos.textContent = `R$ ${Number(data.saldo_oikos).toFixed(2).replace('.', ',')}`;
+      }
+      if (inpSaldoReal) {
+        inpSaldoReal.value = (data.saldo_api !== null && data.saldo_api !== undefined)
+          ? Number(data.saldo_api).toFixed(2).replace('.', ',')
+          : '';
+      }
 
       if (mpPreviewItens.length === 0) {
         resumo.textContent = `Nenhuma movimentação encontrada no período (${data.ignorados_cofrinho} cofrinho(s) ignorado(s)).`;
@@ -3822,6 +3881,35 @@
     } finally {
       btn.disabled = false;
       btn.innerHTML = '<span>✅</span> <span>Confirmar Importação</span>';
+    }
+  }
+
+  async function ajustarSaldoParaMP() {
+    const inp = document.getElementById('mp-saldo-real-input');
+    const valStr = (inp ? inp.value : '').trim();
+    if (!valStr) {
+      alert('Informe o saldo real exibido no aplicativo do Mercado Pago.');
+      return;
+    }
+    try {
+      const resp = await fetch('/api/sincronizar/mercadopago/ajustar-saldo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saldo_real: valStr })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.status === 'ok') {
+        const elSaldo = document.getElementById('mp-saldo-oikos');
+        if (elSaldo) elSaldo.textContent = `R$ ${Number(data.saldo_ajustado).toFixed(2).replace('.', ',')}`;
+        if (typeof showToast === 'function') {
+          showToast('Saldo Ajustado', `Saldo do Mercado Pago no Oikos alinhado para R$ ${Number(data.saldo_ajustado).toFixed(2).replace('.', ',')}.`);
+        }
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        alert(data.erro || 'Falha ao ajustar saldo.');
+      }
+    } catch (e) {
+      alert('Erro: ' + e.message);
     }
   }
 

@@ -7,10 +7,33 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 import database
+import saldo_service
 
 MP_USER_ID_FERNANDA = "2489313"
 CONTA_MP_ID = 1
 CONTA_MP_NOME = "Mercado Pago"
+
+
+def obter_saldo_real_mp() -> Any:
+    """Consulta o saldo disponível na API do Mercado Pago. Retorna None se 403/404 ou indisponível."""
+    token = os.getenv("MP_TOKEN_FERNANDA")
+    if not token:
+        return None
+    url = f"https://api.mercadopago.com/users/{MP_USER_ID_FERNANDA}/mercadopago_account/balance"
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "User-Agent": "Oikos-Sync/1.0"
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            val = data.get("available_balance")
+            if val is None:
+                val = data.get("total_amount")
+            return round(float(val), 2) if val is not None else None
+    except Exception:
+        return None
 
 
 def _extrair_descricao_limpa(item: Dict[str, Any], eh_entrada: bool) -> str:
@@ -196,11 +219,22 @@ def simular_conciliacao_mp(data_inicio: str, data_fim: str) -> Dict[str, Any]:
             "manual_descricao": manual_desc,
         })
 
+    conn_s = database.conectar_db_hibrido(pooled=True)
+    try:
+        saldo_info = saldo_service.calcular_saldo_conta(conn_s, CONTA_MP_ID)
+        saldo_oikos = round(float(saldo_info.get("saldo_atual") or 0.0), 2)
+    finally:
+        conn_s.close()
+
+    saldo_api = obter_saldo_real_mp()
+
     return {
         "status": "ok",
         "data_inicio": data_inicio,
         "data_fim": data_fim,
         "ignorados_cofrinho": ignorados_cofrinho,
+        "saldo_oikos": saldo_oikos,
+        "saldo_api": saldo_api,
         "total": len(resultado_itens),
         "itens": resultado_itens,
     }
@@ -252,6 +286,8 @@ def confirmar_conciliacao_mp(itens: List[Dict[str, Any]]) -> Dict[str, Any]:
                 importados += 1
 
         conn.commit()
+        saldo_info = saldo_service.calcular_saldo_conta(conn, CONTA_MP_ID)
+        saldo_oikos = round(float(saldo_info.get("saldo_atual") or 0.0), 2)
     finally:
         conn.close()
 
@@ -260,6 +296,35 @@ def confirmar_conciliacao_mp(itens: List[Dict[str, Any]]) -> Dict[str, Any]:
         "importados": importados,
         "vinculados": vinculados,
         "ignorados": ignorados,
+        "saldo_oikos": saldo_oikos,
+    }
+
+
+def ajustar_saldo_para_mp(saldo_real_mp: float) -> Dict[str, Any]:
+    """
+    Ajusta o marco de saldo (ajustes_saldo) da conta Mercado Pago (id = 1) na data de hoje
+    para que o saldo disponível no Oikos fique 100% idêntico ao saldo real do app Mercado Pago.
+    """
+    hoje_str = datetime.now().strftime("%Y-%m-%d")
+    saldo_alvo = round(float(saldo_real_mp), 2)
+
+    conn = database.conectar_db_hibrido(pooled=True)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO ajustes_saldo (conta_id, data_marco, saldo_informado, observacao)
+            VALUES (?, ?, ?, ?)
+        """, (CONTA_MP_ID, hoje_str, saldo_alvo, "Conciliação automática com Saldo Real Mercado Pago"))
+        conn.commit()
+        saldo_info = saldo_service.calcular_saldo_conta(conn, CONTA_MP_ID)
+        novo_saldo = round(float(saldo_info.get("saldo_atual") or 0.0), 2)
+    finally:
+        conn.close()
+
+    return {
+        "status": "ok",
+        "saldo_ajustado": novo_saldo,
+        "data_marco": hoje_str,
     }
 
 

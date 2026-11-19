@@ -9677,3 +9677,17 @@ async def api_sincronizar_mercadopago_confirmar(request: Request):
         return JSONResponse(status_code=400, content={"status": "erro", "erro": "Lista de itens inválida."})
     from services.mercadopago_service import confirmar_conciliacao_mp
     return confirmar_conciliacao_mp(itens)
+
+
+@app.post("/api/sincronizar/mercadopago/ajustar-saldo")
+async def api_sincronizar_mercadopago_ajustar_saldo(request: Request):
+    """Ajusta o saldo da conta Mercado Pago (id=1) para bater exatamente com o saldo real informado."""
+    try:
+        body = await request.json()
+        saldo_real = converter_valor_monetario(body.get("saldo_real"), default=None)
+    except Exception:
+        saldo_real = None
+    if saldo_real is None:
+        return JSONResponse(status_code=400, content={"status": "erro", "erro": "Informe um saldo real válido."})
+    from services.mercadopago_service import ajustar_saldo_para_mp
+    return ajustar_saldo_para_mp(saldo_real)
