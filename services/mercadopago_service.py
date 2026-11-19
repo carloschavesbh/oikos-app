@@ -58,7 +58,7 @@ def sincronizar_mercadopago(data_inicio: str = "2026-11-19") -> Dict[str, Any]:
     })
 
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore")[:300]

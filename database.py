@@ -389,19 +389,14 @@ def conectar_db_hibrido(pooled: bool = True, db_path_sqlite: Optional[str] = Non
             try:
                 pool = _obter_pool_postgresql(url)
                 raw = pool.getconn()
-                try:
-                    if raw.closed:
-                        raise psycopg2.InterfaceError("Conexão do pool estava fechada")
-                    with raw.cursor() as cur_ping:
-                        cur_ping.execute("SELECT 1")
-                    return PostgresConnectionWrapper(raw, pool=pool, dsn_url=url)
-                except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                if raw.closed:
                     try:
                         pool.putconn(raw, close=True)
                     except Exception:
                         pass
-                    raw_nova = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
-                    return PostgresConnectionWrapper(raw_nova, pool=None, dsn_url=url)
+                    raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+                    return PostgresConnectionWrapper(raw, pool=None, dsn_url=url)
+                return PostgresConnectionWrapper(raw, pool=pool, dsn_url=url)
             except Exception:
                 pass
         raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
