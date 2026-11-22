@@ -985,10 +985,19 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
     except Exception:
         resumo_patrimonio = None
 
-    # 11. Resumo Anual e Despesas Eventuais
+    # 11. Resumo Anual e Despesas Eventuais (com cache leve de 60s para evitar N+1 no dashboard)
     try:
         import planejamento_anual_service
-        cal_resumo = planejamento_anual_service.obter_calendario_anual(conn, ano_atual, mes_atual)
+        import time as _t_cal
+        _cal_key = (ano_atual, mes_atual)
+        _cal_cache = getattr(coletar_dados_dashboard, "_cal_cache", {})
+        _hit = _cal_cache.get(_cal_key)
+        if _hit and (_t_cal.time() - _hit[0]) < 60.0:
+            cal_resumo = _hit[1]
+        else:
+            cal_resumo = planejamento_anual_service.obter_calendario_anual(conn, ano_atual, mes_atual)
+            _cal_cache[_cal_key] = (_t_cal.time(), cal_resumo)
+            coletar_dados_dashboard._cal_cache = _cal_cache
         proximas_despesas_resumo = [d for d in cal_resumo["todas_despesas"] if d["status"] != "paga"][:4]
         resumo_despesas_anuais = {
             "total_previsto": cal_resumo["total_geral_previsto"],
@@ -3737,10 +3746,11 @@ def materializar_parcelas_futuras_cartao(conn: sqlite3.Connection) -> None:
 @app.get("/cartoes", response_class=HTMLResponse)
 async def pagina_cartoes(
     request: Request,
-    c: Optional[int] = Query(None),
+    c: Optional[str] = Query(None),
     mes: Optional[int] = Query(None),
     ano: Optional[int] = Query(None)
 ):
+    c = int(c.strip()) if (c and c.strip().isdigit()) else None
     conn = conectar_db()
     hoje = date.today()
 
