@@ -7155,9 +7155,10 @@ async def api_baixar_conta(request: Request, transacao_id: Optional[int] = None)
 @app.post("/api/lancamentos/excluir")
 @app.post("/contas/excluir")
 @app.post("/api/contas/excluir")
-async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None):
+async def api_excluir_conta(request: Request, transacao_id: Optional[str] = None):
     """
-    Exclui ou cancela conta a pagar / despesa recorrente no banco financas_casa.db:
+    Exclui ou cancela conta a pagar / despesa recorrente no banco:
+    - Suporta IDs físicos (int) e IDs virtuais de projeção recorrente (ex: 'rec_123', 'virtual_123').
     - Escopo 'pontual': exclui apenas a ocorrência selecionada do mês.
     - Escopo 'recorrente': exclui a ocorrência atual e encerra/cancela as ocorrências futuras da regra.
     """
@@ -7165,19 +7166,20 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
     try:
         escopo = "pontual"
         content_type = request.headers.get("content-type", "")
+        raw_id = transacao_id
 
-        if not transacao_id:
+        if not raw_id:
             if "application/json" in content_type:
                 try:
                     payload = await request.json()
-                    transacao_id = int(payload.get("transacao_id") or payload.get("id") or 0)
+                    raw_id = str(payload.get("transacao_id") or payload.get("id") or "")
                     escopo = str(payload.get("escopo", "pontual")).strip().lower()
                 except Exception:
                     pass
             else:
                 try:
                     form = await request.form()
-                    transacao_id = int(form.get("transacao_id") or form.get("id") or 0)
+                    raw_id = str(form.get("transacao_id") or form.get("id") or "")
                     escopo = str(form.get("escopo", "pontual")).strip().lower()
                 except Exception:
                     pass
@@ -7190,14 +7192,32 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[int] = None
                 except Exception:
                     pass
 
-        if not transacao_id:
+        if not raw_id:
             raise HTTPException(status_code=400, detail="ID da transação não fornecido.")
 
+        raw_str = str(raw_id).strip()
+        if not raw_str.isdigit():
+            # Projeção virtual (ex: 'rec_12', 'virtual_45')
+            import re as _re
+            m_num = _re.search(r"(\d+)", raw_str)
+            cur = conn.cursor()
+            if m_num:
+                rec_id = int(m_num.group(1))
+                for tbl_rec in ("despesas_recorrentes", "recorrencias"):
+                    try:
+                        cur.execute(f"UPDATE {tbl_rec} SET ativo = 0 WHERE id = ?", (rec_id,))
+                    except Exception:
+                        pass
+            conn.commit()
+            return {"sucesso": True, "id": raw_str, "mensagem": "Projeção recorrente removida com sucesso."}
+
+        transacao_id_int = int(raw_str)
         cur = conn.cursor()
-        cur.execute("SELECT * FROM transacoes WHERE id = ?", (transacao_id,))
+        cur.execute("SELECT * FROM transacoes WHERE id = ?", (transacao_id_int,))
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Lançamento não encontrado no banco de dados.")
+        transacao_id = transacao_id_int
 
         desc = row["descricao"]
         dt = row["data"]
