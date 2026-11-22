@@ -3933,6 +3933,69 @@
   });
   </script>
 
+  <!-- Barra de progresso superior instantânea + Badge Carregando -->
+  <div id="oikos-top-progress-bar" class="fixed top-0 left-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-400 z-[9999] transition-all duration-300 ease-out pointer-events-none opacity-0" style="width: 0%;"></div>
+  <div id="oikos-loading-pill" class="hidden fixed top-3 right-4 z-[9999] px-3 py-1.5 rounded-full bg-slate-900/90 dark:bg-[#212121]/95 text-white text-[11px] font-bold shadow-lg border border-emerald-500/40 flex items-center gap-2 pointer-events-none backdrop-blur-sm">
+    <svg class="w-3.5 h-3.5 animate-spin text-emerald-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+    <span>Carregando...</span>
+  </div>
+
+  <script>
+  (function() {
+    let _progressTimer = null;
+    window.iniciarFeedbackCarregamento = function() {
+      const bar = document.getElementById('oikos-top-progress-bar');
+      const pill = document.getElementById('oikos-loading-pill');
+      const mainEl = document.querySelector('main');
+      if (bar) {
+        bar.style.opacity = '1';
+        bar.style.width = '35%';
+        clearTimeout(_progressTimer);
+        _progressTimer = setTimeout(() => { if (bar) bar.style.width = '78%'; }, 180);
+      }
+      if (pill) pill.classList.remove('hidden');
+      if (mainEl) mainEl.classList.add('opacity-60', 'pointer-events-none', 'transition-opacity', 'duration-150');
+    };
+
+    window.addEventListener('pageshow', () => {
+      const bar = document.getElementById('oikos-top-progress-bar');
+      const pill = document.getElementById('oikos-loading-pill');
+      const mainEl = document.querySelector('main');
+      if (bar) { bar.style.opacity = '0'; bar.style.width = '0%'; }
+      if (pill) pill.classList.add('hidden');
+      if (mainEl) mainEl.classList.remove('opacity-60', 'pointer-events-none');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      const a = e.target.closest('a[href]');
+      if (!a) return;
+      const href = a.getAttribute('href') || '';
+      if (!href || href.startsWith('#') || href.startsWith('javascript:') || a.target === '_blank' || a.hasAttribute('download')) return;
+      window.iniciarFeedbackCarregamento();
+    }, true);
+
+    document.addEventListener('submit', (e) => {
+      const form = e.target;
+      if (form && !form.hasAttribute('onsubmit')) {
+        window.iniciarFeedbackCarregamento();
+        const btns = form.querySelectorAll('button[type="submit"]');
+        btns.forEach(b => { b.disabled = true; });
+      }
+    }, true);
+
+    document.addEventListener('change', (e) => {
+      const el = e.target;
+      if (el && el.tagName === 'SELECT') {
+        const onch = el.getAttribute('onchange') || '';
+        if (onch.includes('location')) {
+          window.iniciarFeedbackCarregamento();
+        }
+      }
+    }, true);
+  })();
+  </script>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>

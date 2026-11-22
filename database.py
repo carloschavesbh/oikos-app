@@ -14,6 +14,7 @@ Suporta transparentemente SQLite local e PostgreSQL na nuvem (Neon Cloud).
 import os
 import re
 import sys
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Carrega variáveis do arquivo .env se presente
@@ -148,13 +149,36 @@ def converter_sql_sqlite_para_postgres(query: str, has_params: bool = False) -> 
     return res
 
 
+_META_CACHE: Dict[Tuple[str, Any], Tuple[float, List[CompatRow]]] = {}
+_META_CACHE_TTL = 60.0
+_TABELAS_ESTATICAS = ("contas_config", "grupos_categoria", "subcategorias", "categorias", "cartoes")
+
+
+def _eh_query_cacheavel(sql: str) -> bool:
+    s = sql.strip().lower()
+    if not s.startswith("select "):
+        return False
+    if "join " in s or "transacoes" in s or "turnos" in s:
+        return False
+    return any(re.search(rf"\b{t}\b", s) for t in _TABELAS_ESTATICAS)
+
+
+def _invalidar_cache_se_mutacao(sql: str) -> None:
+    s = sql.strip().lower()
+    if s.startswith(("insert ", "update ", "delete ", "alter ", "drop ")):
+        if any(re.search(rf"\b{t}\b", s) for t in _TABELAS_ESTATICAS):
+            _META_CACHE.clear()
+
+
 class PostgresCursorWrapper:
-    """Cursor que encapsula psycopg2.extensions.cursor com suporte a sqlite3.Row, lastrowid e retry em queda de SSL."""
+    """Cursor que encapsula psycopg2.extensions.cursor com suporte a sqlite3.Row, lastrowid, cache e retry em queda de SSL."""
     def __init__(self, raw_cursor: Any, connection: Any, wrapper: Any = None):
         self._cursor = raw_cursor
         self._connection = connection
         self._wrapper = wrapper
         self.lastrowid: Optional[int] = None
+        self._cached_rows: Optional[List[CompatRow]] = None
+        self._cached_idx: int = 0
 
     def _executar_com_retry(self, fn_exec):
         import psycopg2
@@ -171,6 +195,18 @@ class PostgresCursorWrapper:
         has_params = (params is not None and len(params) > 0) if isinstance(params, (tuple, list, dict)) else (params is not None)
         pg_sql = converter_sql_sqlite_para_postgres(query, has_params=has_params)
         self.lastrowid = None
+        self._cached_rows = None
+        self._cached_idx = 0
+
+        _invalidar_cache_se_mutacao(pg_sql)
+
+        if _eh_query_cacheavel(pg_sql):
+            p_key = tuple(params) if isinstance(params, (list, tuple)) else params
+            cache_key = (pg_sql, p_key)
+            hit = _META_CACHE.get(cache_key)
+            if hit and (time.time() - hit[0]) < _META_CACHE_TTL:
+                self._cached_rows = hit[1]
+                return self
 
         is_insert = bool(re.match(r'^\s*INSERT\s+INTO\b', pg_sql, flags=re.IGNORECASE))
         has_returning = 'RETURNING' in pg_sql.upper()
@@ -206,6 +242,14 @@ class PostgresCursorWrapper:
                 self._cursor.execute(pg_sql)
 
         self._executar_com_retry(_run_normal)
+        if _eh_query_cacheavel(pg_sql):
+            rows_raw = self._cursor.fetchall()
+            desc = self._cursor.description
+            compat_list = [CompatRow(desc, r) for r in rows_raw] if rows_raw else []
+            p_key = tuple(params) if isinstance(params, (list, tuple)) else params
+            _META_CACHE[(pg_sql, p_key)] = (time.time(), compat_list)
+            self._cached_rows = compat_list
+            self._cached_idx = 0
         return self
 
     def executemany(self, query: str, seq_of_params: Any) -> "PostgresCursorWrapper":
@@ -214,12 +258,22 @@ class PostgresCursorWrapper:
         return self
 
     def fetchone(self) -> Optional[CompatRow]:
+        if self._cached_rows is not None:
+            if self._cached_idx < len(self._cached_rows):
+                r = self._cached_rows[self._cached_idx]
+                self._cached_idx += 1
+                return r
+            return None
         row = self._cursor.fetchone()
         if row is None:
             return None
         return CompatRow(self._cursor.description, row)
 
     def fetchall(self) -> List[CompatRow]:
+        if self._cached_rows is not None:
+            res = self._cached_rows[self._cached_idx:]
+            self._cached_idx = len(self._cached_rows)
+            return res
         rows = self._cursor.fetchall()
         if not rows:
             return []

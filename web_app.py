@@ -88,6 +88,18 @@ app = FastAPI(
     version="2.0.0"
 )
 
+
+@app.middleware("http")
+async def adicionar_server_timing(request: Request, call_next):
+    import time as _t
+    t0 = _t.perf_counter()
+    response = await call_next(request)
+    dur_ms = round((_t.perf_counter() - t0) * 1000.0, 1)
+    response.headers["Server-Timing"] = f"app;dur={dur_ms}"
+    if dur_ms > 500 and not request.url.path.startswith("/static"):
+        print(f"[Server-Timing] {request.method} {request.url.path} -> {dur_ms}ms", flush=True)
+    return response
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Garante que nenhum erro interno derrube o FastAPI ou cause tela branca sem tratamento."""
