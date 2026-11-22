@@ -1102,7 +1102,7 @@ def coletar_dados_dashboard() -> Dict[str, Any]:
 # =============================================================================
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+def index(request: Request):
     dados = coletar_dados_dashboard()
     return templates.TemplateResponse(request=request, name="index.html", context={"d": dados, "active_tab": "visao_geral"})
 
@@ -7207,19 +7207,32 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[str] = None
 
         raw_str = str(raw_id).strip()
         if not raw_str.isdigit():
-            # Projeção virtual (ex: 'rec_12', 'virtual_45')
+            # Projeção virtual (ex: 'rec_12', 'rec_12_2026-11', 'virtual_45')
             import re as _re
             m_num = _re.search(r"(\d+)", raw_str)
+            m_mes = _re.search(r"(\d{4}-\d{2})", raw_str)
+            data_cancel = f"{m_mes.group(1)}-01" if m_mes else date.today().strftime("%Y-%m-%d")
             cur = conn.cursor()
-            if m_num:
-                rec_id = int(m_num.group(1))
-                for tbl_rec in ("despesas_recorrentes", "recorrencias"):
-                    try:
-                        cur.execute(f"UPDATE {tbl_rec} SET ativo = 0 WHERE id = ?", (rec_id,))
-                    except Exception:
-                        pass
-            conn.commit()
-            return {"sucesso": True, "id": raw_str, "mensagem": "Projeção recorrente removida com sucesso."}
+            try:
+                desc_rec = raw_str
+                cat_rec = "Recorrência"
+                val_rec = 0.0
+                if m_num:
+                    cur.execute("SELECT descricao, categoria, valor FROM transacoes WHERE id = ?", (int(m_num.group(1)),))
+                    r_rec = cur.fetchone()
+                    if r_rec:
+                        desc_rec = r_rec["descricao"]
+                        cat_rec = r_rec["categoria"] or "Recorrência"
+                        val_rec = float(r_rec["valor"] or 0.0)
+                cur.execute("""
+                    INSERT INTO regras_recorrentes_canceladas (descricao, categoria, valor, data_cancelamento, motivo, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (desc_rec, cat_rec, val_rec, data_cancel, f"Exclusão pontual ({raw_str})", datetime.datetime.now().isoformat()))
+                conn.commit()
+                return {"sucesso": True, "id": raw_str, "mensagem": f"Ocorrência '{desc_rec}' removida para o mês selecionado."}
+            except Exception as e_rec:
+                conn.rollback()
+                raise HTTPException(status_code=500, detail=f"Erro ao cancelar ocorrência recorrente: {e_rec}")
 
         transacao_id_int = int(raw_str)
         cur = conn.cursor()

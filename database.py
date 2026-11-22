@@ -445,16 +445,32 @@ def conectar_db_hibrido(pooled: bool = True, db_path_sqlite: Optional[str] = Non
                 pool = _obter_pool_postgresql(url)
                 raw = pool.getconn()
                 if raw.closed:
+                    print("[POOL WARN] Conexão retirada do pool estava fechada; descartando e abrindo nova.", file=sys.stderr, flush=True)
                     try:
                         pool.putconn(raw, close=True)
+                    except Exception as e_put:
+                        print(f"[POOL WARN] Erro ao descartar conexão fechada: {e_put}", file=sys.stderr, flush=True)
+                    raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+                    try:
+                        with raw.cursor() as c_to:
+                            c_to.execute("SET statement_timeout = 8000")
                     except Exception:
                         pass
-                    raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
                     return PostgresConnectionWrapper(raw, pool=None, dsn_url=url)
+                try:
+                    with raw.cursor() as c_to:
+                        c_to.execute("SET statement_timeout = 8000")
+                except Exception:
+                    pass
                 return PostgresConnectionWrapper(raw, pool=pool, dsn_url=url)
-            except Exception:
-                pass
+            except Exception as e_pool:
+                print(f"[POOL WARN] Falha no getconn() do pool ({e_pool}); caindo para conexão direta.", file=sys.stderr, flush=True)
         raw = psycopg2.connect(url, **_PG_KEEPALIVE_KWARGS)
+        try:
+            with raw.cursor() as c_to:
+                c_to.execute("SET statement_timeout = 8000")
+        except Exception:
+            pass
         return PostgresConnectionWrapper(raw, pool=None, dsn_url=url)
     else:
         import sqlite3

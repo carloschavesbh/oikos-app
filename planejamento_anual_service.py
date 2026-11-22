@@ -79,6 +79,9 @@ MAPEAMENTO_PADRAO_NATUREZA = {
 
 def inicializar_tabelas_renda_e_anual(conn: sqlite3.Connection) -> None:
     """Cria as tabelas necessárias de renda variável, cenários e despesas eventuais."""
+    if getattr(inicializar_tabelas_renda_e_anual, "_done", False):
+        return
+    inicializar_tabelas_renda_e_anual._done = True
     cur = conn.cursor()
 
     # 1. Classificação de natureza das despesas (atributo separado)
@@ -919,7 +922,6 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
     Gera a visão dos próximos 12 meses com cálculo real de contribuições e
     diferenciação explícita entre saldo do cofrinho, distribuição teórica e valor efetivamente destinado.
     """
-    inicializar_tabelas_renda_e_anual(conn)
     cur = conn.cursor()
 
     hoje = datetime.date.today()
@@ -948,20 +950,29 @@ def obter_calendario_anual(conn: sqlite3.Connection, ano_inicio: Optional[int] =
 
     mapa_meses = {item["mes_key"]: item for item in meses_12}
 
-    # Carrega cofrinhos disponíveis
+    # Carrega cofrinhos disponíveis e saldos em lote (sem N+1)
     cur.execute("SELECT id, nome, saldo_confirmado, meta_valor, objetivo, conta_config_id FROM cofrinhos")
     rows_cof = cur.fetchall()
+    saldos_por_conta = {}
+    try:
+        import saldo_service
+        res_cons = saldo_service.calcular_saldo_consolidado(conn)
+        saldos_por_conta = {c["conta_id"]: float(c.get("saldo_atual") or 0.0) for c in res_cons.get("contas", [])}
+    except Exception:
+        pass
+
     cofrinhos_dict = {}
     for r in rows_cof:
         cof_id_val = r[0]
-        s_disp = obter_saldo_disponivel_cofrinho(conn, cof_id_val)
+        conta_cfg_id = r[5]
+        s_disp = saldos_por_conta.get(conta_cfg_id, float(r[2] or 0.0)) if conta_cfg_id else float(r[2] or 0.0)
         cofrinhos_dict[cof_id_val] = {
             "id": cof_id_val,
             "nome": r[1],
             "saldo_confirmado": s_disp,
             "meta_valor": float(r[3] or 0.0),
             "objetivo": r[4],
-            "conta_config_id": r[5],
+            "conta_config_id": conta_cfg_id,
             "compromissos_vinculados": []
         }
 
