@@ -2253,10 +2253,49 @@ async def api_editar_lancamento_unificado(
     if not tid_raw or str(tid_raw).strip() in ("", "editar"):
         return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "ID do lançamento não informado."})
 
-    try:
-        tid = int(tid_raw)
-    except Exception:
-        return JSONResponse(status_code=400, content={"sucesso": False, "status": "erro", "erro": "ID inválido."})
+    tid_str = str(tid_raw).strip()
+    if not tid_str.isdigit():
+        # Edição pontual de ocorrência projetada (ID virtual não numérico):
+        # Cria um lançamento real só para aquele mês e marca a ocorrência na recorrência como substituída.
+        import re as _re
+        conn = conectar_db()
+        try:
+            cur = conn.cursor()
+            desc_nova = str(data.get("descricao") or "Lançamento Recorrente").strip()
+            val_novo = converter_valor_monetario(data.get("valor") or data.get("valor_original") or 0.0)
+            dt_nova = str(data.get("data") or date.today().strftime("%Y-%m-%d"))[:10]
+            cat_nova = str(data.get("categoria") or "Outros Gastos").strip()
+            subcat_nova = str(data.get("subcategoria") or "").strip() or None
+            tipo_novo = str(data.get("tipo") or "despesa").strip()
+            conta_id_novo = int(data.get("conta_id") or 1) if str(data.get("conta_id") or "").isdigit() else 1
+            conta_nome_novo = str(data.get("conta") or "Mercado Pago").strip()
+            pago_novo = 1 if str(data.get("pago") or "0") in ("1", "true", "True", "pago") else 0
+            st_pag = "pago" if pago_novo == 1 else "pendente"
+
+            cur.execute("""
+                INSERT INTO transacoes (
+                    data, descricao, valor, tipo, categoria, subcategoria, conta, conta_id,
+                    pago, status_pagamento, afeta_saldo_bancario, origem
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'recorrencia_editada')
+            """, (dt_nova, desc_nova, val_novo, tipo_novo, cat_nova, subcat_nova, conta_nome_novo, conta_id_novo, pago_novo, st_pag))
+            novo_id = cur.lastrowid
+
+            m_mes = _re.search(r"(\d{4}-\d{2})", tid_str)
+            data_cancel = f"{m_mes.group(1)}-01" if m_mes else f"{dt_nova[:7]}-01"
+            cur.execute("""
+                INSERT INTO regras_recorrentes_canceladas (descricao, categoria, valor, data_cancelamento, motivo, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (desc_nova, cat_nova, val_novo, data_cancel, f"Substituída por lançamento #{novo_id} ({tid_str})", datetime.datetime.now().isoformat()))
+
+            conn.commit()
+            return {"sucesso": True, "id": novo_id, "mensagem": f"Ocorrência salva com sucesso para {dt_nova}!"}
+        except Exception as e_virt:
+            conn.rollback()
+            return JSONResponse(status_code=500, content={"sucesso": False, "status": "erro", "erro": f"Erro ao salvar ocorrência: {e_virt}"})
+        finally:
+            conn.close()
+
+    tid = int(tid_str)
 
     conn = conectar_db()
     try:
@@ -7362,32 +7401,42 @@ async def api_excluir_conta(request: Request, transacao_id: Optional[str] = None
 
 
 @app.post("/api/meta-horas")
-async def api_salvar_meta_horas(request: Request, horas: Optional[float] = Form(None)):
+async def api_salvar_meta_horas(request: Request, horas: Optional[str] = Form(None)):
     """
     Atualiza as horas de meta de hoje e retorna todos os indicadores dependentes recalculados
     (meta em reais a R$ 35/h, faturamento, restante, cobertura e horas restantes).
     Suporta Content-Type application/json e multipart/form-data.
     """
-    valor_horas = horas
-    if valor_horas is None:
+    raw_horas = horas
+    if raw_horas is None:
         try:
             content_type = request.headers.get("content-type", "")
             if "application/json" in content_type:
                 payload = await request.json()
-                valor_horas = float(payload.get("horas", 0.0))
+                raw_horas = payload.get("horas")
             else:
                 form = await request.form()
-                valor_horas = float(form.get("horas", 0.0))
+                raw_horas = form.get("horas")
         except Exception:
-            raise HTTPException(status_code=400, detail="Formato de requisição inválido.")
+            return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Formato de requisição inválido."})
 
-    if valor_horas is None or valor_horas < 0.5 or valor_horas > 16.0:
-        raise HTTPException(status_code=400, detail="Horas inválidas (permitido entre 0.5h e 16h).")
+    if raw_horas is None or str(raw_horas).strip() == "":
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Informe a quantidade de horas (entre 0,5h e 16h)."})
+
+    try:
+        valor_horas = float(str(raw_horas).strip().replace(",", "."))
+    except Exception:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Valor de horas inválido."})
+
+    if valor_horas < 0.5 or valor_horas > 16.0:
+        return JSONResponse(status_code=400, content={"sucesso": False, "erro": "Horas inválidas (permitido entre 0,5h e 16h)."})
 
     conn = conectar_db()
     try:
         cur = conn.cursor()
-        cur.execute("INSERT OR REPLACE INTO config_dashboard (chave, valor) VALUES (?, ?)", ("horas_hoje_planejadas", str(valor_horas)))
+        cur.execute("UPDATE config_dashboard SET valor = ? WHERE chave = ?", (str(valor_horas), "horas_hoje_planejadas"))
+        if cur.rowcount == 0:
+            cur.execute("INSERT INTO config_dashboard (chave, valor) VALUES (?, ?)", ("horas_hoje_planejadas", str(valor_horas)))
         conn.commit()
 
         foco = obter_foco_hoje(conn)

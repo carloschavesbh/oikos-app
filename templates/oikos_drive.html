@@ -2536,7 +2536,7 @@
   // --- Gravação e Atualização Dinâmica da Meta de Horas (Foco de Hoje) ---
   async function salvarMetaHorasDrive() {
     const input = document.getElementById('drive-input-horas-meta');
-    const val = parseFloat(input?.value);
+    const val = parseFloat(String(input?.value || '').replace(',', '.'));
     if (isNaN(val) || val < 0.5 || val > 16) {
       if (typeof showToast === 'function') {
         showToast('Valor Inválido', 'Informe entre 0,5h e 16,0h.', true);
